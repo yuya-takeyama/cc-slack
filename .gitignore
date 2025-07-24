@@ -32,3 +32,6 @@ go.work.sum
 # .vscode/
 
 tmp
+
+**/.claude/settings.local.json
+CLAUDE.local.json
