@@ -111,18 +111,18 @@ type Config struct {
 func loadConfig() *Config {
 	config := &Config{
 		Port:               getEnv("CC_SLACK_PORT", "8080"),
-		SlackToken:         getEnv("SLACK_BOT_TOKEN", ""),
-		SlackSigningSecret: getEnv("SLACK_SIGNING_SECRET", ""),
+		SlackToken:         getEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
+		SlackSigningSecret: getEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
 		BaseURL:            getEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
 		DefaultWorkDir:     getEnv("CC_SLACK_DEFAULT_WORKDIR", "/tmp/cc-slack-workspace"),
 	}
 
 	// Validate required fields
 	if config.SlackToken == "" {
-		log.Fatal("SLACK_BOT_TOKEN is required")
+		log.Fatal("CC_SLACK_SLACK_BOT_TOKEN is required")
 	}
 	if config.SlackSigningSecret == "" {
-		log.Fatal("SLACK_SIGNING_SECRET is required")
+		log.Fatal("CC_SLACK_SLACK_SIGNING_SECRET is required")
 	}
 
 	return config

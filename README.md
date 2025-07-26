@@ -25,8 +25,8 @@ cc-slack は Claude Code と Slack 上でインタラクションするための
 
 ```bash
 # 必須
-export SLACK_BOT_TOKEN=xoxb-your-bot-token
-export SLACK_SIGNING_SECRET=your-signing-secret
+export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
+export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
 
 # オプション
 export CC_SLACK_PORT=8080

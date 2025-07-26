@@ -365,8 +365,8 @@ func (b *MessageBatcher) Add(msg string) {
 
 ```bash
 # Slack 設定
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_SIGNING_SECRET=...
+CC_SLACK_SLACK_BOT_TOKEN=xoxb-...
+CC_SLACK_SLACK_SIGNING_SECRET=...
 
 # cc-slack 設定
 CC_SLACK_PORT=8080
@@ -374,10 +374,10 @@ CC_SLACK_DEFAULT_WORKDIR=/path/to/default/workspace
 CC_SLACK_BASE_URL=http://localhost:8080  # MCP接続用のベースURL
 
 # Claude Code 設定
-CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
+CC_SLACK_CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
 
 # MCP 設定
-MCP_SERVER_NAME=cc-slack
+CC_SLACK_MCP_SERVER_NAME=cc-slack
 ```
 
 ### Claude Code の MCP 設定
