@@ -769,9 +769,11 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 - [x] **MCP Server の Streamable HTTP 実装**
   - [x] Streamable HTTP エンドポイントの実装（GET/POST両対応）
-  - [x] approval_prompt ツールの実装（Slack統合は未完）
+  - [x] approval_prompt ツールの実装（基本構造のみ、Slack統合は未完）
+  - [x] JSON field名の修正（tool_name対応）
   - [x] セッション管理機能の実装
   - [x] 一時設定ファイル生成機能
+  - [x] permission-prompt-tool設定の実装
 - [x] **Slack Bot HTTP Server の実装**
   - [x] Event API の webhook 受信
   - [x] メンションイベントの処理
@@ -793,11 +795,23 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - [ ] チャンネルごとの設定管理
 - [ ] エラーハンドリングの強化
 - [ ] セッションタイムアウト機能
-- [ ] ログ機能の実装
+- [x] ログ機能の実装（zerolog with structured logging）
 - [ ] approval_prompt の Slack 統合強化
   - [ ] 複雑な承認フローのサポート
   - [ ] 承認履歴の記録
 
+## 現在の実装状況 (2025-07-27)
+
+### 完了済み
+- 基本的なMCPサーバー・Slackハンドラー・プロセス管理
+- 純粋関数の切り出しとユニットテスト（generateLogFileName, buildMCPConfig, removeBotMention, getEnv）
+- 構造化ログ（zerolog）導入とファイル出力
+- GitHub Actions CI設定（test, build workflow）
+- 許可プロンプトツール設定（--permission-prompt-tool）
+
+### 実装中・未完了
+- **approval_prompt ツールのSlack統合**: MCPサーバーでツール定義は完了、Slackハンドラーとの連携が未実装
+- WebFetchなどの内蔵ツールの許可プロンプトが動作しない（Slack統合完了後に解決予定）
 
 ### Phase 3: 拡張機能（任意）
 
