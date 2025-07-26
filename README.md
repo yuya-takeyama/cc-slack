@@ -48,6 +48,18 @@ go build -o cc-slack cmd/cc-slack/main.go
    - Request URL: `https://your-domain/slack/interactive`
 5. Install the app to your workspace
 
+### Claude Code Configuration
+
+cc-slack runs an MCP server for approval prompts. Configure Claude Code to connect:
+
+```bash
+# Add the MCP server
+claude mcp add --transport http cc-slack http://localhost:8080/mcp
+
+# Or with custom base URL
+claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
+```
+
 ## Usage
 
 1. Mention the bot in any channel:
