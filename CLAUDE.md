@@ -72,6 +72,81 @@ When adding new features, always consider:
 - Is the function easily testable?
 - Does it have clear inputs and outputs without side effects?
 
+### Structured Logging
+
+- Use zerolog for all logging needs
+- Log to files in `logs/` directory, not stderr/stdout
+- Include structured context (component, type, direction, etc.)
+- Log levels: Debug (verbose), Info (normal), Warn (issues), Error (failures)
+
+### Process Management
+
+- Each Slack thread gets its own Claude Code process
+- Processes are managed with proper lifecycle (create, communicate, cleanup)
+- Resource cleanup is mandatory (config files, log files, processes)
+- Use context.Context for cancellation support
+
+### Error Handling
+
+- Always wrap errors with context using `fmt.Errorf("context: %w", err)`
+- Clean up resources on error paths
+- Log errors before returning them
+- Fail fast on initialization errors
+
+### Testing Strategy
+
+1. **Unit Tests**: Test pure functions with table-driven tests
+2. **Integration Tests**: Test component interactions (future)
+3. **Test Organization**: Keep tests close to code (`*_test.go` in same package)
+4. **Test Naming**: Use descriptive names that explain the test scenario
+
+### Code Organization
+
+- **cmd/**: Entry points and configuration
+- **internal/**: Business logic, not exposed to external packages
+- **Pure functions**: Extract and place near their primary usage
+- **Interfaces**: Define at the consumer side, not provider
+
+### Slack Integration
+
+- Each Slack thread maps to one Claude session
+- Thread TS (timestamp) is the unique identifier
+- Bot mentions are stripped before sending to Claude
+- Responses are posted back to the same thread
+- Use structured blocks for approval prompts
+
+### MCP (Model Context Protocol) Design
+
+- HTTP-based MCP server for tool integration
+- Custom tools are prefixed with `mcp__cc-slack__`
+- Permission prompts are handled via Slack interactive messages
+- Tool responses must be JSON-serializable
+- Always validate tool inputs
+
+### Concurrency and Goroutines
+
+- One goroutine per Claude process for stdout/stderr reading
+- Use channels for inter-goroutine communication
+- Proper cleanup with context cancellation
+- No shared state without proper synchronization (mutex)
+
+### Security Considerations
+
+- Validate all Slack requests with signing secret
+- Never log sensitive tokens or credentials
+- Sanitize user inputs before processing
+- Use temporary files with proper permissions
+- Clean up temporary resources after use
+
+### Future Extensibility
+
+- Design interfaces for easy mocking and testing
+- Keep coupling loose between components
+- Use dependency injection for external services
+- Support multiple MCP tools through plugin architecture
+- Consider rate limiting and resource quotas
+- Plan for horizontal scaling (multiple instances)
+
 ## Key Components
 
 - `internal/process/claude.go`: Claude Code process management
