@@ -294,7 +294,7 @@ Result メッセージには実行結果とコスト情報が含まれます：
 func (h *Handler) handleResultMessage(msg ResultMessage, session *Session) error {
     // セッション終了の処理
     if msg.Subtype == "success" {
-        summary := fmt.Sprintf("✅ セッション完了\n"+
+        summary := fmt.Sprintf("セッション完了\n"+
             "実行時間: %dms\n"+
             "ターン数: %d\n"+
             "コスト: $%.6f USD\n"+
@@ -682,7 +682,7 @@ func (h *Handler) handleInitMessage(msg SystemMessage, session *Session) error {
     // 利用可能なツールを記録
     session.AvailableTools = msg.Tools
     
-    // Slack に初期化完了を通知
+    // Slack に初期化を通知
     text := fmt.Sprintf("🚀 Claude Code セッション開始\n"+
         "セッションID: %s\n"+
         "作業ディレクトリ: %s\n"+
@@ -767,28 +767,26 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 ### Phase 1: MVP（1週間）
 
-- [x] **MCP Server の基本実装** ✅ 完了
-  - [x] stdio トランスポートの実装
-  - [x] approval_prompt ツールの完全実装（Slack統合付き）
-- [ ] **MCP Server の Streamable HTTP 移行** 🚀 計画中
+- [ ] **MCP Server の Streamable HTTP 実装**
   - [ ] Streamable HTTP エンドポイントの実装（GET/POST両対応）
+  - [ ] approval_prompt ツールの実装（Slack統合付き）
   - [ ] セッション管理機能の実装
   - [ ] 一時設定ファイル生成機能
-- [x] **Slack Bot HTTP Server の実装** ✅ 完了
-  - [x] Event API の webhook 受信
-  - [x] メンションイベントの処理
-  - [x] インタラクティブボタンの処理
-- [x] **Claude Code プロセス管理** ✅ 完了
-  - [x] プロセス起動と終了
-  - [x] stdin/stdout の管理
-  - [x] stderr の監視
-- [x] **基本的なセッション管理** ✅ 完了
-  - [x] session_id と thread_ts のマッピング
-  - [x] セッションのライフサイクル管理
-- [x] **JSON Lines ストリーム通信の実装** ✅ 完了
-  - [x] 入出力のパース
-  - [x] エラーハンドリング
-  - [x] Slack フォーマッティング
+- [ ] **Slack Bot HTTP Server の実装**
+  - [ ] Event API の webhook 受信
+  - [ ] メンションイベントの処理
+  - [ ] インタラクティブボタンの処理
+- [ ] **Claude Code プロセス管理**
+  - [ ] プロセス起動と終了
+  - [ ] stdin/stdout の管理
+  - [ ] stderr の監視
+- [ ] **基本的なセッション管理**
+  - [ ] session_id と thread_ts のマッピング
+  - [ ] セッションのライフサイクル管理
+- [ ] **JSON Lines ストリーム通信の実装**
+  - [ ] 入出力のパース
+  - [ ] エラーハンドリング
+  - [ ] Slack フォーマッティング
 
 ### Phase 2: 実用性向上（2週間）
 
@@ -796,118 +794,10 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - [ ] エラーハンドリングの強化
 - [ ] セッションタイムアウト機能
 - [ ] ログ機能の実装
-- [x] **approval_prompt の Slack 統合** ✅ 完了
-  - [x] インタラクティブボタンの実装
-  - [x] 承認フローの完成
+- [ ] approval_prompt の Slack 統合強化
+  - [ ] 複雑な承認フローのサポート
+  - [ ] 承認履歴の記録
 
-## 実装済み機能の詳細
-
-### 🎯 実装完了 (2025-01-23)
-
-cc-slack の MVP 実装が完了しました！以下の機能が利用可能です：
-
-#### 1. MCP Server 統合
-- **stdio transport**: Claude Code からの MCP リクエストを JSON-RPC で処理（現在）
-- **Streamable HTTP 移行計画**: より堅牢なHTTPベースの双方向通信への移行を計画中
-- **approval_prompt ツール**: Slack のインタラクティブボタンによる承認フロー
-- **自動フォールバック**: Slack 統合が利用できない場合の自動承認
-
-### 📋 Streamable HTTP 移行の利点（2025-01-26 設計更新）
-
-1. **アーキテクチャの簡素化**
-   - stdin/stdout の競合問題を解消
-   - 単一 HTTP サーバーで全機能を提供
-
-2. **スケーラビリティの向上**
-   - 複数の Claude Code インスタンスが同時接続可能
-   - プロセス管理の複雑さを削減
-
-3. **開発・運用の改善**
-   - HTTP ベースのデバッグが容易
-   - 標準的な監視ツールの活用が可能
-
-#### 2. Slack Bot 機能
-- **Event API**: `@cc-slack` メンションでセッション開始
-- **スレッド管理**: 既存スレッドでの追加指示をサポート
-- **インタラクティブボタン**: 承認リクエストに対する承認/拒否ボタン
-- **メッセージフォーマット**: Claude Code の出力を Slack フレンドリーにフォーマット
-
-#### 3. Claude Code プロセス管理
-- **自動起動**: メンション時に適切な作業ディレクトリでプロセス起動
-- **双方向通信**: JSON Lines 形式でのリアルタイム通信
-- **エラー監視**: stderr の監視とログ出力
-- **セッション終了**: プロセス終了時の自動リソース解放
-
-#### 4. セッション管理
-- **session_id 管理**: Claude Code からの実際の session_id を使用
-- **thread_ts マッピング**: Slack スレッドとセッションの紐付け
-- **並行セッション**: 複数チャンネルでの同時実行をサポート
-
-### 📁 ファイル構成
-
-```
-cc-slack/
-├── cmd/cc-slack/main.go              # エントリーポイント
-├── internal/
-│   ├── mcp/
-│   │   ├── server.go                 # MCP サーバー本体
-│   │   └── approval.go               # Slack 承認統合
-│   ├── slack/
-│   │   ├── bot.go                    # Slack Bot メイン
-│   │   └── handler.go                # Claude Code 出力処理
-│   ├── claude/
-│   │   └── process.go                # Claude Code プロセス管理
-│   └── session/
-│       └── manager.go                # セッション管理
-├── pkg/
-│   ├── config/
-│   │   └── config.go                 # 設定管理
-│   └── types/
-│       ├── messages.go               # JSON メッセージ型定義
-│       └── session.go                # セッション型定義
-└── docs/
-    └── design.md                     # この設計書
-```
-
-### 🚀 使用方法
-
-#### 1. 環境変数の設定
-```bash
-export SLACK_BOT_TOKEN="xoxb-your-bot-token"
-export SLACK_SIGNING_SECRET="your-signing-secret"
-export CC_SLACK_DEFAULT_WORKDIR="/path/to/default/workspace"
-export CC_SLACK_PORT="8080"
-export CLAUDE_CODE_PATH="claude"  # オプション
-```
-
-#### 2. ビルドと実行
-```bash
-go build -o cc-slack cmd/cc-slack/main.go
-./cc-slack
-```
-
-#### 3. Slack での使用
-1. Slack で `@cc-slack プロジェクトの README を作成して` とメンション
-2. Claude Code セッションが開始され、進捗がスレッドに投稿される
-3. 必要に応じて承認ボタンで許可/拒否を選択
-4. スレッド内で追加指示も可能
-
-### 🔄 今後の改善点
-
-#### 高優先度
-- **チャンネル別設定**: YAML/JSON ファイルでチャンネルごとの作業ディレクトリを設定
-- **エラーハンドリング強化**: より詳細なエラーメッセージと回復処理
-- **セッションタイムアウト**: 長時間アイドル状態のセッション自動終了
-
-#### 中優先度
-- **メッセージバッチング**: 頻繁な更新を避けるためのメッセージ集約
-- **thinking ブロック表示**: デバッグモードでの thinking ブロック表示オプション
-- **メトリクス収集**: セッション時間、コスト、使用統計の記録
-
-#### 低優先度
-- **ファイル添付**: 画像やファイルのアップロード対応
-- **マルチワークスペース**: 複数 Slack ワークスペースのサポート
-- **Web UI**: 管理用の Web インターフェース
 
 ### Phase 3: 拡張機能（任意）
 
