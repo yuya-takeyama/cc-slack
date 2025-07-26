@@ -24,7 +24,7 @@ type Server struct {
 // ApprovalRequest represents a request for user approval
 type ApprovalRequest struct {
 	Message  string `json:"message"`
-	ToolName string `json:"toolName"`
+	ToolName string `json:"tool_name"`
 }
 
 // ApprovalResponse represents the approval response
@@ -58,12 +58,12 @@ func NewServer() (*Server, error) {
 					Type:        "string",
 					Description: "Message to display in Slack for approval",
 				},
-				"toolName": {
+				"tool_name": {
 					Type:        "string",
 					Description: "Name of the tool requesting approval",
 				},
 			},
-			Required: []string{"message", "toolName"},
+			Required: []string{"message", "tool_name"},
 		},
 	}, s.HandleApprovalPrompt)
 
