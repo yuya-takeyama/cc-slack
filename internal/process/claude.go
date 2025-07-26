@@ -45,13 +45,13 @@ type BaseMessage struct {
 
 type SystemMessage struct {
 	BaseMessage
-	Subtype        string   `json:"subtype"`
-	CWD            string   `json:"cwd,omitempty"`
-	Tools          []string `json:"tools,omitempty"`
-	MCPServers     []string `json:"mcp_servers,omitempty"`
-	Model          string   `json:"model,omitempty"`
-	PermissionMode string   `json:"permissionMode,omitempty"`
-	APIKeySource   string   `json:"apiKeySource,omitempty"`
+	Subtype        string                            `json:"subtype"`
+	CWD            string                            `json:"cwd,omitempty"`
+	Tools          []string                          `json:"tools,omitempty"`
+	MCPServers     map[string]map[string]interface{} `json:"mcp_servers,omitempty"`
+	Model          string                            `json:"model,omitempty"`
+	PermissionMode string                            `json:"permissionMode,omitempty"`
+	APIKeySource   string                            `json:"apiKeySource,omitempty"`
 }
 
 type AssistantMessage struct {
