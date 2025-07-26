@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // ClaudeProcess represents a running Claude Code process
@@ -25,6 +27,8 @@ type ClaudeProcess struct {
 	createdAt  time.Time
 	mu         sync.Mutex
 	handlers   MessageHandlers
+	logger     zerolog.Logger
+	logFile    *os.File
 }
 
 // MessageHandlers contains callback functions for different message types
@@ -45,13 +49,13 @@ type BaseMessage struct {
 
 type SystemMessage struct {
 	BaseMessage
-	Subtype        string                            `json:"subtype"`
-	CWD            string                            `json:"cwd,omitempty"`
-	Tools          []string                          `json:"tools,omitempty"`
-	MCPServers     map[string]map[string]interface{} `json:"mcp_servers,omitempty"`
-	Model          string                            `json:"model,omitempty"`
-	PermissionMode string                            `json:"permissionMode,omitempty"`
-	APIKeySource   string                            `json:"apiKeySource,omitempty"`
+	Subtype        string      `json:"subtype"`
+	CWD            string      `json:"cwd,omitempty"`
+	Tools          []string    `json:"tools,omitempty"`
+	MCPServers     interface{} `json:"mcp_servers,omitempty"` // Can be array or object
+	Model          string      `json:"model,omitempty"`
+	PermissionMode string      `json:"permissionMode,omitempty"`
+	APIKeySource   string      `json:"apiKeySource,omitempty"`
 }
 
 type AssistantMessage struct {
@@ -105,22 +109,50 @@ type ResultMessage struct {
 
 // Options for creating a new Claude process
 type Options struct {
-	WorkDir    string
-	MCPBaseURL string
-	Handlers   MessageHandlers
+	WorkDir              string
+	MCPBaseURL           string
+	PermissionPromptTool string // MCP tool name for permission prompts (default: mcp__cc-slack__approval_prompt)
+	Handlers             MessageHandlers
 }
 
 // NewClaudeProcess creates and starts a new Claude Code process
 func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error) {
+	// Set default permission prompt tool if not specified
+	if opts.PermissionPromptTool == "" {
+		opts.PermissionPromptTool = "mcp__cc-slack__approval_prompt"
+	}
+
+	// Create logs directory
+	logDir := filepath.Join("logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
+	// Create log file with timestamp
+	logFileName := fmt.Sprintf("claude-%s.log", time.Now().Format("20060102-150405"))
+	logPath := filepath.Join(logDir, logFileName)
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	// Setup logger
+	logger := zerolog.New(logFile).With().
+		Timestamp().
+		Str("component", "claude_process").
+		Logger()
+
 	// Create MCP config file
 	configPath, err := createMCPConfig(opts.MCPBaseURL)
 	if err != nil {
+		logFile.Close()
 		return nil, fmt.Errorf("failed to create MCP config: %w", err)
 	}
 
 	// Prepare command
 	cmd := exec.CommandContext(ctx, "claude",
 		"--mcp-config", configPath,
+		"--permission-prompt-tool", opts.PermissionPromptTool,
 		"--print",
 		"--output-format", "stream-json",
 		"--input-format", "stream-json",
@@ -132,24 +164,28 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		os.Remove(configPath)
+		logFile.Close()
 		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		os.Remove(configPath)
+		logFile.Close()
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		os.Remove(configPath)
+		logFile.Close()
 		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	// Start the process
 	if err := cmd.Start(); err != nil {
 		os.Remove(configPath)
+		logFile.Close()
 		return nil, fmt.Errorf("failed to start claude process: %w", err)
 	}
 
@@ -162,6 +198,8 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 		configPath: configPath,
 		createdAt:  time.Now(),
 		handlers:   opts.Handlers,
+		logger:     logger,
+		logFile:    logFile,
 	}
 
 	// Start reading stdout and stderr
@@ -188,6 +226,13 @@ func (p *ClaudeProcess) SendMessage(message string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
+
+	// Log outgoing message
+	p.logger.Info().
+		Str("type", "claude_message").
+		Str("direction", "sent").
+		RawJSON("raw", data).
+		Msg("Sent message to Claude")
 
 	_, err = p.stdin.Write(append(data, '\n'))
 	if err != nil {
@@ -217,15 +262,30 @@ func (p *ClaudeProcess) readStdout() {
 func (p *ClaudeProcess) readStderr() {
 	for p.stderr.Scan() {
 		line := p.stderr.Text()
-		// Log stderr output for debugging
-		fmt.Fprintf(os.Stderr, "[Claude stderr] %s\n", line)
+		// Log stderr output
+		p.logger.Warn().
+			Str("type", "claude_stderr").
+			Str("message", line).
+			Msg("Claude stderr output")
 	}
 }
 
 // processJSONLine processes a single JSON line from stdout
 func (p *ClaudeProcess) processJSONLine(line []byte) error {
+	// Log raw JSON for debugging
+	p.logger.Debug().
+		Str("type", "claude_message").
+		Str("direction", "received").
+		Bytes("raw", line).
+		Msg("Received message from Claude")
+
 	var base BaseMessage
 	if err := json.Unmarshal(line, &base); err != nil {
+		p.logger.Error().
+			Err(err).
+			Str("type", "parse_error").
+			Bytes("raw", line).
+			Msg("Failed to parse JSON message")
 		return err
 	}
 
@@ -233,6 +293,12 @@ func (p *ClaudeProcess) processJSONLine(line []byte) error {
 	case "system":
 		var msg SystemMessage
 		if err := json.Unmarshal(line, &msg); err != nil {
+			p.logger.Error().
+				Err(err).
+				Str("type", "parse_error").
+				Str("message_type", "system").
+				Bytes("raw", line).
+				Msg("Failed to parse system message")
 			return err
 		}
 		if msg.Subtype == "init" && msg.SessionID != "" {
@@ -271,7 +337,9 @@ func (p *ClaudeProcess) processJSONLine(line []byte) error {
 
 	default:
 		// Unknown message type, log it
-		fmt.Fprintf(os.Stderr, "[Claude] Unknown message type: %s\n", base.Type)
+		p.logger.Warn().
+			Str("message_type", base.Type).
+			Msg("Unknown message type received")
 	}
 
 	return nil
@@ -288,6 +356,11 @@ func (p *ClaudeProcess) Close() error {
 	// Clean up config file
 	if p.configPath != "" {
 		os.Remove(p.configPath)
+	}
+
+	// Close log file
+	if p.logFile != nil {
+		p.logFile.Close()
 	}
 
 	return err

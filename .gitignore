@@ -40,3 +40,6 @@ tmp
 
 **/.claude/settings.local.json
 CLAUDE.local.json
+
+# Log files
+logs/
