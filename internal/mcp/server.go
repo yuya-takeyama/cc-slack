@@ -11,6 +11,11 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// SlackPoster interface for posting to Slack
+type SlackPoster interface {
+	PostApprovalRequest(channelID, threadTS, message, requestID string) error
+}
+
 // Server wraps the MCP server and HTTP handler
 type Server struct {
 	mcp     *mcpsdk.Server
@@ -19,6 +24,9 @@ type Server struct {
 	// Approval requests waiting for response
 	approvalRequests map[string]chan ApprovalResponse
 	approvalMu       sync.Mutex
+
+	// Slack integration
+	slackPoster SlackPoster
 }
 
 // ApprovalRequest represents a request for user approval
