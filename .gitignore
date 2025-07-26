@@ -8,6 +8,10 @@
 *.so
 *.dylib
 
+# Built binaries
+/cc-slack
+cmd/cc-slack/cc-slack
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -26,7 +30,16 @@ go.work.sum
 
 # env file
 .env
+.envrc
 
 # Editor/IDE
 # .idea/
 # .vscode/
+
+tmp
+
+**/.claude/settings.local.json
+CLAUDE.local.json
+
+# Log files
+logs/
