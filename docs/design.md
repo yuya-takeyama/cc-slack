@@ -767,26 +767,26 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 ### Phase 1: MVP（1週間）
 
-- [ ] **MCP Server の Streamable HTTP 実装**
-  - [ ] Streamable HTTP エンドポイントの実装（GET/POST両対応）
-  - [ ] approval_prompt ツールの実装（Slack統合付き）
-  - [ ] セッション管理機能の実装
-  - [ ] 一時設定ファイル生成機能
-- [ ] **Slack Bot HTTP Server の実装**
-  - [ ] Event API の webhook 受信
-  - [ ] メンションイベントの処理
-  - [ ] インタラクティブボタンの処理
-- [ ] **Claude Code プロセス管理**
-  - [ ] プロセス起動と終了
-  - [ ] stdin/stdout の管理
-  - [ ] stderr の監視
-- [ ] **基本的なセッション管理**
-  - [ ] session_id と thread_ts のマッピング
-  - [ ] セッションのライフサイクル管理
-- [ ] **JSON Lines ストリーム通信の実装**
-  - [ ] 入出力のパース
-  - [ ] エラーハンドリング
-  - [ ] Slack フォーマッティング
+- [x] **MCP Server の Streamable HTTP 実装**
+  - [x] Streamable HTTP エンドポイントの実装（GET/POST両対応）
+  - [x] approval_prompt ツールの実装（Slack統合は未完）
+  - [x] セッション管理機能の実装
+  - [x] 一時設定ファイル生成機能
+- [x] **Slack Bot HTTP Server の実装**
+  - [x] Event API の webhook 受信
+  - [x] メンションイベントの処理
+  - [x] インタラクティブボタンの処理
+- [x] **Claude Code プロセス管理**
+  - [x] プロセス起動と終了
+  - [x] stdin/stdout の管理
+  - [x] stderr の監視
+- [x] **基本的なセッション管理**
+  - [x] session_id と thread_ts のマッピング
+  - [x] セッションのライフサイクル管理
+- [x] **JSON Lines ストリーム通信の実装**
+  - [x] 入出力のパース
+  - [x] エラーハンドリング
+  - [x] Slack フォーマッティング
 
 ### Phase 2: 実用性向上（2週間）
 
