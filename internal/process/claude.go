@@ -177,9 +177,9 @@ func (p *ClaudeProcess) SendMessage(message string) error {
 	defer p.mu.Unlock()
 
 	input := map[string]interface{}{
-		"type": "message",
+		"type": "user",
 		"message": map[string]interface{}{
-			"type":    "human",
+			"role":    "user",
 			"content": message,
 		},
 	}
