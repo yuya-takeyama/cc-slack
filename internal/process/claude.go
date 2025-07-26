@@ -120,7 +120,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 
 	// Prepare command
 	cmd := exec.CommandContext(ctx, "claude",
-		"--mcp-server-config", configPath,
+		"--mcp-config", configPath,
 		"--print",
 		"--output-format", "stream-json",
 		"--input-format", "stream-json",
@@ -303,8 +303,8 @@ func createMCPConfig(baseURL string) (string, error) {
 	config := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"cc-slack": map[string]interface{}{
-				"transport": "http",
-				"url":       fmt.Sprintf("%s/mcp", baseURL),
+				"type": "http",
+				"url":  fmt.Sprintf("%s/mcp", baseURL),
 			},
 		},
 	}

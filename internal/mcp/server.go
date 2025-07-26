@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -12,23 +11,14 @@ import (
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Server implements the MCP server with Streamable HTTP transport
+// Server wraps the MCP server and HTTP handler
 type Server struct {
-	mcp      *mcpsdk.Server
-	sessions map[string]*Session
-	mu       sync.RWMutex
+	mcp     *mcpsdk.Server
+	handler *mcpsdk.StreamableHTTPHandler
 
 	// Approval requests waiting for response
 	approvalRequests map[string]chan ApprovalResponse
 	approvalMu       sync.Mutex
-}
-
-// Session represents a connected MCP client session
-type Session struct {
-	ID       string
-	Messages chan []byte
-	ctx      context.Context
-	cancel   context.CancelFunc
 }
 
 // ApprovalRequest represents a request for user approval
@@ -54,7 +44,6 @@ func NewServer() (*Server, error) {
 
 	s := &Server{
 		mcp:              mcp,
-		sessions:         make(map[string]*Session),
 		approvalRequests: make(map[string]chan ApprovalResponse),
 	}
 
@@ -78,7 +67,17 @@ func NewServer() (*Server, error) {
 		},
 	}, s.HandleApprovalPrompt)
 
+	// Create StreamableHTTPHandler
+	s.handler = mcpsdk.NewStreamableHTTPHandler(func(r *http.Request) *mcpsdk.Server {
+		return mcp
+	}, nil)
+
 	return s, nil
+}
+
+// Handle processes MCP requests
+func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
+	s.handler.ServeHTTP(w, r)
 }
 
 // HandleApprovalPrompt handles approval requests
@@ -138,111 +137,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 	}
 }
 
-// Handle processes MCP requests based on HTTP method
-func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		s.handleStream(w, r)
-	case http.MethodPost:
-		s.handleMessage(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handleStream handles SSE streaming connections
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	// Get or create session
-	sessionID := r.URL.Query().Get("session_id")
-	if sessionID == "" {
-		sessionID = generateSessionID()
-	}
-
-	session := s.getOrCreateSession(sessionID)
-
-	// Send initial connection event
-	fmt.Fprintf(w, "data: {\"type\":\"connection\",\"session_id\":\"%s\"}\n\n", sessionID)
-	flusher.Flush()
-
-	// Stream messages to client
-	for {
-		select {
-		case msg := <-session.Messages:
-			fmt.Fprintf(w, "data: %s\n\n", msg)
-			flusher.Flush()
-		case <-r.Context().Done():
-			s.removeSession(sessionID)
-			return
-		case <-session.ctx.Done():
-			return
-		}
-	}
-}
-
-// handleMessage handles individual MCP messages
-func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
-	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// TODO: Process MCP request through the MCP server
-	// For now, just acknowledge
-	resp := map[string]interface{}{
-		"jsonrpc": "2.0",
-		"result":  map[string]interface{}{"status": "ok"},
-		"id":      req["id"],
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// getOrCreateSession retrieves or creates a session
-func (s *Server) getOrCreateSession(sessionID string) *Session {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if session, exists := s.sessions[sessionID]; exists {
-		return session
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	session := &Session{
-		ID:       sessionID,
-		Messages: make(chan []byte, 100),
-		ctx:      ctx,
-		cancel:   cancel,
-	}
-	s.sessions[sessionID] = session
-	return session
-}
-
-// removeSession removes a session
-func (s *Server) removeSession(sessionID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if session, exists := s.sessions[sessionID]; exists {
-		session.cancel()
-		close(session.Messages)
-		delete(s.sessions, sessionID)
-	}
-}
-
 // SendApprovalResponse sends an approval response for a request
 func (s *Server) SendApprovalResponse(requestID string, response ApprovalResponse) error {
 	s.approvalMu.Lock()
@@ -259,10 +153,4 @@ func (s *Server) SendApprovalResponse(requestID string, response ApprovalRespons
 	default:
 		return fmt.Errorf("approval response channel full")
 	}
-}
-
-// generateSessionID generates a unique session ID
-func generateSessionID() string {
-	// TODO: Use UUID library
-	return fmt.Sprintf("session_%d", time.Now().UnixNano())
 }
