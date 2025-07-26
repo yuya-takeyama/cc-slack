@@ -24,16 +24,34 @@ cc-slack は Claude Code と Slack 上でインタラクションするための
 
 ## アーキテクチャ
 
-cc-slack は以下の2つの主要コンポーネントで構成されます：
+cc-slack は単一の HTTP サーバーとして動作し、Slack Bot と MCP Server の両方の機能を提供します：
 
-### 1. MCP Server（メイン goroutine）
+### 統合 HTTP Server
 
-- **役割**: MCP（Model Context Protocol）サーバーとして動作
-- **実装**: Go の標準 MCP SDK を使用した stdio トランスポート
-- **機能**:
-  - `approval_prompt` ツールの提供（カスタム permission prompt tool）
-  - Claude Code との通信管理
-  - 将来的な拡張のための基盤
+- **役割**: Slack webhook と MCP リクエストを単一ポートで処理
+- **実装**: Go の標準 HTTP サーバーとルーティング
+- **エンドポイント**:
+  - `/slack/*` - Slack Event API、Interactive Components
+  - `/mcp` - MCP Streamable HTTP エンドポイント（POST/GET両対応）
+
+### 主要機能
+
+#### 1. MCP Server（Streamable HTTP Transport）
+
+- **トランスポート**: Streamable HTTP による双方向通信
+- **ツール提供**: `approval_prompt` によるSlack承認統合
+- **接続方式**: Claude Code が HTTP 経由で接続
+- **利点**: 
+  - プロセス管理が不要（stdin/stdout の競合なし）
+  - 複数の Claude Code インスタンスが接続可能
+  - デバッグとモニタリングが容易
+  - セッション管理と接続の再開が可能
+
+#### 2. Slack Bot
+
+- **Webhook 受信**: メンション、スレッド返信、インタラクティブボタン
+- **Claude Code 管理**: プロセスの起動と JSON Lines 通信
+- **セッション管理**: session_id とスレッドの紐付け
 
 #### approval_prompt 実装仕様
 
@@ -49,16 +67,6 @@ MCP の permission prompt tool として実装し、以下の JSON 形式で応�
 }
 ```
 
-### 2. Slack Bot HTTP Server（バックグラウンド goroutine）
-
-- **役割**: Slack からの webhook を受信し、Claude Code プロセスを管理
-- **実装**: HTTP サーバーとして Slack Event API/Slash Commands に対応
-- **機能**:
-  - Slack mention の受信
-  - Claude Code プロセスの起動・管理
-  - JSON Lines (JSONL) ストリームによる双方向通信
-  - セッション管理（session_id とスレッドの紐付け）
-
 ## 処理フロー
 
 ### 1. 初回メンション時
@@ -67,13 +75,17 @@ MCP の permission prompt tool として実装し、以下の JSON 形式で応�
 sequenceDiagram
     participant U as User
     participant S as Slack
-    participant B as cc-slack Bot
+    participant B as cc-slack Server
+    participant M as MCP Endpoint
     participant C as Claude Code Process
+
+    Note over B,M: cc-slack は単一サーバー<br/>MCP は /mcp/* で待機中
 
     U->>S: @cc-slack "プロジェクトの README を作成して"
     S->>B: Webhook (mention event)
     B->>B: Working directory を決定
-    B->>C: プロセス起動<br/>--print --output-format stream-json<br/>--input-format stream-json --verbose
+    B->>C: プロセス起動<br/>--mcp-server-config で cc-slack を指定<br/>--print --output-format stream-json<br/>--input-format stream-json --verbose
+    C->>M: Streamable HTTP 接続確立 (/mcp)
     C->>B: Initial JSON (session_id 含む)
     B->>B: session_id を保存
     B->>S: 初回レスポンスを投稿
@@ -83,6 +95,15 @@ sequenceDiagram
     loop Claude Code の作業中
         C->>B: JSON Lines stream (進捗・結果)
         B->>S: スレッドに投稿
+        alt approval_prompt が必要な場合
+            C->>M: MCP call (approval_prompt)
+            M->>B: Slack に承認リクエスト
+            B->>S: インタラクティブボタン表示
+            U->>S: 承認/拒否をクリック
+            S->>B: ボタンアクション
+            B->>M: 承認結果
+            M->>C: approval response
+        end
     end
 ```
 
@@ -350,12 +371,29 @@ SLACK_SIGNING_SECRET=...
 # cc-slack 設定
 CC_SLACK_PORT=8080
 CC_SLACK_DEFAULT_WORKDIR=/path/to/default/workspace
+CC_SLACK_BASE_URL=http://localhost:8080  # MCP接続用のベースURL
 
 # Claude Code 設定
 CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
 
 # MCP 設定
 MCP_SERVER_NAME=cc-slack
+```
+
+### Claude Code の MCP 設定
+
+Claude Code が cc-slack の MCP Server に接続するための設定ファイル：
+
+```json
+// claude_config.json (一時ファイルとして生成)
+{
+  "mcpServers": {
+    "cc-slack": {
+      "transport": "http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
 ```
 
 ### Working Directory の決定ロジック
@@ -449,6 +487,73 @@ Claude Code からの出力はリアルタイムでストリーミングされ�
 
 ## MCP Server 実装詳細
 
+### Streamable HTTP Transport
+
+```go
+// MCP Streamable HTTP エンドポイントの実装
+func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
+    switch r.Method {
+    case http.MethodGet:
+        // ストリーミング接続の処理
+        s.handleMCPStream(w, r)
+    case http.MethodPost:
+        // メッセージの処理
+        s.handleMCPMessage(w, r)
+    default:
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+    }
+}
+
+// ストリーミング接続の処理
+func (s *Server) handleMCPStream(w http.ResponseWriter, r *http.Request) {
+    // Server-Sent Events のヘッダー設定
+    w.Header().Set("Content-Type", "text/event-stream")
+    w.Header().Set("Cache-Control", "no-cache")
+    w.Header().Set("Connection", "keep-alive")
+    
+    flusher, ok := w.(http.Flusher)
+    if !ok {
+        http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+        return
+    }
+    
+    // MCP クライアントとの接続を確立
+    sessionID := r.URL.Query().Get("session_id")
+    client := s.mcp.RegisterClient(r.Context(), sessionID)
+    defer s.mcp.UnregisterClient(client)
+    
+    // メッセージをストリーミング
+    for {
+        select {
+        case msg := <-client.Messages:
+            fmt.Fprintf(w, "data: %s\n\n", msg)
+            flusher.Flush()
+        case <-r.Context().Done():
+            return
+        }
+    }
+}
+
+// メッセージの処理
+func (s *Server) handleMCPMessage(w http.ResponseWriter, r *http.Request) {
+    var req map[string]interface{}
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    
+    // MCP リクエストを処理
+    resp, err := s.mcp.HandleRequest(r.Context(), req)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(resp)
+}
+```
+
 ### approval_prompt ツール
 
 ```go
@@ -487,12 +592,47 @@ type ClaudeProcess struct {
     stderr       *bufio.Scanner
     sessionID    string
     workDir      string
+    configPath   string  // MCP設定ファイルのパス
     createdAt    time.Time
 }
 
+// MCP設定ファイルの生成
+func createMCPConfig(baseURL string) (string, error) {
+    config := map[string]interface{}{
+        "mcpServers": map[string]interface{}{
+            "cc-slack": map[string]interface{}{
+                "transport": "http",
+                "url": fmt.Sprintf("%s/mcp", baseURL),
+            },
+        },
+    }
+    
+    // 一時ファイルに設定を書き込み
+    tmpfile, err := ioutil.TempFile("", "claude-config-*.json")
+    if err != nil {
+        return "", err
+    }
+    
+    if err := json.NewEncoder(tmpfile).Encode(config); err != nil {
+        tmpfile.Close()
+        os.Remove(tmpfile.Name())
+        return "", err
+    }
+    
+    tmpfile.Close()
+    return tmpfile.Name(), nil
+}
+
 // プロセス起動
-func startClaudeProcess(workDir string) (*ClaudeProcess, error) {
+func startClaudeProcess(workDir, baseURL string) (*ClaudeProcess, error) {
+    // MCP設定ファイルを作成
+    configPath, err := createMCPConfig(baseURL)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create MCP config: %w", err)
+    }
+    
     cmd := exec.Command("claude",
+        "--mcp-server-config", configPath,
         "--print",
         "--output-format", "stream-json",
         "--input-format", "stream-json",
@@ -506,17 +646,27 @@ func startClaudeProcess(workDir string) (*ClaudeProcess, error) {
     stderr, _ := cmd.StderrPipe()
     
     if err := cmd.Start(); err != nil {
+        os.Remove(configPath)
         return nil, err
     }
     
     return &ClaudeProcess{
-        cmd:       cmd,
-        stdin:     stdin,
-        stdout:    bufio.NewScanner(stdout),
-        stderr:    bufio.NewScanner(stderr),
-        workDir:   workDir,
-        createdAt: time.Now(),
+        cmd:        cmd,
+        stdin:      stdin,
+        stdout:     bufio.NewScanner(stdout),
+        stderr:     bufio.NewScanner(stderr),
+        workDir:    workDir,
+        configPath: configPath,
+        createdAt:  time.Now(),
     }, nil
+}
+
+// プロセス終了時のクリーンアップ
+func (p *ClaudeProcess) Cleanup() error {
+    if p.configPath != "" {
+        os.Remove(p.configPath)
+    }
+    return p.cmd.Wait()
 }
 ```
 
@@ -590,19 +740,26 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
    - Signing Secret による署名検証
    - Bot Token の適切な管理
 
-2. **プロセス分離**
+2. **MCP エンドポイントのセキュリティ**
+   - ローカルホストのみからの接続に制限（デフォルト）
+   - 必要に応じて認証トークンの実装
+   - CORS 設定による不正なアクセスの防止
+
+3. **プロセス分離**
    - 各セッションは独立したプロセスで実行
    - 適切な権限での実行
+   - 一時設定ファイルの安全な管理
 
-3. **タイムアウト管理**
+4. **タイムアウト管理**
    - 長時間アイドル状態のセッションは自動終了
    - リソースの適切な解放
+   - Streamable HTTP 接続のタイムアウト処理
 
-4. **approval_prompt のセキュリティ**
+5. **approval_prompt のセキュリティ**
    - 承認リクエストには十分な情報を含める
    - 危険なコマンドについては警告を表示
 
-5. **thinking ブロックのセキュリティ**
+6. **thinking ブロックのセキュリティ**
    - thinking ブロックは署名付きで改ざん検出可能
    - プロダクション環境では thinking を非表示にする設定
 
@@ -613,6 +770,10 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - [x] **MCP Server の基本実装** ✅ 完了
   - [x] stdio トランスポートの実装
   - [x] approval_prompt ツールの完全実装（Slack統合付き）
+- [ ] **MCP Server の Streamable HTTP 移行** 🚀 計画中
+  - [ ] Streamable HTTP エンドポイントの実装（GET/POST両対応）
+  - [ ] セッション管理機能の実装
+  - [ ] 一時設定ファイル生成機能
 - [x] **Slack Bot HTTP Server の実装** ✅ 完了
   - [x] Event API の webhook 受信
   - [x] メンションイベントの処理
@@ -646,9 +807,24 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 cc-slack の MVP 実装が完了しました！以下の機能が利用可能です：
 
 #### 1. MCP Server 統合
-- **stdio transport**: Claude Code からの MCP リクエストを JSON-RPC で処理
+- **stdio transport**: Claude Code からの MCP リクエストを JSON-RPC で処理（現在）
+- **Streamable HTTP 移行計画**: より堅牢なHTTPベースの双方向通信への移行を計画中
 - **approval_prompt ツール**: Slack のインタラクティブボタンによる承認フロー
 - **自動フォールバック**: Slack 統合が利用できない場合の自動承認
+
+### 📋 Streamable HTTP 移行の利点（2025-01-26 設計更新）
+
+1. **アーキテクチャの簡素化**
+   - stdin/stdout の競合問題を解消
+   - 単一 HTTP サーバーで全機能を提供
+
+2. **スケーラビリティの向上**
+   - 複数の Claude Code インスタンスが同時接続可能
+   - プロセス管理の複雑さを削減
+
+3. **開発・運用の改善**
+   - HTTP ベースのデバッグが容易
+   - 標準的な監視ツールの活用が可能
 
 #### 2. Slack Bot 機能
 - **Event API**: `@cc-slack` メンションでセッション開始
