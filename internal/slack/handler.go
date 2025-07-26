@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/slack-go/slack"
@@ -236,8 +237,13 @@ func (h *Handler) removeBotMention(text string) string {
 // determineWorkDir determines the working directory for a channel
 func (h *Handler) determineWorkDir(channelID string) string {
 	// TODO: Implement channel-specific configuration
-	// For now, use environment variable or default
-	return "/tmp/cc-slack-workspace"
+	// For now, use current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		// Fallback to /tmp if we can't get current directory
+		return "/tmp/cc-slack-workspace"
+	}
+	return cwd
 }
 
 // PostToThread posts a message to a Slack thread

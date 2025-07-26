@@ -104,7 +104,6 @@ type Config struct {
 	SlackToken         string
 	SlackSigningSecret string
 	BaseURL            string
-	DefaultWorkDir     string
 }
 
 // loadConfig loads configuration from environment variables
@@ -114,7 +113,6 @@ func loadConfig() *Config {
 		SlackToken:         getEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
 		SlackSigningSecret: getEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
 		BaseURL:            getEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
-		DefaultWorkDir:     getEnv("CC_SLACK_DEFAULT_WORKDIR", "/tmp/cc-slack-workspace"),
 	}
 
 	// Validate required fields
