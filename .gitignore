@@ -7,7 +7,10 @@
 *.dll
 *.so
 *.dylib
+
+# Built binaries
 /cc-slack
+cmd/cc-slack/cc-slack
 
 # Test binary, built with `go test -c`
 *.test
