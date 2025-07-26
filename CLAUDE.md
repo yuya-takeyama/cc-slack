@@ -53,6 +53,25 @@ go test ./...
 go mod tidy
 ```
 
+## Design Principles
+
+### Pure Functions and Unit Testing
+
+We actively extract pure functions from complex logic to improve testability and maintainability:
+
+1. **Extract Pure Functions**: Any logic that doesn't depend on external state should be extracted as a pure function
+2. **Test Coverage**: All pure functions must have comprehensive unit tests
+3. **Examples**:
+   - `generateLogFileName()`: Generates log filenames with timestamps
+   - `buildMCPConfig()`: Builds MCP configuration objects
+   - `removeBotMention()`: Removes bot mentions from Slack messages
+   - `getEnv()`: Gets environment variables with defaults
+
+When adding new features, always consider:
+- Can this logic be extracted as a pure function?
+- Is the function easily testable?
+- Does it have clear inputs and outputs without side effects?
+
 ## Key Components
 
 - `internal/process/claude.go`: Claude Code process management

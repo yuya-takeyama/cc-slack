@@ -129,7 +129,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	}
 
 	// Create log file with timestamp
-	logFileName := fmt.Sprintf("claude-%s.log", time.Now().Format("20060102-150405"))
+	logFileName := generateLogFileName(time.Now())
 	logPath := filepath.Join(logDir, logFileName)
 	logFile, err := os.Create(logPath)
 	if err != nil {
@@ -373,14 +373,7 @@ func (p *ClaudeProcess) SessionID() string {
 
 // createMCPConfig creates a temporary MCP configuration file
 func createMCPConfig(baseURL string) (string, error) {
-	config := map[string]interface{}{
-		"mcpServers": map[string]interface{}{
-			"cc-slack": map[string]interface{}{
-				"type": "http",
-				"url":  fmt.Sprintf("%s/mcp", baseURL),
-			},
-		},
-	}
+	config := buildMCPConfig(baseURL)
 
 	// Create temp directory if needed
 	tmpDir := filepath.Join(os.TempDir(), "cc-slack")
@@ -402,4 +395,21 @@ func createMCPConfig(baseURL string) (string, error) {
 	}
 
 	return tmpfile.Name(), nil
+}
+
+// generateLogFileName generates a log file name with timestamp
+func generateLogFileName(t time.Time) string {
+	return fmt.Sprintf("claude-%s.log", t.Format("20060102-150405"))
+}
+
+// buildMCPConfig builds the MCP configuration object
+func buildMCPConfig(baseURL string) map[string]interface{} {
+	return map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"cc-slack": map[string]interface{}{
+				"type": "http",
+				"url":  fmt.Sprintf("%s/mcp", baseURL),
+			},
+		},
+	}
 }
