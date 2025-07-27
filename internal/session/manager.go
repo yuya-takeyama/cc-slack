@@ -195,9 +195,100 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 			switch content.Type {
 			case "text":
 				text += content.Text + "\n"
+			case "thinking":
+				// Handle thinking messages
+				if content.Thinking != "" {
+					// Create rich text with thinking emoji and italicized text
+					elements := []slack.RichTextElement{
+						slack.NewRichTextSection(
+							slack.NewRichTextSectionTextElement("🤔 ", nil),
+							slack.NewRichTextSectionTextElement("Thinking: ", &slack.RichTextSectionTextStyle{Bold: true}),
+							slack.NewRichTextSectionTextElement(content.Thinking, &slack.RichTextSectionTextStyle{Italic: true}),
+						),
+					}
+					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						fmt.Printf("Failed to post thinking to Slack: %v\n", err)
+					}
+				}
 			case "tool_use":
-				// Check if this is a Bash command
-				if content.Name == "Bash" && content.Input != nil {
+				// Check if this is TodoWrite
+				if content.Name == "TodoWrite" && content.Input != nil {
+					// Handle TodoWrite tool
+					if todosInterface, ok := content.Input["todos"]; ok {
+						// Create rich text for todo list
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("📋 ", nil),
+								slack.NewRichTextSectionTextElement("TodoWrite", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(":", nil),
+							),
+						}
+
+						// Try to parse todos
+						if todos, ok := todosInterface.([]interface{}); ok {
+							// Build list elements for todos
+							listElements := []slack.RichTextElement{}
+
+							for _, todoInterface := range todos {
+								if todo, ok := todoInterface.(map[string]interface{}); ok {
+									content := ""
+									status := ""
+									priority := ""
+
+									if c, ok := todo["content"].(string); ok {
+										content = c
+									}
+									if s, ok := todo["status"].(string); ok {
+										status = s
+									}
+									if p, ok := todo["priority"].(string); ok {
+										priority = p
+									}
+
+									// Create status emoji
+									statusEmoji := ""
+									switch status {
+									case "completed":
+										statusEmoji = "✅"
+									case "in_progress":
+										statusEmoji = "▶️"
+									default: // pending
+										statusEmoji = "⏳"
+									}
+
+									// Create text style based on priority
+									var textStyle *slack.RichTextSectionTextStyle
+									switch priority {
+									case "high":
+										// Bold for high priority
+										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
+									case "low":
+										// Italic for low priority
+										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
+									default:
+										// Normal for medium priority
+										textStyle = nil
+									}
+
+									// Create list item as RichTextSection
+									listElements = append(listElements, slack.NewRichTextSection(
+										slack.NewRichTextSectionTextElement(statusEmoji+" ", nil),
+										slack.NewRichTextSectionTextElement(content, textStyle),
+									))
+								}
+							}
+
+							// Add the list if we have any todos
+							if len(listElements) > 0 {
+								elements = append(elements, slack.NewRichTextList(slack.RTEListBullet, 0, listElements...))
+							}
+						}
+
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post TodoWrite to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Bash" && content.Input != nil {
 					// Extract command from input
 					if cmd, ok := content.Input["command"].(string); ok {
 						// Create rich text with bold "Bash" and code-style command
@@ -266,7 +357,7 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 		}
 
 		if text != "" {
-			return m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
+			return m.slackHandler.PostToThread(channelID, threadTS, text)
 		}
 		return nil
 	}
