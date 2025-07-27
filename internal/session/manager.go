@@ -3,12 +3,15 @@ package session
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
-	"github.com/yuya-takeyama/cc-slack/internal/slack"
+	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 // Manager manages Claude Code sessions
@@ -17,7 +20,7 @@ type Manager struct {
 	threadToSession map[string]string // channelID:threadTS -> sessionID
 	mu              sync.RWMutex
 	mcpServer       *mcp.Server
-	slackHandler    *slack.Handler
+	slackHandler    *ccslack.Handler
 	mcpBaseURL      string
 	lastActiveID    string // Track the last active session for approval prompts
 }
@@ -44,7 +47,7 @@ func NewManager(mcpServer *mcp.Server, mcpBaseURL string) *Manager {
 }
 
 // SetSlackHandler sets the Slack handler for posting messages
-func (m *Manager) SetSlackHandler(handler *slack.Handler) {
+func (m *Manager) SetSlackHandler(handler *ccslack.Handler) {
 	m.slackHandler = handler
 }
 
@@ -67,7 +70,7 @@ func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, 
 }
 
 // GetSessionByThread retrieves a session by channel and thread timestamp
-func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session, error) {
+func (m *Manager) GetSessionByThread(channelID, threadTS string) (*ccslack.Session, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -82,7 +85,7 @@ func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session
 		return nil, fmt.Errorf("session not found")
 	}
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: session.ID,
 		ChannelID: session.ChannelID,
 		ThreadTS:  session.ThreadTS,
@@ -91,7 +94,7 @@ func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session
 }
 
 // CreateSession creates a new Claude Code session
-func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Session, error) {
+func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
 	ctx := context.Background()
 
 	// Create Claude process with message handlers
@@ -136,7 +139,7 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Ses
 	m.lastActiveID = sessionID // Track as last active
 	m.mu.Unlock()
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: session.ID,
 		ChannelID: session.ChannelID,
 		ThreadTS:  session.ThreadTS,
@@ -193,7 +196,64 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 			case "text":
 				text += content.Text + "\n"
 			case "tool_use":
-				text += fmt.Sprintf("🔧 *%s* を実行中...\n", content.Name)
+				// Check if this is a Bash command
+				if content.Name == "Bash" && content.Input != nil {
+					// Extract command from input
+					if cmd, ok := content.Input["command"].(string); ok {
+						// Format the command for Slack
+						var cmdText string
+						if strings.Contains(cmd, "\n") {
+							// Multi-line command, use code block
+							cmdText = fmt.Sprintf("🖥️ コマンドを実行します:\n```\n%s\n```", cmd)
+						} else {
+							// Single-line command, use inline code
+							cmdText = fmt.Sprintf("🖥️ コマンドを実行します: `%s`", cmd)
+						}
+
+						// Post command to Slack before execution
+						if err := m.slackHandler.PostToThread(channelID, threadTS, cmdText); err != nil {
+							// Log error but don't fail the whole handler
+							fmt.Printf("Failed to post command to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Read" && content.Input != nil {
+					// Handle Read tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						// Create rich text with bold "Read" and code-style path
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("📖 ", nil),
+								slack.NewRichTextSectionTextElement("Read", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(relPath, &slack.RichTextSectionTextStyle{Code: true}),
+							),
+						}
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Glob" && content.Input != nil {
+					// Handle Glob tool
+					if pattern, ok := content.Input["pattern"].(string); ok {
+						// Create rich text with bold "Glob" and code-style pattern
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("🔍 ", nil),
+								slack.NewRichTextSectionTextElement("Glob", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(pattern, &slack.RichTextSectionTextStyle{Code: true}),
+							),
+						}
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
+						}
+					}
+				} else {
+					// Other tools
+					text += fmt.Sprintf("🔧 *%s* を実行中...\n", content.Name)
+				}
 			}
 		}
 
@@ -308,4 +368,29 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 			}
 		}
 	}
+}
+
+// getRelativePath converts absolute path to relative path from work directory
+func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	sessionID, exists := m.threadToSession[key]
+	if !exists {
+		return absolutePath
+	}
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return absolutePath
+	}
+
+	relPath, err := filepath.Rel(session.WorkDir, absolutePath)
+	if err != nil {
+		// If relative path cannot be computed, return absolute path
+		return absolutePath
+	}
+
+	return relPath
 }

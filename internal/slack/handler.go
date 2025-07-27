@@ -293,6 +293,18 @@ func (h *Handler) PostToThread(channelID, threadTS, text string) error {
 	return err
 }
 
+// PostRichTextToThread posts a rich text message to a Slack thread
+func (h *Handler) PostRichTextToThread(channelID, threadTS string, elements []slack.RichTextElement) error {
+	_, _, err := h.client.PostMessage(
+		channelID,
+		slack.MsgOptionTS(threadTS),
+		slack.MsgOptionBlocks(
+			slack.NewRichTextBlock("rich_text", elements...),
+		),
+	)
+	return err
+}
+
 // PostApprovalRequest posts an approval request with buttons
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
 	// Create minimal interactive payload for debugging
