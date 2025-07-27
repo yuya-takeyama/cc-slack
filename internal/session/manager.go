@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
+	"github.com/yuya-takeyama/cc-slack/internal/messages"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
 	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
 )
@@ -175,11 +175,7 @@ func (m *Manager) createSystemHandler(channelID, threadTS string) func(process.S
 				m.updateSessionID(channelID, threadTS, msg.SessionID)
 			}
 
-			text := fmt.Sprintf("🚀 Claude Code セッション開始\n"+
-				"セッションID: %s\n"+
-				"作業ディレクトリ: %s\n"+
-				"モデル: %s",
-				msg.SessionID, msg.CWD, msg.Model)
+			text := messages.FormatSessionStartMessage(msg.SessionID, msg.CWD, msg.Model)
 
 			return m.slackHandler.PostToThread(channelID, threadTS, text)
 		}
@@ -286,10 +282,7 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 				} else if content.Name == "Bash" && content.Input != nil {
 					// Extract command from input
 					if cmd, ok := content.Input["command"].(string); ok {
-						// Escape triple backticks in command
-						escapedCmd := strings.ReplaceAll(cmd, "```", "\\`\\`\\`")
-						// Format command as code block
-						formattedCmd := fmt.Sprintf("```\n%s\n```", escapedCmd)
+						formattedCmd := messages.FormatBashToolMessage(cmd)
 						// Post using tool-specific icon and username
 						if err := m.slackHandler.PostToolMessage(channelID, threadTS, formattedCmd, ccslack.ToolBash); err != nil {
 							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
@@ -300,33 +293,33 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatReadToolMessage(relPath)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", relPath), ccslack.ToolRead); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolRead); err != nil {
 							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)
 						}
 					}
 				} else if content.Name == "Glob" && content.Input != nil {
 					// Handle Glob tool
 					if pattern, ok := content.Input["pattern"].(string); ok {
+						message := messages.FormatGlobToolMessage(pattern)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", pattern), ccslack.ToolGlob); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolGlob); err != nil {
 							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
 						}
 					}
 				} else if content.Name == "Grep" && content.Input != nil {
 					// Handle Grep tool
-					var message string
 					pattern, _ := content.Input["pattern"].(string)
 					path, _ := content.Input["path"].(string)
 
+					var relPath string
 					if path != "" {
 						// Get relative path from work directory
-						relPath := m.getRelativePath(channelID, threadTS, path)
-						message = fmt.Sprintf("Searching for `%s` in `%s`", pattern, relPath)
-					} else {
-						message = fmt.Sprintf("Searching for `%s`", pattern)
+						relPath = m.getRelativePath(channelID, threadTS, path)
 					}
 
+					message := messages.FormatGrepToolMessage(pattern, relPath)
 					// Post using tool-specific icon and username
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolGrep); err != nil {
 						fmt.Printf("Failed to post Grep tool to Slack: %v\n", err)
@@ -336,8 +329,9 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatEditToolMessage(relPath)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Editing `%s`", relPath), ccslack.ToolEdit); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolEdit); err != nil {
 							fmt.Printf("Failed to post Edit tool to Slack: %v\n", err)
 						}
 					}
@@ -346,8 +340,9 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatEditToolMessage(relPath)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Editing `%s`", relPath), ccslack.ToolMultiEdit); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolMultiEdit); err != nil {
 							fmt.Printf("Failed to post MultiEdit tool to Slack: %v\n", err)
 						}
 					}
@@ -356,8 +351,9 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatWriteToolMessage(relPath)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Writing `%s`", relPath), ccslack.ToolWrite); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolWrite); err != nil {
 							fmt.Printf("Failed to post Write tool to Slack: %v\n", err)
 						}
 					}
@@ -366,8 +362,9 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if path, ok := content.Input["path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, path)
+						message := messages.FormatLSToolMessage(relPath)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Listing `%s`", relPath), ccslack.ToolLS); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolLS); err != nil {
 							fmt.Printf("Failed to post LS tool to Slack: %v\n", err)
 						}
 					}
@@ -402,21 +399,14 @@ func (m *Manager) createResultHandler(channelID, threadTS string) func(process.R
 		if msg.IsError {
 			text = fmt.Sprintf("❌ エラーが発生しました: %s", msg.Result)
 		} else {
-			text = fmt.Sprintf("✅ セッション完了\n"+
-				"実行時間: %s\n"+
-				"ターン数: %d\n"+
-				"コスト: $%.6f USD\n"+
-				"使用トークン: 入力=%d, 出力=%d",
-				formatDuration(msg.DurationMS),
+			duration := time.Duration(msg.DurationMS) * time.Millisecond
+			text = messages.FormatSessionCompleteMessage(
+				duration,
 				msg.NumTurns,
 				msg.TotalCostUSD,
 				msg.Usage.InputTokens,
-				msg.Usage.OutputTokens)
-
-			// Cost warning
-			if msg.TotalCostUSD > 1.0 {
-				text += "\n⚠️ 高コストセッション"
-			}
+				msg.Usage.OutputTokens,
+			)
 		}
 
 		return m.slackHandler.PostToThread(channelID, threadTS, text)
@@ -469,11 +459,7 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 			// Notify Slack about timeout
 			if m.slackHandler != nil {
 				idleMinutes := int(now.Sub(session.LastActive).Minutes())
-				message := fmt.Sprintf("⏰ セッションがタイムアウトしました\n"+
-					"アイドル時間: %d分\n"+
-					"セッションID: %s\n\n"+
-					"新しいセッションを開始するには、再度メンションしてください。",
-					idleMinutes, sessionID)
+				message := messages.FormatTimeoutMessage(idleMinutes, sessionID)
 				m.slackHandler.PostToThread(session.ChannelID, session.ThreadTS, message)
 			}
 
@@ -516,58 +502,4 @@ func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) stri
 	}
 
 	return relPath
-}
-
-// getToolEmoji returns an appropriate emoji for each tool
-func (m *Manager) getToolEmoji(toolName string) string {
-	emojiMap := map[string]string{
-		"Edit":         "✏️",
-		"MultiEdit":    "✏️",
-		"Write":        "📝",
-		"LS":           "📁",
-		"Grep":         "🔍",
-		"WebFetch":     "🌐",
-		"WebSearch":    "🌎",
-		"Task":         "🤖",
-		"TodoWrite":    "📋",
-		"ExitPlanMode": "🏁",
-		"NotebookRead": "📓",
-		"NotebookEdit": "📔",
-	}
-
-	if emoji, ok := emojiMap[toolName]; ok {
-		return emoji
-	}
-
-	// Default emoji for unknown tools or MCP tools
-	if strings.HasPrefix(toolName, "mcp__") {
-		return "🔌" // Plugin emoji
-	}
-
-	return "🔧" // Default wrench emoji
-}
-
-// formatDuration converts milliseconds to human-readable duration string
-// Examples:
-//   - 5000ms -> "5秒"
-//   - 125000ms -> "2分5秒"
-//   - 3665000ms -> "1時間1分5秒"
-func formatDuration(ms int) string {
-	seconds := ms / 1000
-
-	if seconds < 60 {
-		return fmt.Sprintf("%d秒", seconds)
-	}
-
-	minutes := seconds / 60
-	remainingSeconds := seconds % 60
-
-	if minutes < 60 {
-		return fmt.Sprintf("%d分%d秒", minutes, remainingSeconds)
-	}
-
-	hours := minutes / 60
-	remainingMinutes := minutes % 60
-
-	return fmt.Sprintf("%d時間%d分%d秒", hours, remainingMinutes, remainingSeconds)
 }
