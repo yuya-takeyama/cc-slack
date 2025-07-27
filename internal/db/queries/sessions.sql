@@ -21,9 +21,9 @@ LIMIT 1;
 
 -- name: CreateSession :one
 INSERT INTO sessions (
-    thread_id, session_id, working_directory, model
+    thread_id, session_id, model
 ) VALUES (
-    ?, ?, ?, ?
+    ?, ?, ?
 )
 RETURNING *;
 
