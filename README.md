@@ -18,8 +18,11 @@ export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
 export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
 
 # Optional
-export CC_SLACK_PORT=8080                              # default: 8080
-export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
+export CC_SLACK_SERVER_PORT=8080                        # default: 8080
+export CC_SLACK_SERVER_BASE_URL=http://localhost:8080   # default: http://localhost:8080
+export CC_SLACK_DATABASE_PATH=./data/cc-slack.db        # default: ./data/cc-slack.db
+export CC_SLACK_SESSION_TIMEOUT=30m                     # default: 30m
+export CC_SLACK_SESSION_RESUME_WINDOW=1h                # default: 1h
 ```
 
 ### Build and Run
@@ -68,7 +71,7 @@ cc-slack runs an MCP server for approval prompts. Configure Claude Code to conne
 claude mcp add --transport http cc-slack http://localhost:8080/mcp
 
 # Or with custom base URL
-claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
+claude mcp add --transport http cc-slack ${CC_SLACK_SERVER_BASE_URL}/mcp
 ```
 
 ## Usage
@@ -84,6 +87,13 @@ claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
    ```
    add error handling please
    ```
+
+### Features
+
+- **Session Persistence**: Sessions are stored in SQLite database
+- **Session Resume**: Automatically resume previous sessions within the configured time window
+- **Isolated Sessions**: Each Slack thread gets its own Claude Code session
+- **Cost Tracking**: Track token usage and costs per session
 
 Note: Claude Code sessions use the current working directory where cc-slack is running.
 

@@ -9,7 +9,7 @@
 2. **凝集性の向上** - 関連するロジックを同一ファイルに集約し、Claude Codeでの編集を容易に
 3. **純粋関数の抽出** - テスト可能なロジックを抽出し、ユニットテストを追加
 
-## フェーズ1: ツール表示情報の統一
+## フェーズ1: ツール表示情報の統一 ✅ **実装済み**
 
 ### 現状の問題
 - ツール名と絵文字のマッピングが複数ファイルに分散
@@ -17,17 +17,17 @@
   - `internal/session/manager.go`: `getToolEmoji()`
 
 ### 実装計画
-1. `internal/tools/display.go` を新規作成
-2. ツール情報を一元管理する構造体を定義：
+1. ✅ `internal/tools/display.go` を新規作成
+2. ✅ ツール情報を一元管理する構造体を定義：
    ```go
    type ToolInfo struct {
-       Name  string
-       Emoji string
-       Icon  string
+       Name      string
+       Emoji     string // Unicode emoji
+       SlackIcon string // Slack emoji code
    }
    ```
-3. 全ツール情報を定数として定義
-4. 既存コードを新しい構造体を使用するよう修正
+3. ✅ 全ツール情報を定数として定義
+4. ✅ 既存コードを新しい構造体を使用するよう修正
 
 ### 影響範囲
 - `internal/slack/handler.go`
@@ -35,19 +35,26 @@
 
 ## フェーズ2: 純粋関数の抽出とテスト追加
 
-### 2.1 メッセージフォーマット関数の抽出
+### 2.1 メッセージフォーマット関数の抽出 ✅ **実装済み**
 
 #### 実装計画
-1. `internal/messages/format.go` を新規作成
-2. 以下の関数を抽出：
+1. ✅ `internal/messages/format.go` を新規作成
+2. ✅ 以下の関数を抽出：
    - `FormatSessionStartMessage(sessionID, cwd, model string) string`
    - `FormatSessionCompleteMessage(duration time.Duration, turns int, cost float64, inputTokens, outputTokens int) string`
    - `FormatTimeoutMessage(idleMinutes int, sessionID string) string`
    - `FormatBashToolMessage(command string) string`
-   - `FormatReadToolMessage(filePath string) string`
+   - `FormatReadToolMessage(filePath string, offset, limit int) string`
    - `FormatGrepToolMessage(pattern, path string) string`
+   - `FormatEditToolMessage(filePath string) string`
+   - `FormatWriteToolMessage(filePath string) string`
+   - `FormatLSToolMessage(path string) string`
+   - `FormatGlobToolMessage(pattern string) string`
+   - `FormatTaskToolMessage(description, prompt string) string`
+   - `FormatWebFetchToolMessage(url, prompt string) string`
+   - `FormatDuration(d time.Duration) string`
 
-3. 各関数に対するユニットテストを `internal/messages/format_test.go` に追加
+3. ✅ 各関数に対するユニットテストを `internal/messages/format_test.go` に追加
 
 #### 影響範囲
 - `internal/session/manager.go` の巨大なswitch文をリファクタリング
@@ -147,8 +154,8 @@
 
 ## 実装順序
 
-1. **フェーズ2.1**: メッセージフォーマット関数の抽出（最も影響が少ない）
-2. **フェーズ1**: ツール表示情報の統一（依存関係が単純）
+1. ✅ **フェーズ2.1**: メッセージフォーマット関数の抽出（最も影響が少ない）
+2. ✅ **フェーズ1**: ツール表示情報の統一（依存関係が単純）
 3. **フェーズ2.2, 2.3**: その他の純粋関数の抽出
 4. **フェーズ4**: 共通ロジックの抽出
 5. **フェーズ3**: 凝集性の向上（最も影響が大きい）

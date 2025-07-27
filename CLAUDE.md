@@ -216,9 +216,14 @@ Claude Code Hooks automatically runs goimports, which removes unused imports. To
 - Add imports afterwards (or let goimports auto-add them)
 - When multiple imports are needed, write the code that uses them before organizing imports
 
-### Development Workflow with Restart
+### Development Workflow with Manager Scripts
 
-During development, use the cc-slack-manager for restarting cc-slack:
+During development, use the provided scripts for managing cc-slack:
+
+**Starting cc-slack-manager:**
+```bash
+./scripts/start
+```
 
 **To restart cc-slack when explicitly requested:**
 ```bash
@@ -346,9 +351,9 @@ When adding new features, always consider:
 - `internal/db/`: Database access layer (sqlc generated)
 - `internal/database/`: Database connection and migration utilities
 - `internal/config/`: Configuration management (Viper)
-- `internal/session/db_manager.go`: Session manager with database persistence
-- `internal/web/`: Web management console
-- `internal/workspace/`: Working directory management
+- `internal/session/`: Session manager with database persistence
+- `internal/messages/`: Slack message formatting utilities
+- `internal/tools/`: Claude Code tool information management
 - `migrations/`: Database schema migrations
 
 ## Logging
@@ -385,8 +390,10 @@ Logs are written to `logs/` directory with timestamp:
 - `CC_SLACK_SESSION_CLEANUP_INTERVAL`: Cleanup interval (default: 5m)
 - `CC_SLACK_SESSION_RESUME_WINDOW`: Resume window duration (default: 1h)
 
-**Working Directory Configuration:**
-- `CC_SLACK_WORKING_DIRECTORIES_DEFAULT`: Default working directory
+**Logging Configuration:**
+- `CC_SLACK_LOGGING_LEVEL`: Log level (default: info)
+- `CC_SLACK_LOGGING_FORMAT`: Log format (default: json)
+- `CC_SLACK_LOGGING_OUTPUT`: Log output directory (default: ./logs)
 
 **Note:** All environment variables can also be set in `config.yaml` file using Viper
 
