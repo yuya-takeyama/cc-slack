@@ -302,6 +302,7 @@ When adding new features, always consider:
 - Bot mentions are stripped before sending to Claude
 - Responses are posted back to the same thread
 - Use structured blocks for approval prompts
+- **Session Resume**: Sessions can be resumed within a configurable time window (default: 1 hour)
 
 ### MCP (Model Context Protocol) Design
 
@@ -338,11 +339,14 @@ When adding new features, always consider:
 ## Key Components
 
 - `internal/process/claude.go`: Claude Code process management
+- `internal/process/resume.go`: Session resume functionality
 - `internal/slack/`: Slack event handling
 - `internal/mcp/`: MCP server implementation
 - `cmd/cc-slack/`: Main application entry point
 - `internal/db/`: Database access layer (sqlc generated)
+- `internal/database/`: Database connection and migration utilities
 - `internal/config/`: Configuration management (Viper)
+- `internal/session/db_manager.go`: Session manager with database persistence
 - `internal/web/`: Web management console
 - `internal/workspace/`: Working directory management
 - `migrations/`: Database schema migrations
@@ -385,6 +389,30 @@ Logs are written to `logs/` directory with timestamp:
 - `CC_SLACK_WORKING_DIRECTORIES_DEFAULT`: Default working directory
 
 **Note:** All environment variables can also be set in `config.yaml` file using Viper
+
+## Session Resume Feature
+
+The session resume feature allows users to continue previous Claude Code sessions within the same Slack thread:
+
+### How it works:
+
+1. When a new mention is made in a thread that had a previous session
+2. The system checks if the previous session ended within the resume window (default: 1 hour)
+3. If eligible, Claude Code is started with `--resume` option using the previous session ID
+4. The conversation context is preserved and continues from where it left off
+
+### Configuration:
+
+- **Resume Window**: Set via `CC_SLACK_SESSION_RESUME_WINDOW` (default: 1h)
+- **Database**: Sessions are persisted in SQLite database
+- **Automatic**: No user action required - resume happens automatically when conditions are met
+
+### Benefits:
+
+- Seamless continuation of work across breaks
+- Preserves conversation context and memory
+- Reduces token usage by avoiding repetitive context
+- Maintains TODO lists and project state
 
 ## MCP Tools
 

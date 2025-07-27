@@ -43,3 +43,6 @@ CLAUDE.local.json
 
 # Log files
 logs/
+
+# Database files
+data/

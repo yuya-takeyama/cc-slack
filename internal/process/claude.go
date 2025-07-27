@@ -114,7 +114,8 @@ type Options struct {
 	MCPBaseURL           string
 	PermissionPromptTool string // MCP tool name for permission prompts (default: mcp__cc-slack__approval_prompt)
 	// Must follow pattern: mcp__<serverName>__<toolName>
-	Handlers MessageHandlers
+	ResumeSessionID string // Session ID to resume from (optional)
+	Handlers        MessageHandlers
 }
 
 // NewClaudeProcess creates and starts a new Claude Code process
@@ -161,14 +162,24 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 		Msg("Created MCP configuration")
 
 	// Prepare command
-	cmd := exec.CommandContext(ctx, "claude",
+	args := []string{
 		"--mcp-config", configPath,
 		"--permission-prompt-tool", opts.PermissionPromptTool,
 		"--print",
 		"--output-format", "stream-json",
 		"--input-format", "stream-json",
 		"--verbose",
-	)
+	}
+
+	// Add resume option if specified
+	if opts.ResumeSessionID != "" {
+		args = append(args, "--resume", opts.ResumeSessionID)
+		logger.Info().
+			Str("resume_session_id", opts.ResumeSessionID).
+			Msg("Resuming previous session")
+	}
+
+	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Dir = opts.WorkDir
 
 	// Set up pipes
