@@ -23,8 +23,8 @@ PR #17 で基盤は作成されたが、実際の統合がまだ完了してい�
 - [x] SessionManager を DBManager に置き換え ✅ 実装済み
 
 ### 1.3 基本的なテスト
-- [ ] データベース操作のユニットテスト
-- [ ] マイグレーションのテスト
+- [x] データベース操作のユニットテスト ✅ database_test.go 実装済み
+- [x] マイグレーションのテスト ✅ migrate_test.go 実装済み
 - [x] ResumeManager のテスト ✅ resume_test.go 存在
 
 ## Phase 2: セッション永続化（Phase 1 に依存）
@@ -40,8 +40,8 @@ PR #17 で基盤は作成されたが、実際の統合がまだ完了してい�
 - [x] セッション統計情報の記録（コスト、トークン数、実行時間）✅ UpdateSessionStatus 実装済み
 
 ### 2.3 テスト
-- [ ] DBManagerの統合テスト
-- [ ] セッション永続化のE2Eテスト
+- [x] DBManagerの統合テスト ✅ db_integration_test.go 実装済み
+- [x] セッション永続化のE2Eテスト ✅ session_persistence_test.go 実装済み
 
 ## Phase 3: セッション再開機能（Phase 2 に依存）
 
@@ -56,8 +56,8 @@ PR #17 で基盤は作成されたが、実際の統合がまだ完了してい�
 - [x] エラーハンドリング ✅ resume 失敗時の新規セッション作成実装済み
 
 ### 3.3 テスト
-- [ ] セッション再開のE2Eテスト
-- [ ] タイムアウト境界のテスト
+- [x] セッション再開のE2Eテスト ✅ session_resume_test.go 実装済み
+- [x] タイムアウト境界のテスト ✅ session_timeout_test.go 実装済み（一部タイミング依存テストはスキップ）
 
 ## Phase 4: 複数ワーキングディレクトリ対応（Phase 2 に依存）
 
