@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
@@ -129,15 +130,15 @@ type Config struct {
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	config := &Config{
-		Port:               getEnv("CC_SLACK_PORT", "8080"),
-		SlackToken:         getEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
-		SlackSigningSecret: getEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
-		BaseURL:            getEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
-		SessionTimeout:     getDurationEnv("CC_SLACK_SESSION_TIMEOUT", 30*time.Minute),
-		CleanupInterval:    getDurationEnv("CC_SLACK_CLEANUP_INTERVAL", 5*time.Minute),
-		AssistantUsername:  getEnv("CC_SLACK_ASSISTANT_USERNAME", ""),
-		AssistantIconEmoji: getEnv("CC_SLACK_ASSISTANT_ICON_EMOJI", ""),
-		AssistantIconURL:   getEnv("CC_SLACK_ASSISTANT_ICON_URL", ""),
+		Port:               config.GetEnv("CC_SLACK_PORT", "8080"),
+		SlackToken:         config.GetEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
+		SlackSigningSecret: config.GetEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
+		BaseURL:            config.GetEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
+		SessionTimeout:     config.GetDurationEnv("CC_SLACK_SESSION_TIMEOUT", 30*time.Minute),
+		CleanupInterval:    config.GetDurationEnv("CC_SLACK_CLEANUP_INTERVAL", 5*time.Minute),
+		AssistantUsername:  config.GetEnv("CC_SLACK_ASSISTANT_USERNAME", ""),
+		AssistantIconEmoji: config.GetEnv("CC_SLACK_ASSISTANT_ICON_EMOJI", ""),
+		AssistantIconURL:   config.GetEnv("CC_SLACK_ASSISTANT_ICON_URL", ""),
 	}
 
 	// Validate required fields
@@ -149,28 +150,4 @@ func loadConfig() *Config {
 	}
 
 	return config
-}
-
-// getEnv returns an environment variable value or a default
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getDurationEnv returns a duration from environment variable or a default
-func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	duration, err := time.ParseDuration(value)
-	if err != nil {
-		log.Printf("Invalid duration for %s: %s, using default: %v", key, value, defaultValue)
-		return defaultValue
-	}
-
-	return duration
 }

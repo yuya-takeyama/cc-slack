@@ -12,57 +12,30 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
+	"github.com/yuya-takeyama/cc-slack/internal/tools"
 )
 
-// Tool type constants for tool-specific display
+// Re-export tool constants for backward compatibility
 const (
-	ToolTodoWrite    = "TodoWrite"
-	ToolBash         = "Bash"
-	ToolRead         = "Read"
-	ToolGlob         = "Glob"
-	ToolEdit         = "Edit"
-	ToolMultiEdit    = "MultiEdit"
-	ToolWrite        = "Write"
-	ToolLS           = "LS"
-	ToolGrep         = "Grep"
-	ToolWebFetch     = "WebFetch"
-	ToolWebSearch    = "WebSearch"
-	ToolTask         = "Task"
-	ToolExitPlanMode = "ExitPlanMode"
-	ToolNotebookRead = "NotebookRead"
-	ToolNotebookEdit = "NotebookEdit"
+	ToolTodoWrite    = tools.ToolTodoWrite
+	ToolBash         = tools.ToolBash
+	ToolRead         = tools.ToolRead
+	ToolGlob         = tools.ToolGlob
+	ToolEdit         = tools.ToolEdit
+	ToolMultiEdit    = tools.ToolMultiEdit
+	ToolWrite        = tools.ToolWrite
+	ToolLS           = tools.ToolLS
+	ToolGrep         = tools.ToolGrep
+	ToolWebFetch     = tools.ToolWebFetch
+	ToolWebSearch    = tools.ToolWebSearch
+	ToolTask         = tools.ToolTask
+	ToolExitPlanMode = tools.ToolExitPlanMode
+	ToolNotebookRead = tools.ToolNotebookRead
+	ToolNotebookEdit = tools.ToolNotebookEdit
 
 	// Special message types
-	MessageThinking = "thinking"
+	MessageThinking = tools.MessageThinking
 )
-
-// ToolDisplayInfo holds display information for tools
-type ToolDisplayInfo struct {
-	Username string
-	Emoji    string
-}
-
-// toolDisplayMap maps tool types to their display information
-var toolDisplayMap = map[string]ToolDisplayInfo{
-	ToolTodoWrite:    {Username: "TodoWrite", Emoji: ":memo:"},
-	ToolBash:         {Username: "Bash", Emoji: ":computer:"},
-	ToolRead:         {Username: "Read", Emoji: ":open_book:"},
-	ToolGlob:         {Username: "Glob", Emoji: ":mag:"},
-	ToolEdit:         {Username: "Edit", Emoji: ":pencil2:"},
-	ToolMultiEdit:    {Username: "MultiEdit", Emoji: ":pencil2:"},
-	ToolWrite:        {Username: "Write", Emoji: ":memo:"},
-	ToolLS:           {Username: "LS", Emoji: ":file_folder:"},
-	ToolGrep:         {Username: "Grep", Emoji: ":mag:"},
-	ToolWebFetch:     {Username: "WebFetch", Emoji: ":globe_with_meridians:"},
-	ToolWebSearch:    {Username: "WebSearch", Emoji: ":earth_americas:"},
-	ToolTask:         {Username: "Task", Emoji: ":robot_face:"},
-	ToolExitPlanMode: {Username: "ExitPlanMode", Emoji: ":checkered_flag:"},
-	ToolNotebookRead: {Username: "NotebookRead", Emoji: ":notebook:"},
-	ToolNotebookEdit: {Username: "NotebookEdit", Emoji: ":notebook_with_decorative_cover:"},
-
-	// Special message types
-	MessageThinking: {Username: "Thinking", Emoji: ":thinking_face:"},
-}
 
 // Handler handles Slack events and interactions
 type Handler struct {
@@ -396,16 +369,11 @@ func (h *Handler) PostToolMessage(channelID, threadTS, text, toolType string) er
 	}
 
 	// Get tool display info
-	if displayInfo, exists := toolDisplayMap[toolType]; exists {
-		// Add username
-		options = append(options, slack.MsgOptionUsername(displayInfo.Username))
-		// Add icon emoji
-		options = append(options, slack.MsgOptionIconEmoji(displayInfo.Emoji))
-	} else {
-		// Fallback to generic tool display
-		options = append(options, slack.MsgOptionUsername("tool"))
-		options = append(options, slack.MsgOptionIconEmoji(":wrench:"))
-	}
+	toolInfo := tools.GetToolInfo(toolType)
+	// Add username
+	options = append(options, slack.MsgOptionUsername(toolInfo.Name))
+	// Add icon emoji
+	options = append(options, slack.MsgOptionIconEmoji(toolInfo.SlackIcon))
 
 	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
@@ -421,16 +389,11 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 	}
 
 	// Get tool display info
-	if displayInfo, exists := toolDisplayMap[toolType]; exists {
-		// Add username
-		options = append(options, slack.MsgOptionUsername(displayInfo.Username))
-		// Add icon emoji
-		options = append(options, slack.MsgOptionIconEmoji(displayInfo.Emoji))
-	} else {
-		// Fallback to generic tool display
-		options = append(options, slack.MsgOptionUsername("tool"))
-		options = append(options, slack.MsgOptionIconEmoji(":wrench:"))
-	}
+	toolInfo := tools.GetToolInfo(toolType)
+	// Add username
+	options = append(options, slack.MsgOptionUsername(toolInfo.Name))
+	// Add icon emoji
+	options = append(options, slack.MsgOptionIconEmoji(toolInfo.SlackIcon))
 
 	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
@@ -438,58 +401,13 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 
 // PostApprovalRequest posts an approval request with buttons
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
-	// Create minimal interactive payload for debugging
-	approvePayload := map[string]interface{}{
-		"type": "block_actions",
-		"actions": []map[string]interface{}{
-			{
-				"action_id": fmt.Sprintf("approve_%s", requestID),
-				"type":      "button",
-				"value":     "approve",
-			},
-		},
-		"channel": map[string]string{
-			"id": channelID,
-		},
-		"message": map[string]string{
-			"ts":   threadTS,
-			"text": message,
-		},
-	}
-
-	denyPayload := map[string]interface{}{
-		"type": "block_actions",
-		"actions": []map[string]interface{}{
-			{
-				"action_id": fmt.Sprintf("deny_%s", requestID),
-				"type":      "button",
-				"value":     "deny",
-			},
-		},
-		"channel": map[string]string{
-			"id": channelID,
-		},
-		"message": map[string]string{
-			"ts":   threadTS,
-			"text": message,
-		},
-	}
-
-	approveJSON, _ := json.Marshal(approvePayload)
-	denyJSON, _ := json.Marshal(denyPayload)
+	// Create approval payloads
+	approvePayload := BuildApprovalPayload(channelID, threadTS, message, requestID, "approve")
+	denyPayload := BuildApprovalPayload(channelID, threadTS, message, requestID, "deny")
 
 	// Add debug curl commands to the message
-	debugMessage := message + "\n\n*【デバッグ用curlコマンド】*\n" +
-		"```bash\n" +
-		"# 承認する場合:\n" +
-		fmt.Sprintf("curl -X POST http://localhost:8080/slack/interactive \\\n") +
-		fmt.Sprintf("  -H \"Content-Type: application/x-www-form-urlencoded\" \\\n") +
-		fmt.Sprintf("  --data-urlencode 'payload=%s'\n\n", string(approveJSON)) +
-		"# 拒否する場合:\n" +
-		fmt.Sprintf("curl -X POST http://localhost:8080/slack/interactive \\\n") +
-		fmt.Sprintf("  -H \"Content-Type: application/x-www-form-urlencoded\" \\\n") +
-		fmt.Sprintf("  --data-urlencode 'payload=%s'\n", string(denyJSON)) +
-		"```"
+	debugCommands := GenerateDebugCurlCommands(approvePayload, denyPayload)
+	debugMessage := message + "\n\n" + debugCommands
 
 	_, _, err := h.client.PostMessage(
 		channelID,
