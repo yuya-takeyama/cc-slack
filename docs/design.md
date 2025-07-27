@@ -395,6 +395,11 @@ CC_SLACK_CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
 
 # MCP 設定
 CC_SLACK_MCP_SERVER_NAME=cc-slack
+
+# Slack表示設定
+CC_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
+CC_SLACK_ASSISTANT_ICON_EMOJI=   # Claudeレスポンス時の絵文字アイコン（オプション）
+CC_SLACK_ASSISTANT_ICON_URL=     # Claudeレスポンス時のアイコンURL（オプション）
 ```
 
 ### Claude Code の MCP 設定
@@ -491,6 +496,66 @@ func formatAssistantMessage(msg AssistantMessage) string {
     }
     
     return text
+}
+```
+
+##### Slack表示改善機能
+
+ツールごとにカスタムアイコンとユーザー名を表示する機能を実装：
+
+```go
+// ツール表示情報の定義
+type ToolDisplayInfo struct {
+    Username string
+    Emoji    string
+}
+
+// ツールごとの表示設定
+var toolDisplayMap = map[string]ToolDisplayInfo{
+    ToolTodoWrite:    {Username: "TodoWrite", Emoji: ":memo:"},
+    ToolBash:         {Username: "Bash", Emoji: ":computer:"},
+    ToolRead:         {Username: "Read", Emoji: ":open_book:"},
+    ToolEdit:         {Username: "Edit", Emoji: ":pencil2:"},
+    ToolWebFetch:     {Username: "WebFetch", Emoji: ":globe_with_meridians:"},
+    // ... 他のツール
+}
+
+// ツール専用の投稿メソッド
+func (h *Handler) PostToolUseMessage(channelID, threadTS, text, toolType string) error {
+    options := []slack.MsgOption{
+        slack.MsgOptionText(text, false),
+        slack.MsgOptionTS(threadTS),
+    }
+    
+    if displayInfo, exists := toolDisplayMap[toolType]; exists {
+        options = append(options, 
+            slack.MsgOptionUsername(displayInfo.Username),
+            slack.MsgOptionIconEmoji(displayInfo.Emoji))
+    }
+    
+    _, _, err := h.client.PostMessage(channelID, options...)
+    return err
+}
+
+// Claudeレスポンス専用の投稿メソッド（環境変数で設定可能）
+func (h *Handler) PostAssistantMessage(channelID, threadTS, text string) error {
+    options := []slack.MsgOption{
+        slack.MsgOptionText(text, false),
+        slack.MsgOptionTS(threadTS),
+    }
+    
+    if h.assistantUsername != "" {
+        options = append(options, slack.MsgOptionUsername(h.assistantUsername))
+    }
+    
+    if h.assistantIconEmoji != "" {
+        options = append(options, slack.MsgOptionIconEmoji(h.assistantIconEmoji))
+    } else if h.assistantIconURL != "" {
+        options = append(options, slack.MsgOptionIconURL(h.assistantIconURL))
+    }
+    
+    _, _, err := h.client.PostMessage(channelID, options...)
+    return err
 }
 ```
 
@@ -845,6 +910,17 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - エラーハンドリングの強化
 - WebFetchなどの内蔵ツールの許可プロンプトの動作確認が必要
 
+### 追加実装済み（2025-07-27以降）
+- **Slack表示改善機能**: ✅ 完了！（PR #6）
+  - ツールごとのカスタムアイコンとユーザー名表示
+  - PostAssistantMessage, PostToolUseMessage の実装
+  - 環境変数によるアシスタント表示のカスタマイズ
+- **cc-slack-manager**: ✅ 完了！（PR #3）
+  - 開発時の自動リスタート機能
+  - HTTP制御エンドポイント（ポート10080）
+  - /scripts/start, /scripts/restart, /scripts/status スクリプト
+  - cc-slack プロセスの管理とログ出力
+
 ### Phase 3: 拡張機能（任意）
 
 - [ ] 複数セッションの並列管理
@@ -856,12 +932,12 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 ## 技術スタック
 
-- **言語**: Go
+- **言語**: Go 1.24.4+
 - **MCP SDK**: Go 標準 MCP SDK（実装予定）
 - **Slack SDK**: slack-go/slack
 - **その他**: 
   - gorilla/mux (HTTP routing)
-  - uber/zap (logging)
+  - rs/zerolog (structured logging)
   - bufio (JSON Lines streaming)
 
 ## 期待される成果
