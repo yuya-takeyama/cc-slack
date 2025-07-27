@@ -231,22 +231,26 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 										status = s
 									}
 
-									// Create status emoji as bullet
-									statusEmoji := ""
+									// Create rich text section for each todo item with proper emoji handling
+									var sectionElements []slack.RichTextSectionElement
+
 									switch status {
 									case "completed":
-										statusEmoji = "✅"
+										// Unicode emoji can be used as text
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement("✅ ", nil))
 									case "in_progress":
-										statusEmoji = "▶️"
+										// Unicode emoji can be used as text
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement("▶️ ", nil))
 									default: // pending
-										statusEmoji = ":ballot_box_with_check:"
+										// Slack emoji needs to use emoji element
+										sectionElements = append(sectionElements, slack.NewRichTextSectionEmojiElement("ballot_box_with_check", 0, nil))
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(" ", nil))
 									}
 
-									// Create rich text section for each todo item
-									elements = append(elements, slack.NewRichTextSection(
-										slack.NewRichTextSectionTextElement(statusEmoji+" ", nil),
-										slack.NewRichTextSectionTextElement(content, nil),
-									))
+									// Add the todo content
+									sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(content, nil))
+
+									elements = append(elements, slack.NewRichTextSection(sectionElements...))
 								}
 							}
 						}
