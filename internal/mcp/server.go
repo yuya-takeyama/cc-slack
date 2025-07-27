@@ -258,7 +258,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 			Interface("updated_input", promptResp.UpdatedInput).
 			Msg("Returning approval response")
 
-		// Return response with Content only (permission prompt tool expects JSON string response)
 		result := &mcpsdk.CallToolResultFor[PermissionPromptResponse]{
 			Content: []mcpsdk.Content{
 				&mcpsdk.TextContent{
