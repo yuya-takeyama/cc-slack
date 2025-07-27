@@ -19,7 +19,8 @@ const (
 	ToolNotebookEdit = "NotebookEdit"
 
 	// Special message types
-	MessageThinking = "thinking"
+	MessageThinking       = "thinking"
+	MessageApprovalPrompt = "approval_prompt"
 )
 
 // ToolInfo holds display information for tools
@@ -48,7 +49,8 @@ var toolInfoMap = map[string]ToolInfo{
 	ToolNotebookEdit: {Name: "NotebookEdit", Emoji: "📔", SlackIcon: ":notebook_with_decorative_cover:"},
 
 	// Special message types
-	MessageThinking: {Name: "Thinking", Emoji: "🤔", SlackIcon: ":thinking_face:"},
+	MessageThinking:       {Name: "Thinking", Emoji: "🤔", SlackIcon: ":thinking_face:"},
+	MessageApprovalPrompt: {Name: "Permission", Emoji: "🔐", SlackIcon: ":lock:"},
 }
 
 // GetToolInfo returns tool information for the given tool name

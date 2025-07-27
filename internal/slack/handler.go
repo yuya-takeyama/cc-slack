@@ -38,7 +38,8 @@ const (
 	ToolNotebookEdit = tools.ToolNotebookEdit
 
 	// Special message types
-	MessageThinking = tools.MessageThinking
+	MessageThinking       = tools.MessageThinking
+	MessageApprovalPrompt = tools.MessageApprovalPrompt
 )
 
 // Handler handles Slack events and interactions
@@ -376,21 +377,8 @@ func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, actio
 		}
 	}
 
-	// Update the message
-	status := "承認されました ✅"
-	if !approved {
-		status = "拒否されました ❌"
-	}
-
-	_, _, _, err := h.client.UpdateMessage(
-		payload.Channel.ID,
-		payload.Message.Timestamp,
-		slack.MsgOptionText(fmt.Sprintf("%s\n\n%s", payload.Message.Text, status), false),
-		slack.MsgOptionReplaceOriginal(payload.ResponseURL),
-	)
-	if err != nil {
-		fmt.Printf("Failed to update message: %v\n", err)
-	}
+	// Update the message with enhanced status information
+	h.updateApprovalMessage(payload, approved)
 }
 
 // removeBotMention removes bot mention from message text
@@ -501,15 +489,23 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 	return err
 }
 
-// PostApprovalRequest posts an approval request with buttons
+// PostApprovalRequest posts an approval request with buttons using markdown
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
-	_, _, err := h.client.PostMessage(
-		channelID,
-		slack.MsgOptionText(message, false),
+	// Parse the message to extract structured information
+	// This is a simple parser for the current format from mcp/server.go
+	info := parseApprovalMessage(message)
+
+	// Build markdown text for the approval request
+	markdownText := buildApprovalMarkdownText(info)
+
+	// Get tool display info for permission prompt
+	toolInfo := tools.GetToolInfo(MessageApprovalPrompt)
+
+	options := []slack.MsgOption{
 		slack.MsgOptionTS(threadTS),
 		slack.MsgOptionBlocks(
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, message, false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, markdownText, false, false),
 				nil,
 				nil,
 			),
@@ -527,6 +523,152 @@ func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID st
 				).WithStyle(slack.StyleDanger),
 			),
 		),
-	)
+	}
+
+	// Add username and icon
+	options = append(options, slack.MsgOptionUsername(toolInfo.Name))
+	options = append(options, slack.MsgOptionIconEmoji(toolInfo.SlackIcon))
+
+	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
+}
+
+// ApprovalInfo holds structured information about an approval request
+type ApprovalInfo struct {
+	ToolName    string
+	URL         string
+	Prompt      string
+	Command     string
+	Description string
+	FilePath    string
+}
+
+// parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
+func parseApprovalMessage(message string) *ApprovalInfo {
+	// Parse the message format from mcp/server.go:
+	// For WebFetch: **ツール**: WebFetch \n **URL**: %s \n **内容**: %s
+	// For Bash: **ツール**: Bash \n **コマンド**: %s \n **説明**: %s
+
+	info := &ApprovalInfo{}
+	lines := strings.Split(message, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "**ツール**: ") {
+			info.ToolName = strings.TrimPrefix(line, "**ツール**: ")
+		} else if strings.HasPrefix(line, "**URL**: ") {
+			info.URL = strings.TrimPrefix(line, "**URL**: ")
+		} else if strings.HasPrefix(line, "**内容**: ") {
+			info.Prompt = strings.TrimPrefix(line, "**内容**: ")
+		} else if strings.HasPrefix(line, "**コマンド**: ") {
+			info.Command = strings.TrimPrefix(line, "**コマンド**: ")
+		} else if strings.HasPrefix(line, "**説明**: ") {
+			info.Description = strings.TrimPrefix(line, "**説明**: ")
+		} else if strings.HasPrefix(line, "**ファイルパス**: ") {
+			info.FilePath = strings.TrimPrefix(line, "**ファイルパス**: ")
+		}
+	}
+
+	return info
+}
+
+// buildApprovalMarkdownText creates markdown text for approval request
+func buildApprovalMarkdownText(info *ApprovalInfo) string {
+	var text strings.Builder
+
+	// Header
+	text.WriteString("*ツールの実行許可が必要です*\n\n")
+
+	if info.ToolName != "" {
+		text.WriteString(fmt.Sprintf("*ツール:* %s\n", info.ToolName))
+	}
+
+	// Handle WebFetch tool
+	if info.URL != "" {
+		text.WriteString(fmt.Sprintf("*URL:* <%s>\n", info.URL))
+	}
+
+	if info.Prompt != "" {
+		text.WriteString("*内容:*\n")
+		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Prompt))
+	}
+
+	// Handle Bash tool
+	if info.Command != "" {
+		text.WriteString("*コマンド:*\n")
+		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Command))
+	}
+
+	if info.Description != "" {
+		if info.Command != "" {
+			text.WriteString("\n")
+		}
+		text.WriteString("*説明:*\n")
+		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Description))
+	}
+
+	// Handle Write tool
+	if info.FilePath != "" {
+		text.WriteString(fmt.Sprintf("*ファイルパス:* `%s`", info.FilePath))
+	}
+
+	return text.String()
+}
+
+// updateApprovalMessage updates the approval message with status and user information
+func (h *Handler) updateApprovalMessage(payload *slack.InteractionCallback, approved bool) {
+	// Preserve the original blocks and add a status block
+	originalBlocks := payload.Message.Blocks.BlockSet
+
+	// Remove the action block (last block) which contains the buttons
+	if len(originalBlocks) > 0 {
+		originalBlocks = originalBlocks[:len(originalBlocks)-1]
+	}
+
+	// Get the original markdown text from the first section block
+	var originalText string
+	if len(originalBlocks) > 0 {
+		if section, ok := originalBlocks[0].(*slack.SectionBlock); ok && section.Text != nil {
+			originalText = section.Text.Text
+		}
+	}
+
+	// Create status markdown text
+	statusText := h.buildStatusMarkdownText(payload.User.ID, approved)
+
+	// Combine original text with status
+	fullText := originalText + "\n\n" + statusText
+
+	// Create new blocks with updated text
+	newBlocks := []slack.Block{
+		slack.NewSectionBlock(
+			slack.NewTextBlockObject(slack.MarkdownType, fullText, false, false),
+			nil,
+			nil,
+		),
+	}
+
+	// Update the message
+	_, _, _, err := h.client.UpdateMessage(
+		payload.Channel.ID,
+		payload.Message.Timestamp,
+		slack.MsgOptionBlocks(newBlocks...),
+		slack.MsgOptionReplaceOriginal(payload.ResponseURL),
+	)
+	if err != nil {
+		fmt.Printf("Failed to update message: %v\n", err)
+	}
+}
+
+// buildStatusMarkdownText creates markdown text for approval status
+func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
+	var statusEmoji, statusText string
+	if approved {
+		statusEmoji = ":white_check_mark:"
+		statusText = "承認されました"
+	} else {
+		statusEmoji = ":x:"
+		statusText = "拒否されました"
+	}
+
+	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
 }
