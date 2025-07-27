@@ -78,10 +78,21 @@ migrate create -ext sql -dir migrations -seq create_threads_table
 # - migrations/000001_create_threads_table.down.sql
 ```
 
-**Running migrations:**
+**Migration execution:**
+
+cc-slack automatically runs migrations on startup. No manual intervention required!
+
+```go
+// This happens automatically in main.go:
+if err := database.Migrate(sqlDB, cfg.Database.MigrationsPath); err != nil {
+    log.Fatalf("Failed to run migrations: %v", err)
+}
+```
+
+**Manual migration commands (optional, for debugging/rollback):**
 
 ```bash
-# Apply all pending migrations
+# Apply all pending migrations manually
 migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up
 
 # Rollback one migration
@@ -140,8 +151,8 @@ migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations version
    # migrations/XXXXXX_add_user_id_to_sessions.down.sql:
    ALTER TABLE sessions DROP COLUMN user_id;
    
-   # 3. Apply migration
-   migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up
+   # 3. Migration will be applied automatically on next cc-slack startup
+   # (Or apply manually for immediate testing: migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up)
    
    # 4. Update sqlc queries if needed
    # 5. Regenerate sqlc code
