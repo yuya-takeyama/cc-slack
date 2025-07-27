@@ -67,6 +67,23 @@ MCP の permission prompt tool として実装し、以下の JSON 形式で応�
 }
 ```
 
+##### 重要: permission prompt tool の命名規則
+
+permission prompt tool の名前は特定の形式に従う必要があります：
+
+- **形式**: `mcp__<serverName>__<toolName>`
+- **例**: `mcp__cc-slack__approval_prompt`
+  - `serverName`: MCP設定ファイルのキー（`cc-slack`）
+  - `toolName`: MCPサーバーが提供するツール名（`approval_prompt`）
+
+**実装時の注意点**:
+1. MCPサーバーでツールを登録する際は、**ベース名のみ**（`approval_prompt`）を使用
+   - MCP SDK が自動的に `mcp__<serverName>__` プレフィックスを付ける
+2. Claude Code起動時の `--permission-prompt-tool` オプションでは完全な名前（`mcp__cc-slack__approval_prompt`）を指定
+3. 間違った例:
+   - ❌ MCPサーバーで `mcp__cc-slack__approval_prompt` を登録（二重プレフィックスになる）
+   - ❌ `--permission-prompt-tool` で `approval_prompt` のみ指定（プレフィックスが必要）
+
 ## 処理フロー
 
 ### 1. 初回メンション時
@@ -794,9 +811,14 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 - [ ] チャンネルごとの設定管理
 - [ ] エラーハンドリングの強化
-- [ ] セッションタイムアウト機能
+- [x] セッションタイムアウト機能
+  - [x] アイドルセッションの自動クリーンアップ
+  - [x] タイムアウト時のSlack通知
+  - [x] 環境変数による設定（CC_SLACK_SESSION_TIMEOUT, CC_SLACK_CLEANUP_INTERVAL）
+  - [x] ユニットテスト
 - [x] ログ機能の実装（zerolog with structured logging）
-- [ ] approval_prompt の Slack 統合強化
+- [x] approval_prompt の Slack 統合強化
+  - [x] 基本的な承認フローの実装
   - [ ] 複雑な承認フローのサポート
   - [ ] 承認履歴の記録
 
@@ -804,14 +826,24 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 
 ### 完了済み
 - 基本的なMCPサーバー・Slackハンドラー・プロセス管理
-- 純粋関数の切り出しとユニットテスト（generateLogFileName, buildMCPConfig, removeBotMention, getEnv）
+- 純粋関数の切り出しとユニットテスト（generateLogFileName, buildMCPConfig, removeBotMention, getEnv, getDurationEnv）
 - 構造化ログ（zerolog）導入とファイル出力
 - GitHub Actions CI設定（test, build workflow）
 - 許可プロンプトツール設定（--permission-prompt-tool）
+- **approval_prompt ツールのSlack統合**: ✅ 完了！
+  - MCPサーバーで `approval_prompt` ツールを実装
+  - Slackで承認ボタン付きメッセージを表示
+  - 承認/拒否の結果をMCPサーバーに返す
+  - `--permission-prompt-tool mcp__cc-slack__approval_prompt` オプションでClaude Codeと連携
+- **セッションタイムアウト機能**: ✅ 完了！
+  - アイドルセッションの自動クリーンアップ
+  - タイムアウト時のSlack通知
+  - 環境変数による設定対応
 
 ### 実装中・未完了
-- **approval_prompt ツールのSlack統合**: MCPサーバーでツール定義は完了、Slackハンドラーとの連携が未実装
-- WebFetchなどの内蔵ツールの許可プロンプトが動作しない（Slack統合完了後に解決予定）
+- チャンネルごとの設定管理
+- エラーハンドリングの強化
+- WebFetchなどの内蔵ツールの許可プロンプトの動作確認が必要
 
 ### Phase 3: 拡張機能（任意）
 

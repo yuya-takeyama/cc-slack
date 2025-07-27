@@ -11,13 +11,18 @@ import (
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 )
 
 // Handler handles Slack events and interactions
 type Handler struct {
-	client        *slack.Client
-	signingSecret string
-	sessionMgr    SessionManager
+	client             *slack.Client
+	signingSecret      string
+	sessionMgr         SessionManager
+	approvalResponder  ApprovalResponder
+	assistantUsername  string
+	assistantIconEmoji string
+	assistantIconURL   string
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -25,6 +30,11 @@ type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
 	CreateSession(channelID, threadTS, workDir string) (*Session, error)
 	SendMessage(sessionID, message string) error
+}
+
+// ApprovalResponder interface for sending approval responses
+type ApprovalResponder interface {
+	SendApprovalResponse(requestID string, response mcp.ApprovalResponse) error
 }
 
 // Session represents a Claude Code session
@@ -42,6 +52,18 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
 	}
+}
+
+// SetApprovalResponder sets the approval responder for handling approvals
+func (h *Handler) SetApprovalResponder(responder ApprovalResponder) {
+	h.approvalResponder = responder
+}
+
+// SetAssistantOptions sets the display options for assistant messages
+func (h *Handler) SetAssistantOptions(username, iconEmoji, iconURL string) {
+	h.assistantUsername = username
+	h.assistantIconEmoji = iconEmoji
+	h.assistantIconURL = iconURL
 }
 
 // HandleEvent handles Slack webhook events
@@ -202,9 +224,34 @@ func (h *Handler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
 
 // handleApprovalAction handles approval/denial button clicks
 func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, action *slack.BlockAction, approved bool) {
-	// TODO: Send approval response to MCP server
-	// For now, just update the message
+	// Extract request ID from action ID
+	var requestID string
+	if strings.HasPrefix(action.ActionID, "approve_") {
+		requestID = strings.TrimPrefix(action.ActionID, "approve_")
+	} else if strings.HasPrefix(action.ActionID, "deny_") {
+		requestID = strings.TrimPrefix(action.ActionID, "deny_")
+	}
 
+	// Send approval response to MCP server
+	if h.approvalResponder != nil && requestID != "" {
+		response := mcp.ApprovalResponse{
+			Behavior: "deny",
+			Message:  "Denied via Slack",
+		}
+		if approved {
+			response.Behavior = "allow"
+			response.Message = "Approved via Slack"
+			// IMPORTANT: When behavior is "allow", updatedInput is required
+			response.UpdatedInput = map[string]interface{}{} // Empty map for no changes
+		}
+
+		err := h.approvalResponder.SendApprovalResponse(requestID, response)
+		if err != nil {
+			fmt.Printf("Failed to send approval response: %v\n", err)
+		}
+	}
+
+	// Update the message
 	status := "承認されました ✅"
 	if !approved {
 		status = "拒否されました ❌"
@@ -256,15 +303,103 @@ func (h *Handler) PostToThread(channelID, threadTS, text string) error {
 	return err
 }
 
+// PostRichTextToThread posts a rich text message to a Slack thread
+func (h *Handler) PostRichTextToThread(channelID, threadTS string, elements []slack.RichTextElement) error {
+	_, _, err := h.client.PostMessage(
+		channelID,
+		slack.MsgOptionTS(threadTS),
+		slack.MsgOptionBlocks(
+			slack.NewRichTextBlock("rich_text", elements...),
+		),
+	)
+	return err
+}
+
+// PostAssistantMessage posts a message with assistant display options
+func (h *Handler) PostAssistantMessage(channelID, threadTS, text string) error {
+	options := []slack.MsgOption{
+		slack.MsgOptionText(text, false),
+		slack.MsgOptionTS(threadTS),
+	}
+
+	// Add username if configured
+	if h.assistantUsername != "" {
+		options = append(options, slack.MsgOptionUsername(h.assistantUsername))
+	}
+
+	// Add icon (emoji takes precedence over URL)
+	if h.assistantIconEmoji != "" {
+		options = append(options, slack.MsgOptionIconEmoji(h.assistantIconEmoji))
+	} else if h.assistantIconURL != "" {
+		options = append(options, slack.MsgOptionIconURL(h.assistantIconURL))
+	}
+
+	_, _, err := h.client.PostMessage(channelID, options...)
+	return err
+}
+
 // PostApprovalRequest posts an approval request with buttons
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
+	// Create minimal interactive payload for debugging
+	approvePayload := map[string]interface{}{
+		"type": "block_actions",
+		"actions": []map[string]interface{}{
+			{
+				"action_id": fmt.Sprintf("approve_%s", requestID),
+				"type":      "button",
+				"value":     "approve",
+			},
+		},
+		"channel": map[string]string{
+			"id": channelID,
+		},
+		"message": map[string]string{
+			"ts":   threadTS,
+			"text": message,
+		},
+	}
+
+	denyPayload := map[string]interface{}{
+		"type": "block_actions",
+		"actions": []map[string]interface{}{
+			{
+				"action_id": fmt.Sprintf("deny_%s", requestID),
+				"type":      "button",
+				"value":     "deny",
+			},
+		},
+		"channel": map[string]string{
+			"id": channelID,
+		},
+		"message": map[string]string{
+			"ts":   threadTS,
+			"text": message,
+		},
+	}
+
+	approveJSON, _ := json.Marshal(approvePayload)
+	denyJSON, _ := json.Marshal(denyPayload)
+
+	// Add debug curl commands to the message
+	debugMessage := message + "\n\n*【デバッグ用curlコマンド】*\n" +
+		"```bash\n" +
+		"# 承認する場合:\n" +
+		fmt.Sprintf("curl -X POST http://localhost:8080/slack/interactive \\\n") +
+		fmt.Sprintf("  -H \"Content-Type: application/x-www-form-urlencoded\" \\\n") +
+		fmt.Sprintf("  --data-urlencode 'payload=%s'\n\n", string(approveJSON)) +
+		"# 拒否する場合:\n" +
+		fmt.Sprintf("curl -X POST http://localhost:8080/slack/interactive \\\n") +
+		fmt.Sprintf("  -H \"Content-Type: application/x-www-form-urlencoded\" \\\n") +
+		fmt.Sprintf("  --data-urlencode 'payload=%s'\n", string(denyJSON)) +
+		"```"
+
 	_, _, err := h.client.PostMessage(
 		channelID,
 		slack.MsgOptionText(message, false),
 		slack.MsgOptionTS(threadTS),
 		slack.MsgOptionBlocks(
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, message, false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, debugMessage, false, false),
 				nil,
 				nil,
 			),

@@ -32,8 +32,17 @@ func main() {
 	// Create Slack handler
 	slackHandler := slack.NewHandler(config.SlackToken, config.SlackSigningSecret, sessionMgr)
 
+	// Set assistant display options
+	slackHandler.SetAssistantOptions(config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+
 	// Set Slack handler in session manager
 	sessionMgr.SetSlackHandler(slackHandler)
+
+	// Set Slack integration in MCP server
+	mcpServer.SetSlackIntegration(slackHandler, sessionMgr)
+
+	// Set MCP server as approval responder in Slack handler
+	slackHandler.SetApprovalResponder(mcpServer)
 
 	// Create HTTP router
 	router := mux.NewRouter()
@@ -61,10 +70,10 @@ func main() {
 
 	// Start cleanup routine
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(config.CleanupInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			sessionMgr.CleanupIdleSessions(30 * time.Minute)
+			sessionMgr.CleanupIdleSessions(config.SessionTimeout)
 		}
 	}()
 
@@ -89,6 +98,12 @@ func main() {
 	log.Printf("Server starting on port %s", config.Port)
 	log.Printf("MCP endpoint: %s/mcp", config.BaseURL)
 	log.Printf("Slack webhook endpoint: %s/slack/events", config.BaseURL)
+	log.Printf("Session timeout: %v", config.SessionTimeout)
+	log.Printf("Cleanup interval: %v", config.CleanupInterval)
+	if config.AssistantUsername != "" || config.AssistantIconEmoji != "" || config.AssistantIconURL != "" {
+		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
+			config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+	}
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Could not listen on %s: %v\n", config.Port, err)
@@ -104,6 +119,11 @@ type Config struct {
 	SlackToken         string
 	SlackSigningSecret string
 	BaseURL            string
+	SessionTimeout     time.Duration
+	CleanupInterval    time.Duration
+	AssistantUsername  string
+	AssistantIconEmoji string
+	AssistantIconURL   string
 }
 
 // loadConfig loads configuration from environment variables
@@ -113,6 +133,11 @@ func loadConfig() *Config {
 		SlackToken:         getEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
 		SlackSigningSecret: getEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
 		BaseURL:            getEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
+		SessionTimeout:     getDurationEnv("CC_SLACK_SESSION_TIMEOUT", 30*time.Minute),
+		CleanupInterval:    getDurationEnv("CC_SLACK_CLEANUP_INTERVAL", 5*time.Minute),
+		AssistantUsername:  getEnv("CC_SLACK_ASSISTANT_USERNAME", ""),
+		AssistantIconEmoji: getEnv("CC_SLACK_ASSISTANT_ICON_EMOJI", ""),
+		AssistantIconURL:   getEnv("CC_SLACK_ASSISTANT_ICON_URL", ""),
 	}
 
 	// Validate required fields
@@ -132,4 +157,20 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// getDurationEnv returns a duration from environment variable or a default
+func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		log.Printf("Invalid duration for %s: %s, using default: %v", key, value, defaultValue)
+		return defaultValue
+	}
+
+	return duration
 }

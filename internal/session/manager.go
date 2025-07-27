@@ -3,12 +3,15 @@ package session
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
-	"github.com/yuya-takeyama/cc-slack/internal/slack"
+	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 // Manager manages Claude Code sessions
@@ -17,8 +20,9 @@ type Manager struct {
 	threadToSession map[string]string // channelID:threadTS -> sessionID
 	mu              sync.RWMutex
 	mcpServer       *mcp.Server
-	slackHandler    *slack.Handler
+	slackHandler    *ccslack.Handler
 	mcpBaseURL      string
+	lastActiveID    string // Track the last active session for approval prompts
 }
 
 // Session represents an active Claude Code session
@@ -43,12 +47,30 @@ func NewManager(mcpServer *mcp.Server, mcpBaseURL string) *Manager {
 }
 
 // SetSlackHandler sets the Slack handler for posting messages
-func (m *Manager) SetSlackHandler(handler *slack.Handler) {
+func (m *Manager) SetSlackHandler(handler *ccslack.Handler) {
 	m.slackHandler = handler
 }
 
+// GetSessionInfo returns channel and thread information for a session ID
+func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, exists bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// If sessionID is empty, use the last active session
+	if sessionID == "" && m.lastActiveID != "" {
+		sessionID = m.lastActiveID
+	}
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return "", "", false
+	}
+
+	return session.ChannelID, session.ThreadTS, true
+}
+
 // GetSessionByThread retrieves a session by channel and thread timestamp
-func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session, error) {
+func (m *Manager) GetSessionByThread(channelID, threadTS string) (*ccslack.Session, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -63,7 +85,7 @@ func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session
 		return nil, fmt.Errorf("session not found")
 	}
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: session.ID,
 		ChannelID: session.ChannelID,
 		ThreadTS:  session.ThreadTS,
@@ -72,7 +94,7 @@ func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session
 }
 
 // CreateSession creates a new Claude Code session
-func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Session, error) {
+func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
 	ctx := context.Background()
 
 	// Create Claude process with message handlers
@@ -114,9 +136,10 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Ses
 	m.mu.Lock()
 	m.sessions[sessionID] = session
 	m.threadToSession[fmt.Sprintf("%s:%s", channelID, threadTS)] = sessionID
+	m.lastActiveID = sessionID // Track as last active
 	m.mu.Unlock()
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: session.ID,
 		ChannelID: session.ChannelID,
 		ThreadTS:  session.ThreadTS,
@@ -126,16 +149,18 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Ses
 
 // SendMessage sends a message to a Claude Code session
 func (m *Manager) SendMessage(sessionID, message string) error {
-	m.mu.RLock()
+	m.mu.Lock()
 	session, exists := m.sessions[sessionID]
-	m.mu.RUnlock()
+	if exists {
+		// Update last active time and track as last active
+		session.LastActive = time.Now()
+		m.lastActiveID = sessionID
+	}
+	m.mu.Unlock()
 
 	if !exists {
 		return fmt.Errorf("session not found: %s", sessionID)
 	}
-
-	// Update last active time
-	session.LastActive = time.Now()
 
 	// Send message to Claude process
 	return session.Process.SendMessage(message)
@@ -170,8 +195,164 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 			switch content.Type {
 			case "text":
 				text += content.Text + "\n"
+			case "thinking":
+				// Handle thinking messages
+				if content.Thinking != "" {
+					// Create rich text with thinking emoji and italicized text
+					elements := []slack.RichTextElement{
+						slack.NewRichTextSection(
+							slack.NewRichTextSectionTextElement("🤔 ", nil),
+							slack.NewRichTextSectionTextElement("Thinking: ", &slack.RichTextSectionTextStyle{Bold: true}),
+							slack.NewRichTextSectionTextElement(content.Thinking, &slack.RichTextSectionTextStyle{Italic: true}),
+						),
+					}
+					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						fmt.Printf("Failed to post thinking to Slack: %v\n", err)
+					}
+				}
 			case "tool_use":
-				text += fmt.Sprintf("🔧 *%s* を実行中...\n", content.Name)
+				// Check if this is TodoWrite
+				if content.Name == "TodoWrite" && content.Input != nil {
+					// Handle TodoWrite tool
+					if todosInterface, ok := content.Input["todos"]; ok {
+						// Create rich text for todo list
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("📋 ", nil),
+								slack.NewRichTextSectionTextElement("TodoWrite", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(":", nil),
+							),
+						}
+
+						// Try to parse todos
+						if todos, ok := todosInterface.([]interface{}); ok {
+							// Build list elements for todos
+							listElements := []slack.RichTextElement{}
+
+							for _, todoInterface := range todos {
+								if todo, ok := todoInterface.(map[string]interface{}); ok {
+									content := ""
+									status := ""
+									priority := ""
+
+									if c, ok := todo["content"].(string); ok {
+										content = c
+									}
+									if s, ok := todo["status"].(string); ok {
+										status = s
+									}
+									if p, ok := todo["priority"].(string); ok {
+										priority = p
+									}
+
+									// Create status emoji
+									statusEmoji := ""
+									switch status {
+									case "completed":
+										statusEmoji = "✅"
+									case "in_progress":
+										statusEmoji = "▶️"
+									default: // pending
+										statusEmoji = "⏳"
+									}
+
+									// Create text style based on priority
+									var textStyle *slack.RichTextSectionTextStyle
+									switch priority {
+									case "high":
+										// Bold for high priority
+										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
+									case "low":
+										// Italic for low priority
+										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
+									default:
+										// Normal for medium priority
+										textStyle = nil
+									}
+
+									// Create list item as RichTextSection
+									listElements = append(listElements, slack.NewRichTextSection(
+										slack.NewRichTextSectionTextElement(statusEmoji+" ", nil),
+										slack.NewRichTextSectionTextElement(content, textStyle),
+									))
+								}
+							}
+
+							// Add the list if we have any todos
+							if len(listElements) > 0 {
+								elements = append(elements, slack.NewRichTextList(slack.RTEListBullet, 0, listElements...))
+							}
+						}
+
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post TodoWrite to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Bash" && content.Input != nil {
+					// Extract command from input
+					if cmd, ok := content.Input["command"].(string); ok {
+						// Create rich text with bold "Bash" and code-style command
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("🖥️ ", nil),
+								slack.NewRichTextSectionTextElement("Bash", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(cmd, &slack.RichTextSectionTextStyle{Code: true}),
+							),
+						}
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Read" && content.Input != nil {
+					// Handle Read tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						// Create rich text with bold "Read" and code-style path
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("📖 ", nil),
+								slack.NewRichTextSectionTextElement("Read", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(relPath, &slack.RichTextSectionTextStyle{Code: true}),
+							),
+						}
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Glob" && content.Input != nil {
+					// Handle Glob tool
+					if pattern, ok := content.Input["pattern"].(string); ok {
+						// Create rich text with bold "Glob" and code-style pattern
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("🔍 ", nil),
+								slack.NewRichTextSectionTextElement("Glob", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(pattern, &slack.RichTextSectionTextStyle{Code: true}),
+							),
+						}
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
+						}
+					}
+				} else {
+					// Other tools - use tool-specific emoji and format
+					emoji := m.getToolEmoji(content.Name)
+
+					// Create rich text with bold tool name
+					elements := []slack.RichTextElement{
+						slack.NewRichTextSection(
+							slack.NewRichTextSectionTextElement(emoji+" ", nil),
+							slack.NewRichTextSectionTextElement(content.Name, &slack.RichTextSectionTextStyle{Bold: true}),
+						),
+					}
+					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						fmt.Printf("Failed to post %s tool to Slack: %v\n", content.Name, err)
+					}
+				}
 			}
 		}
 
@@ -246,6 +427,11 @@ func (m *Manager) updateSessionID(channelID, threadTS string, newSessionID strin
 	session.ID = newSessionID
 	m.sessions[newSessionID] = session
 	m.threadToSession[key] = newSessionID
+
+	// Update lastActiveID if it was the old session
+	if m.lastActiveID == oldSessionID {
+		m.lastActiveID = newSessionID
+	}
 }
 
 // CleanupIdleSessions removes sessions that have been idle for too long
@@ -256,6 +442,17 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 	now := time.Now()
 	for sessionID, session := range m.sessions {
 		if now.Sub(session.LastActive) > maxIdleTime {
+			// Notify Slack about timeout
+			if m.slackHandler != nil {
+				idleMinutes := int(now.Sub(session.LastActive).Minutes())
+				message := fmt.Sprintf("⏰ セッションがタイムアウトしました\n"+
+					"アイドル時間: %d分\n"+
+					"セッションID: %s\n\n"+
+					"新しいセッションを開始するには、再度メンションしてください。",
+					idleMinutes, sessionID)
+				m.slackHandler.PostToThread(session.ChannelID, session.ThreadTS, message)
+			}
+
 			// Close Claude process
 			session.Process.Close()
 
@@ -263,6 +460,65 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 			delete(m.sessions, sessionID)
 			key := fmt.Sprintf("%s:%s", session.ChannelID, session.ThreadTS)
 			delete(m.threadToSession, key)
+
+			// Clear lastActiveID if it was this session
+			if m.lastActiveID == sessionID {
+				m.lastActiveID = ""
+			}
 		}
 	}
+}
+
+// getRelativePath converts absolute path to relative path from work directory
+func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	sessionID, exists := m.threadToSession[key]
+	if !exists {
+		return absolutePath
+	}
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return absolutePath
+	}
+
+	relPath, err := filepath.Rel(session.WorkDir, absolutePath)
+	if err != nil {
+		// If relative path cannot be computed, return absolute path
+		return absolutePath
+	}
+
+	return relPath
+}
+
+// getToolEmoji returns an appropriate emoji for each tool
+func (m *Manager) getToolEmoji(toolName string) string {
+	emojiMap := map[string]string{
+		"Edit":         "✏️",
+		"MultiEdit":    "✏️",
+		"Write":        "📝",
+		"LS":           "📁",
+		"Grep":         "🔍",
+		"WebFetch":     "🌐",
+		"WebSearch":    "🌎",
+		"Task":         "🤖",
+		"TodoWrite":    "📋",
+		"ExitPlanMode": "🏁",
+		"NotebookRead": "📓",
+		"NotebookEdit": "📔",
+	}
+
+	if emoji, ok := emojiMap[toolName]; ok {
+		return emoji
+	}
+
+	// Default emoji for unknown tools or MCP tools
+	if strings.HasPrefix(toolName, "mcp__") {
+		return "🔌" // Plugin emoji
+	}
+
+	return "🔧" // Default wrench emoji
 }

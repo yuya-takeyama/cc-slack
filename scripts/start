@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Start the cc-slack manager
+echo "🚀 Starting cc-slack manager..."
+
+# Check if already running
+if lsof -ti:10080 > /dev/null 2>&1; then
+    echo "⚠️  Manager already running on port 10080"
+    echo "Run 'lsof -ti:10080 | xargs kill' to stop it first"
+    exit 1
+fi
+
+# Start manager in foreground
+echo "📌 Manager will run in foreground. Use Ctrl+C to stop."
+echo "📌 Open another terminal to use these commands:"
+echo "  ./scripts/cc-slack-status.sh    - Check status"
+echo "  ./scripts/restart-cc-slack.sh   - Restart cc-slack"
+echo ""
+
+go run cmd/cc-slack-manager/main.go

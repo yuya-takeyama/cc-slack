@@ -53,6 +53,80 @@ go test ./...
 go mod tidy
 ```
 
+### Go Import Management
+
+**Development workflow to prevent import removal by goimports Hook:**
+
+Claude Code Hooks automatically runs goimports, which removes unused imports. To prevent this issue:
+
+1. **❌ BAD Pattern (imports get removed):**
+   ```go
+   import (
+       "fmt"
+       "encoding/json"  // Not used yet → Will be removed!
+   )
+   
+   // Planning to use json.Marshal() later...
+   ```
+
+2. **✅ GOOD Pattern (recommended workflow):**
+   ```go
+   // 1. Write the actual code first
+   func processData(data interface{}) (string, error) {
+       bytes, err := json.Marshal(data)  // Code that uses json
+       if err != nil {
+           return "", err
+       }
+       return string(bytes), nil
+   }
+   
+   // 2. Then add necessary imports (or let goimports add them automatically)
+   import (
+       "encoding/json"  // Already in use, won't be removed!
+   )
+   ```
+
+**Development Guidelines:**
+- Write the implementation code first
+- Add imports afterwards (or let goimports auto-add them)
+- When multiple imports are needed, write the code that uses them before organizing imports
+
+### Development Workflow with Auto-Restart
+
+During development, use the cc-slack-manager for automatic restarts:
+
+**1. Start the manager (run this outside Claude Code):**
+```bash
+./scripts/start
+```
+
+**2. After making code changes, restart cc-slack:**
+```bash
+./scripts/restart
+```
+
+The manager provides HTTP endpoints on port 10080:
+- `GET /status` - Check if cc-slack is running
+- `POST /restart` - Gracefully restart cc-slack
+- `POST /stop` - Stop cc-slack  
+- `POST /start` - Start cc-slack
+
+**Claude Code should automatically run the restart script after significant code changes to cc-slack.**
+
+### Checking cc-slack Status
+
+Use the status script to check if cc-slack is running:
+
+```bash
+./scripts/cc-slack-status.sh
+```
+
+This will show:
+- Whether cc-slack is running
+- Process ID (PID)
+- Uptime and start time
+- Full JSON status details
+
 ## Design Principles
 
 ### Pure Functions and Unit Testing

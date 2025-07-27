@@ -86,9 +86,10 @@ type UserMessage struct {
 	Message struct {
 		Role    string `json:"role"`
 		Content []struct {
-			ToolUseID string `json:"tool_use_id,omitempty"`
-			Type      string `json:"type"`
-			Content   string `json:"content,omitempty"`
+			ToolUseID string      `json:"tool_use_id,omitempty"`
+			Type      string      `json:"type"`
+			Content   interface{} `json:"content,omitempty"` // Can be string or array
+			IsError   bool        `json:"is_error,omitempty"`
 		} `json:"content"`
 	} `json:"message"`
 }
@@ -112,12 +113,15 @@ type Options struct {
 	WorkDir              string
 	MCPBaseURL           string
 	PermissionPromptTool string // MCP tool name for permission prompts (default: mcp__cc-slack__approval_prompt)
-	Handlers             MessageHandlers
+	// Must follow pattern: mcp__<serverName>__<toolName>
+	Handlers MessageHandlers
 }
 
 // NewClaudeProcess creates and starts a new Claude Code process
 func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error) {
 	// Set default permission prompt tool if not specified
+	// IMPORTANT: Must match the tool name registered in MCP server
+	// Format: mcp__<serverName>__<toolName>
 	if opts.PermissionPromptTool == "" {
 		opts.PermissionPromptTool = "mcp__cc-slack__approval_prompt"
 	}
@@ -148,6 +152,13 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 		logFile.Close()
 		return nil, fmt.Errorf("failed to create MCP config: %w", err)
 	}
+
+	// Log MCP configuration for debugging
+	logger.Info().
+		Str("mcp_base_url", opts.MCPBaseURL).
+		Str("permission_prompt_tool", opts.PermissionPromptTool).
+		Str("config_path", configPath).
+		Msg("Created MCP configuration")
 
 	// Prepare command
 	cmd := exec.CommandContext(ctx, "claude",
