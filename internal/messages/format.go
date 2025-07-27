@@ -86,6 +86,21 @@ func FormatGlobToolMessage(pattern string) string {
 	return fmt.Sprintf("`%s`", pattern)
 }
 
+// FormatTaskToolMessage formats the Task tool message
+func FormatTaskToolMessage(description, prompt string) string {
+	// Truncate prompt if too long
+	const maxPromptLength = 500
+	truncatedPrompt := prompt
+	if len(prompt) > maxPromptLength {
+		truncatedPrompt = prompt[:maxPromptLength] + "..."
+	}
+
+	// Escape triple backticks in prompt
+	escapedPrompt := strings.ReplaceAll(truncatedPrompt, "```", "\\`\\`\\`")
+
+	return fmt.Sprintf("Task: %s\n```\n%s\n```", description, escapedPrompt)
+}
+
 // FormatDuration converts duration to human-readable string
 // Examples:
 //   - 5s -> "5秒"

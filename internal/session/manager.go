@@ -368,6 +368,16 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 							fmt.Printf("Failed to post LS tool to Slack: %v\n", err)
 						}
 					}
+				} else if content.Name == "Task" && content.Input != nil {
+					// Handle Task tool
+					description, _ := content.Input["description"].(string)
+					prompt, _ := content.Input["prompt"].(string)
+
+					message := messages.FormatTaskToolMessage(description, prompt)
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolTask); err != nil {
+						fmt.Printf("Failed to post Task tool to Slack: %v\n", err)
+					}
 				} else {
 					// Other tools - use tool-specific display or fallback
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, content.Name, content.Name); err != nil {

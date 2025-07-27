@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -354,6 +355,43 @@ func TestFormatGlobToolMessage(t *testing.T) {
 			got := FormatGlobToolMessage(tt.pattern)
 			if got != tt.want {
 				t.Errorf("FormatGlobToolMessage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatTaskToolMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		prompt      string
+		want        string
+	}{
+		{
+			name:        "simple task",
+			description: "コードベース全体を分析",
+			prompt:      "Analyze the codebase and find issues",
+			want:        "Task: コードベース全体を分析\n```\nAnalyze the codebase and find issues\n```",
+		},
+		{
+			name:        "long prompt truncated",
+			description: "Complex analysis",
+			prompt:      strings.Repeat("a", 600),
+			want:        "Task: Complex analysis\n```\n" + strings.Repeat("a", 500) + "...\n```",
+		},
+		{
+			name:        "prompt with triple backticks",
+			description: "Code generation",
+			prompt:      "Generate code with ```python\nprint('hello')\n```",
+			want:        "Task: Code generation\n```\nGenerate code with \\`\\`\\`python\nprint('hello')\n\\`\\`\\`\n```",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatTaskToolMessage(tt.description, tt.prompt)
+			if got != tt.want {
+				t.Errorf("FormatTaskToolMessage() = %v, want %v", got, tt.want)
 			}
 		})
 	}
