@@ -114,16 +114,72 @@ type Options struct {
 	MCPBaseURL           string
 	PermissionPromptTool string // MCP tool name for permission prompts (default: mcp__cc-slack__approval_prompt)
 	// Must follow pattern: mcp__<serverName>__<toolName>
-	Handlers MessageHandlers
+	ResumeSessionID string // Session ID to resume from (optional)
+	ExecutablePath  string // Path to Claude executable (default: claude)
+	Handlers        MessageHandlers
+}
+
+// logResumeDebugProcess logs debug information for resume functionality
+func logResumeDebugProcess(component, message string, fields map[string]interface{}) {
+	// Create or append to the shared resume debug log file
+	logDir := "logs"
+	logPath := filepath.Join(logDir, "resume-debug-shared.log")
+
+	// Ensure log directory exists
+	os.MkdirAll(logDir, 0755)
+
+	// Open file in append mode
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Printf("Failed to open resume debug log: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Create logger for this write
+	logger := zerolog.New(file).With().
+		Timestamp().
+		Str("component", component).
+		Logger()
+
+	// Create log event
+	event := logger.Info()
+	for k, v := range fields {
+		switch val := v.(type) {
+		case string:
+			event = event.Str(k, val)
+		case error:
+			if val != nil {
+				event = event.Err(val)
+			}
+		case bool:
+			event = event.Bool(k, val)
+		default:
+			event = event.Interface(k, val)
+		}
+	}
+
+	event.Msg(message)
 }
 
 // NewClaudeProcess creates and starts a new Claude Code process
 func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error) {
+	// Debug logging for resume functionality
+	logResumeDebugProcess("claude_process", "NewClaudeProcess called", map[string]interface{}{
+		"work_dir":          opts.WorkDir,
+		"resume_session_id": opts.ResumeSessionID,
+	})
+
 	// Set default permission prompt tool if not specified
 	// IMPORTANT: Must match the tool name registered in MCP server
 	// Format: mcp__<serverName>__<toolName>
 	if opts.PermissionPromptTool == "" {
 		opts.PermissionPromptTool = "mcp__cc-slack__approval_prompt"
+	}
+
+	// Set default executable path if not specified
+	if opts.ExecutablePath == "" {
+		opts.ExecutablePath = "claude"
 	}
 
 	// Create logs directory
@@ -161,14 +217,33 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 		Msg("Created MCP configuration")
 
 	// Prepare command
-	cmd := exec.CommandContext(ctx, "claude",
+	args := []string{
 		"--mcp-config", configPath,
 		"--permission-prompt-tool", opts.PermissionPromptTool,
 		"--print",
 		"--output-format", "stream-json",
 		"--input-format", "stream-json",
 		"--verbose",
-	)
+	}
+
+	// Add resume option if specified
+	if opts.ResumeSessionID != "" {
+		args = append(args, "--resume", opts.ResumeSessionID)
+		logger.Info().
+			Str("resume_session_id", opts.ResumeSessionID).
+			Msg("Resuming previous session")
+
+		logResumeDebugProcess("claude_process", "Adding --resume option to command", map[string]interface{}{
+			"resume_session_id": opts.ResumeSessionID,
+			"args":              args,
+		})
+	} else {
+		logResumeDebugProcess("claude_process", "Not adding --resume option", map[string]interface{}{
+			"resume_session_id": opts.ResumeSessionID,
+		})
+	}
+
+	cmd := exec.CommandContext(ctx, opts.ExecutablePath, args...)
 	cmd.Dir = opts.WorkDir
 
 	// Set up pipes

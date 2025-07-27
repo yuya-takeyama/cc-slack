@@ -1,26 +1,4 @@
-# cc-slack 設計書
-
-## 概要
-
-cc-slack は Claude Code と Slack 上でインタラクションするためのソフトウェアです。[cchh #16](https://github.com/yuya-takeyama/cchh/issues/16) で検討された「ゴロ寝コンピューティング」の問題に対する別アプローチとして、Slack 上で直接 Claude Code とやり取りすることで、よりシームレスな体験を提供します。
-
-## 背景と動機
-
-### 解決したい課題
-
-1. **リモートワーク環境での Claude Code 利用**
-   - ターミナルに張り付く必要がない
-   - どこからでも作業の進捗を確認できる
-   - モバイルデバイスからでも指示を出せる
-
-2. **チームでの共同作業**
-   - Slack スレッドで Claude Code の作業履歴を共有
-   - チームメンバーが作業の流れを追跡可能
-   - 非エンジニアメンバーも AI アシスタントの活用が可能
-
-3. **非同期コミュニケーション**
-   - 長時間実行タスクの進捗をSlackで確認
-   - 必要に応じて途中で指示を追加
+# cc-slack ソフトウェア設計書
 
 ## アーキテクチャ
 
@@ -397,9 +375,9 @@ CC_SLACK_CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
 CC_SLACK_MCP_SERVER_NAME=cc-slack
 
 # Slack表示設定
-CC_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
-CC_SLACK_ASSISTANT_ICON_EMOJI=   # Claudeレスポンス時の絵文字アイコン（オプション）
-CC_SLACK_ASSISTANT_ICON_URL=     # Claudeレスポンス時のアイコンURL（オプション）
+CC_SLACK_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
+CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI=   # Claudeレスポンス時の絵文字アイコン（オプション）
+CC_SLACK_SLACK_ASSISTANT_ICON_URL=     # Claudeレスポンス時のアイコンURL（オプション）
 ```
 
 ### Claude Code の MCP 設定
@@ -845,119 +823,23 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
    - thinking ブロックは署名付きで改ざん検出可能
    - プロダクション環境では thinking を非表示にする設定
 
-## 実装計画
-
-### Phase 1: MVP（1週間）
-
-- [x] **MCP Server の Streamable HTTP 実装**
-  - [x] Streamable HTTP エンドポイントの実装（GET/POST両対応）
-  - [x] approval_prompt ツールの実装（基本構造のみ、Slack統合は未完）
-  - [x] JSON field名の修正（tool_name対応）
-  - [x] セッション管理機能の実装
-  - [x] 一時設定ファイル生成機能
-  - [x] permission-prompt-tool設定の実装
-- [x] **Slack Bot HTTP Server の実装**
-  - [x] Event API の webhook 受信
-  - [x] メンションイベントの処理
-  - [x] インタラクティブボタンの処理
-- [x] **Claude Code プロセス管理**
-  - [x] プロセス起動と終了
-  - [x] stdin/stdout の管理
-  - [x] stderr の監視
-- [x] **基本的なセッション管理**
-  - [x] session_id と thread_ts のマッピング
-  - [x] セッションのライフサイクル管理
-- [x] **JSON Lines ストリーム通信の実装**
-  - [x] 入出力のパース
-  - [x] エラーハンドリング
-  - [x] Slack フォーマッティング
-
-### Phase 2: 実用性向上（2週間）
-
-- [ ] チャンネルごとの設定管理
-- [ ] エラーハンドリングの強化
-- [x] セッションタイムアウト機能
-  - [x] アイドルセッションの自動クリーンアップ
-  - [x] タイムアウト時のSlack通知
-  - [x] 環境変数による設定（CC_SLACK_SESSION_TIMEOUT, CC_SLACK_CLEANUP_INTERVAL）
-  - [x] ユニットテスト
-- [x] ログ機能の実装（zerolog with structured logging）
-- [x] approval_prompt の Slack 統合強化
-  - [x] 基本的な承認フローの実装
-  - [ ] 複雑な承認フローのサポート
-  - [ ] 承認履歴の記録
-
-## 現在の実装状況 (2025-07-27)
-
-### 完了済み
-- 基本的なMCPサーバー・Slackハンドラー・プロセス管理
-- 純粋関数の切り出しとユニットテスト（generateLogFileName, buildMCPConfig, removeBotMention, getEnv, getDurationEnv）
-- 構造化ログ（zerolog）導入とファイル出力
-- GitHub Actions CI設定（test, build workflow）
-- 許可プロンプトツール設定（--permission-prompt-tool）
-- **approval_prompt ツールのSlack統合**: ✅ 完了！（[PR #14](https://github.com/yuya-takeyama/cc-slack/pull/14) で解決）
-  - MCPサーバーで `approval_prompt` ツールを実装
-  - Slackで承認ボタン付きメッセージを表示
-  - 承認/拒否の結果をMCPサーバーに返す
-  - `--permission-prompt-tool mcp__cc-slack__approval_prompt` オプションでClaude Codeと連携
-  - 内蔵ツール（WebFetch等）の許可プロンプトも正常に動作
-- **セッションタイムアウト機能**: ✅ 完了！
-  - アイドルセッションの自動クリーンアップ
-  - タイムアウト時のSlack通知
-  - 環境変数による設定対応
-
-### 実装中・未完了
-- チャンネルごとの設定管理
-- エラーハンドリングの強化
-
-### 追加実装済み（2025-07-27以降）
-- **Slack表示改善機能**: ✅ 完了！（PR #6）
-  - ツールごとのカスタムアイコンとユーザー名表示
-  - PostAssistantMessage, PostToolMessage の実装（internal/slack/handler.go）
-  - tools.GetToolInfo による統一的なツール情報管理（internal/tools/display.go）
-  - 環境変数によるアシスタント表示のカスタマイズ
-- **cc-slack-manager**: ✅ 完了！（PR #3）
-  - 開発時の自動リスタート機能（cmd/cc-slack-manager/main.go）
-  - HTTP制御エンドポイント（ポート10080）
-  - /scripts/start, /scripts/restart, /scripts/status スクリプト
-  - cc-slack プロセスの管理とログ出力
-
-### Phase 3: 拡張機能（任意）
-
-- [ ] 複数セッションの並列管理
-- [ ] Slack インタラクティブ機能の活用
-  - [ ] コマンドの途中キャンセル
-  - [ ] 進捗バーの表示
-- [ ] メトリクス収集
-- [ ] ファイル共有機能
 
 ## 技術スタック
 
 - **言語**: Go 1.24.4+
 - **MCP SDK**: modelcontextprotocol/go-sdk/mcp（実装済み）
 - **Slack SDK**: slack-go/slack
+- **データベース**: 
+  - mattn/go-sqlite3 (SQLite driver)
+  - golang-migrate/migrate (schema migrations)
+  - sqlc-dev/sqlc (type-safe SQL)
+- **設定管理**: 
+  - spf13/viper (configuration management)
 - **その他**: 
   - gorilla/mux (HTTP routing)
   - rs/zerolog (structured logging)
   - bufio (JSON Lines streaming)
 
-## 期待される成果
-
-1. **Slack ネイティブな Claude Code 体験**
-   - ターミナルを開かずに AI アシスタントを活用
-   - チーム全体で AI の活用状況を可視化
-
-2. **非同期ワークフローの実現**
-   - 長時間タスクも Slack で管理
-   - どこからでも進捗確認・指示が可能
-
-3. **チーム協働の促進**
-   - AI アシスタントの民主化
-   - 知識の共有と蓄積
-
-4. **「ゴロ寝コンピューティング」の部分的実現**
-   - approval_prompt により、モバイルから承認可能
-   - 完全なリモート開発体験への第一歩
 
 ## 拡張機能設計（2025-07-27追加）
 

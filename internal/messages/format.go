@@ -112,6 +112,28 @@ func FormatTaskToolMessage(description, prompt string) string {
 	return fmt.Sprintf("Task: %s\n```\n%s\n```", description, escapedPrompt)
 }
 
+// FormatCompletionMessage formats the completion message with session info
+func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
+	text := fmt.Sprintf("✅ セッション完了\n"+
+		"セッションID: %s\n"+
+		"ターン数: %d\n"+
+		"コスト: $%.6f USD",
+		sessionID, turns, cost)
+
+	// Cost warning
+	if cost > 1.0 {
+		text += "\n⚠️ 高コストセッション"
+	}
+
+	return text
+}
+
+// FormatErrorMessage formats the error completion message
+func FormatErrorMessage(sessionID string) string {
+	return fmt.Sprintf("❌ セッションがエラーで終了しました\n"+
+		"セッションID: %s", sessionID)
+}
+
 // FormatDuration converts duration to human-readable string
 // Examples:
 //   - 5s -> "5秒"
