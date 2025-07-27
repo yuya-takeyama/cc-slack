@@ -397,9 +397,9 @@ CC_SLACK_CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
 CC_SLACK_MCP_SERVER_NAME=cc-slack
 
 # Slack表示設定
-CC_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
-CC_SLACK_ASSISTANT_ICON_EMOJI=   # Claudeレスポンス時の絵文字アイコン（オプション）
-CC_SLACK_ASSISTANT_ICON_URL=     # Claudeレスポンス時のアイコンURL（オプション）
+CC_SLACK_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
+CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI=   # Claudeレスポンス時の絵文字アイコン（オプション）
+CC_SLACK_SLACK_ASSISTANT_ICON_URL=     # Claudeレスポンス時のアイコンURL（オプション）
 ```
 
 ### Claude Code の MCP 設定
