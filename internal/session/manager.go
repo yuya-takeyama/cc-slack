@@ -181,7 +181,7 @@ func (m *Manager) createSystemHandler(channelID, threadTS string) func(process.S
 				"モデル: %s",
 				msg.SessionID, msg.CWD, msg.Model)
 
-			return m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
+			return m.slackHandler.PostToThread(channelID, threadTS, text)
 		}
 		return nil
 	}
@@ -395,14 +395,14 @@ func (m *Manager) createResultHandler(channelID, threadTS string) func(process.R
 			}
 		}
 
-		return m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
+		return m.slackHandler.PostToThread(channelID, threadTS, text)
 	}
 }
 
 func (m *Manager) createErrorHandler(channelID, threadTS string) func(error) {
 	return func(err error) {
 		text := fmt.Sprintf("⚠️ エラー: %v", err)
-		m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
+		m.slackHandler.PostToThread(channelID, threadTS, text)
 	}
 }
 
@@ -450,7 +450,7 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 					"セッションID: %s\n\n"+
 					"新しいセッションを開始するには、再度メンションしてください。",
 					idleMinutes, sessionID)
-				m.slackHandler.PostAssistantMessage(session.ChannelID, session.ThreadTS, message)
+				m.slackHandler.PostToThread(session.ChannelID, session.ThreadTS, message)
 			}
 
 			// Close Claude process
