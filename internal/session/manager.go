@@ -215,8 +215,8 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 				if content.Name == "TodoWrite" && content.Input != nil {
 					// Handle TodoWrite tool
 					if todosInterface, ok := content.Input["todos"]; ok {
-						// Create todo list with emoji bullets
-						var todoLines []string
+						// Create rich text elements for todo list
+						var elements []slack.RichTextElement
 
 						if todos, ok := todosInterface.([]interface{}); ok {
 							for _, todoInterface := range todos {
@@ -242,18 +242,24 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 										statusEmoji = ":ballot_box_with_check:"
 									}
 
-									todoLines = append(todoLines, fmt.Sprintf("%s %s", statusEmoji, content))
+									// Create rich text section for each todo item
+									elements = append(elements, slack.NewRichTextSection(
+										slack.NewRichTextSectionTextElement(statusEmoji+" ", nil),
+										slack.NewRichTextSectionTextElement(content, nil),
+									))
 								}
 							}
 						}
 
-						todoText := strings.Join(todoLines, "\n")
-						if todoText == "" {
-							todoText = "Todo list updated"
+						if len(elements) == 0 {
+							// Fallback if no todos
+							elements = append(elements, slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("Todo list updated", nil),
+							))
 						}
 
-						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, todoText, ccslack.ToolTodoWrite); err != nil {
+						// Post using tool-specific rich text
+						if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.ToolTodoWrite); err != nil {
 							fmt.Printf("Failed to post TodoWrite to Slack: %v\n", err)
 						}
 					}

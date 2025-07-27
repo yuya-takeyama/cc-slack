@@ -405,6 +405,31 @@ func (h *Handler) PostToolMessage(channelID, threadTS, text, toolType string) er
 	return err
 }
 
+// PostToolRichTextMessage posts a rich text message with tool-specific display options
+func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements []slack.RichTextElement, toolType string) error {
+	options := []slack.MsgOption{
+		slack.MsgOptionTS(threadTS),
+		slack.MsgOptionBlocks(
+			slack.NewRichTextBlock("rich_text", elements...),
+		),
+	}
+
+	// Get tool display info
+	if displayInfo, exists := toolDisplayMap[toolType]; exists {
+		// Add username
+		options = append(options, slack.MsgOptionUsername(displayInfo.Username))
+		// Add icon emoji
+		options = append(options, slack.MsgOptionIconEmoji(displayInfo.Emoji))
+	} else {
+		// Fallback to generic tool display
+		options = append(options, slack.MsgOptionUsername("tool"))
+		options = append(options, slack.MsgOptionIconEmoji(":wrench:"))
+	}
+
+	_, _, err := h.client.PostMessage(channelID, options...)
+	return err
+}
+
 // PostApprovalRequest posts an approval request with buttons
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
 	// Create minimal interactive payload for debugging
