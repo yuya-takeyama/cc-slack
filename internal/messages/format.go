@@ -9,7 +9,7 @@ import (
 // FormatSessionStartMessage formats the session start message
 func FormatSessionStartMessage(sessionID, cwd, model string) string {
 	return fmt.Sprintf("🚀 Claude Code セッション開始\n"+
-		"セッションID: %s\n"+
+		"セッションID: `%s`\n"+
 		"作業ディレクトリ: %s\n"+
 		"モデル: %s",
 		sessionID, cwd, model)
@@ -40,7 +40,7 @@ func FormatSessionCompleteMessage(duration time.Duration, turns int, cost float6
 func FormatTimeoutMessage(idleMinutes int, sessionID string) string {
 	return fmt.Sprintf("⏰ セッションがタイムアウトしました\n"+
 		"アイドル時間: %d分\n"+
-		"セッションID: %s\n\n"+
+		"セッションID: `%s`\n\n"+
 		"新しいセッションを開始するには、再度メンションしてください。",
 		idleMinutes, sessionID)
 }
@@ -130,7 +130,7 @@ func FormatWebFetchToolMessage(url, prompt string) string {
 // FormatCompletionMessage formats the completion message with session info
 func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
 	text := fmt.Sprintf("✅ セッション完了\n"+
-		"セッションID: %s\n"+
+		"セッションID: `%s`\n"+
 		"ターン数: %d\n"+
 		"コスト: $%.6f USD",
 		sessionID, turns, cost)
@@ -146,7 +146,7 @@ func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
 // FormatErrorMessage formats the error completion message
 func FormatErrorMessage(sessionID string) string {
 	return fmt.Sprintf("❌ セッションがエラーで終了しました\n"+
-		"セッションID: %s", sessionID)
+		"セッションID: `%s`", sessionID)
 }
 
 // FormatDuration converts duration to human-readable string

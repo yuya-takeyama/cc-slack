@@ -20,7 +20,7 @@ func TestFormatSessionStartMessage(t *testing.T) {
 			cwd:       "/home/user/project",
 			model:     "claude-3.5-sonnet",
 			want: "🚀 Claude Code セッション開始\n" +
-				"セッションID: session-123\n" +
+				"セッションID: `session-123`\n" +
 				"作業ディレクトリ: /home/user/project\n" +
 				"モデル: claude-3.5-sonnet",
 		},
@@ -30,7 +30,7 @@ func TestFormatSessionStartMessage(t *testing.T) {
 			cwd:       "/Users/name/My Documents/project",
 			model:     "claude-3.5-sonnet",
 			want: "🚀 Claude Code セッション開始\n" +
-				"セッションID: session-456\n" +
+				"セッションID: `session-456`\n" +
 				"作業ディレクトリ: /Users/name/My Documents/project\n" +
 				"モデル: claude-3.5-sonnet",
 		},
@@ -121,7 +121,7 @@ func TestFormatTimeoutMessage(t *testing.T) {
 			sessionID:   "session-123",
 			want: "⏰ セッションがタイムアウトしました\n" +
 				"アイドル時間: 15分\n" +
-				"セッションID: session-123\n\n" +
+				"セッションID: `session-123`\n\n" +
 				"新しいセッションを開始するには、再度メンションしてください。",
 		},
 		{
@@ -130,7 +130,7 @@ func TestFormatTimeoutMessage(t *testing.T) {
 			sessionID:   "session-456",
 			want: "⏰ セッションがタイムアウトしました\n" +
 				"アイドル時間: 120分\n" +
-				"セッションID: session-456\n\n" +
+				"セッションID: `session-456`\n\n" +
 				"新しいセッションを開始するには、再度メンションしてください。",
 		},
 	}
