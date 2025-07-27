@@ -9,6 +9,7 @@ status: in_progress
 
 Refactor database schema to improve data consistency:
 - Move `working_directory` from `sessions` to `threads` table
+- Remove unused `working_directories` table
 
 ## Rationale
 
@@ -21,17 +22,20 @@ Refactor database schema to improve data consistency:
 - [ ] Create migration to add `working_directory` column to `threads` table
 - [ ] Create migration to migrate existing data from `sessions.working_directory` to `threads.working_directory`
 - [ ] Create migration to remove `working_directory` from `sessions` table
+- [ ] Create migration to drop `working_directories` table
 
 ### 2. Code Updates
 
 - [ ] Update sqlc queries:
   - [ ] Modify thread queries to include `working_directory`
   - [ ] Remove `working_directory` from session queries
+  - [ ] Delete `working_directories.sql` query file
 - [ ] Update session creation logic:
   - [ ] Store `working_directory` in thread on first creation
   - [ ] Retrieve `working_directory` from thread for subsequent sessions
 - [ ] Update session resume logic:
   - [ ] Get `working_directory` from thread instead of previous session
+- [ ] Remove all references to `working_directories` table in the codebase
 
 ### 3. Testing
 
