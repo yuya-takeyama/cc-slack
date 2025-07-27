@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,6 +30,35 @@ type StatusResponse struct {
 	PID     int       `json:"pid,omitempty"`
 	Uptime  string    `json:"uptime,omitempty"`
 	Started time.Time `json:"started,omitempty"`
+}
+
+// PrefixedWriter wraps an io.Writer to add a prefix to each line
+type PrefixedWriter struct {
+	writer io.Writer
+	prefix string
+}
+
+func NewPrefixedWriter(w io.Writer, prefix string) *PrefixedWriter {
+	return &PrefixedWriter{
+		writer: w,
+		prefix: prefix,
+	}
+}
+
+func (pw *PrefixedWriter) Write(p []byte) (n int, err error) {
+	// Convert to string and add prefix to each line
+	lines := string(p)
+	scanner := bufio.NewScanner(strings.NewReader(lines))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" { // Skip empty lines
+			prefixedLine := fmt.Sprintf("%s %s\n", pw.prefix, line)
+			if _, err := pw.writer.Write([]byte(prefixedLine)); err != nil {
+				return 0, err
+			}
+		}
+	}
+	return len(p), nil
 }
 
 func NewManager() *Manager {
@@ -57,8 +89,14 @@ func (m *Manager) Start() error {
 
 	log.Println("🏗️ Starting cc-slack process...")
 	cmd := exec.CommandContext(m.ctx, "go", "run", "cmd/cc-slack/main.go")
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+
+	// Create prefixed writers for console output
+	stdoutConsole := NewPrefixedWriter(os.Stdout, "[cc-slack stdout]")
+	stderrConsole := NewPrefixedWriter(os.Stderr, "[cc-slack stderr]")
+
+	// Use MultiWriter to output to both log file and console
+	cmd.Stdout = io.MultiWriter(logFile, stdoutConsole)
+	cmd.Stderr = io.MultiWriter(logFile, stderrConsole)
 	cmd.Env = os.Environ()
 
 	// Set process group so we can kill the entire group later

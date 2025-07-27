@@ -95,21 +95,10 @@ Claude Code Hooks automatically runs goimports, which removes unused imports. To
 
 During development, use the cc-slack-manager for automatic restarts:
 
-**1. Start the manager (run this outside Claude Code):**
-```bash
-./scripts/start
-```
-
-**2. After making code changes, restart cc-slack:**
+**After making code changes, restart cc-slack:**
 ```bash
 ./scripts/restart
 ```
-
-The manager provides HTTP endpoints on port 10080:
-- `GET /status` - Check if cc-slack is running
-- `POST /restart` - Gracefully restart cc-slack
-- `POST /stop` - Stop cc-slack  
-- `POST /start` - Start cc-slack
 
 **Claude Code should automatically run the restart script after significant code changes to cc-slack.**
 
@@ -118,7 +107,7 @@ The manager provides HTTP endpoints on port 10080:
 Use the status script to check if cc-slack is running:
 
 ```bash
-./scripts/cc-slack-status.sh
+./scripts/status
 ```
 
 This will show:
