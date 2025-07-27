@@ -38,7 +38,8 @@ const (
 	ToolNotebookEdit = tools.ToolNotebookEdit
 
 	// Special message types
-	MessageThinking = tools.MessageThinking
+	MessageThinking       = tools.MessageThinking
+	MessageApprovalPrompt = tools.MessageApprovalPrompt
 )
 
 // Handler handles Slack events and interactions
@@ -376,21 +377,8 @@ func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, actio
 		}
 	}
 
-	// Update the message
-	status := "承認されました ✅"
-	if !approved {
-		status = "拒否されました ❌"
-	}
-
-	_, _, _, err := h.client.UpdateMessage(
-		payload.Channel.ID,
-		payload.Message.Timestamp,
-		slack.MsgOptionText(fmt.Sprintf("%s\n\n%s", payload.Message.Text, status), false),
-		slack.MsgOptionReplaceOriginal(payload.ResponseURL),
-	)
-	if err != nil {
-		fmt.Printf("Failed to update message: %v\n", err)
-	}
+	// Update the message with enhanced status information
+	h.updateApprovalMessage(payload, approved)
 }
 
 // removeBotMention removes bot mention from message text
@@ -501,18 +489,22 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 	return err
 }
 
-// PostApprovalRequest posts an approval request with buttons
+// PostApprovalRequest posts an approval request with buttons using rich text
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
-	_, _, err := h.client.PostMessage(
-		channelID,
-		slack.MsgOptionText(message, false),
+	// Parse the message to extract structured information
+	// This is a simple parser for the current format from mcp/server.go
+	toolName, url, prompt := parseApprovalMessage(message)
+
+	// Create rich text elements for the approval request
+	elements := buildApprovalRichTextElements(toolName, url, prompt)
+
+	// Get tool display info for permission prompt
+	toolInfo := tools.GetToolInfo(MessageApprovalPrompt)
+
+	options := []slack.MsgOption{
 		slack.MsgOptionTS(threadTS),
 		slack.MsgOptionBlocks(
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, message, false, false),
-				nil,
-				nil,
-			),
+			slack.NewRichTextBlock("rich_text", elements...),
 			slack.NewActionBlock(
 				"approval_actions",
 				slack.NewButtonBlockElement(
@@ -527,6 +519,146 @@ func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID st
 				).WithStyle(slack.StyleDanger),
 			),
 		),
-	)
+	}
+
+	// Add username and icon
+	options = append(options, slack.MsgOptionUsername(toolInfo.Name))
+	options = append(options, slack.MsgOptionIconEmoji(toolInfo.SlackIcon))
+
+	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
+}
+
+// parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
+func parseApprovalMessage(message string) (toolName, url, prompt string) {
+	// Parse the message format from mcp/server.go:
+	// 🔐 **ツールの実行許可が必要です**\n\n**ツール**: %s\n\n**URL**: %s\n**内容**: %s
+
+	lines := strings.Split(message, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "**ツール**: ") {
+			toolName = strings.TrimPrefix(line, "**ツール**: ")
+		} else if strings.HasPrefix(line, "**URL**: ") {
+			url = strings.TrimPrefix(line, "**URL**: ")
+		} else if strings.HasPrefix(line, "**内容**: ") {
+			prompt = strings.TrimPrefix(line, "**内容**: ")
+		}
+	}
+
+	return toolName, url, prompt
+}
+
+// buildApprovalRichTextElements creates rich text elements for approval request
+func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTextElement {
+	var elements []slack.RichTextElement
+
+	// Header
+	elements = append(elements, slack.NewRichTextSection(
+		slack.NewRichTextSectionEmojiElement("lock", 0, nil),
+		slack.NewRichTextSectionTextElement(" ", nil),
+		slack.NewRichTextSectionTextElement("ツールの実行許可が必要です", &slack.RichTextSectionTextStyle{Bold: true}),
+	))
+
+	// Empty line
+	elements = append(elements, slack.NewRichTextSection(
+		slack.NewRichTextSectionTextElement("\n", nil),
+	))
+
+	if toolName != "" {
+		// Tool name
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("ツール: ", &slack.RichTextSectionTextStyle{Bold: true}),
+			slack.NewRichTextSectionTextElement(toolName, nil),
+		))
+	}
+
+	if url != "" {
+		// URL
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("URL: ", &slack.RichTextSectionTextStyle{Bold: true}),
+			slack.NewRichTextSectionLinkElement(url, url, nil),
+		))
+	}
+
+	if prompt != "" {
+		// Content/Prompt
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("内容: ", &slack.RichTextSectionTextStyle{Bold: true}),
+		))
+
+		// Add prompt with appropriate styling
+		if len(prompt) > 100 {
+			// For long prompts, use code style
+			elements = append(elements, slack.NewRichTextSection(
+				slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Code: true}),
+			))
+		} else {
+			elements = append(elements, slack.NewRichTextSection(
+				slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Italic: true}),
+			))
+		}
+	}
+
+	return elements
+}
+
+// updateApprovalMessage updates the approval message with status and user information
+func (h *Handler) updateApprovalMessage(payload *slack.InteractionCallback, approved bool) {
+	// Preserve the original blocks and add a status block
+	originalBlocks := payload.Message.Blocks.BlockSet
+
+	// Remove the action block (last block) which contains the buttons
+	if len(originalBlocks) > 0 {
+		originalBlocks = originalBlocks[:len(originalBlocks)-1]
+	}
+
+	// Create status elements with user information
+	statusElements := h.buildStatusRichTextElements(payload.User.ID, payload.User.Name, approved)
+
+	// Create new blocks with original content + status
+	newBlocks := make([]slack.Block, 0, len(originalBlocks)+1)
+	newBlocks = append(newBlocks, originalBlocks...)
+	newBlocks = append(newBlocks, slack.NewRichTextBlock("status_rich_text", statusElements...))
+
+	// Update the message
+	_, _, _, err := h.client.UpdateMessage(
+		payload.Channel.ID,
+		payload.Message.Timestamp,
+		slack.MsgOptionBlocks(newBlocks...),
+		slack.MsgOptionReplaceOriginal(payload.ResponseURL),
+	)
+	if err != nil {
+		fmt.Printf("Failed to update message: %v\n", err)
+	}
+}
+
+// buildStatusRichTextElements creates rich text elements for approval status
+func (h *Handler) buildStatusRichTextElements(userID, userName string, approved bool) []slack.RichTextElement {
+	var elements []slack.RichTextElement
+
+	// Add separator line
+	elements = append(elements, slack.NewRichTextSection(
+		slack.NewRichTextSectionTextElement("────────────────", &slack.RichTextSectionTextStyle{Italic: true}),
+	))
+
+	// Status message with emoji and user mention
+	var statusEmoji, statusText string
+	if approved {
+		statusEmoji = "white_check_mark"
+		statusText = "承認されました"
+	} else {
+		statusEmoji = "x"
+		statusText = "拒否されました"
+	}
+
+	elements = append(elements, slack.NewRichTextSection(
+		slack.NewRichTextSectionEmojiElement(statusEmoji, 0, nil),
+		slack.NewRichTextSectionTextElement(" ", nil),
+		slack.NewRichTextSectionTextElement(statusText, &slack.RichTextSectionTextStyle{Bold: true}),
+		slack.NewRichTextSectionTextElement(" by ", nil),
+		slack.NewRichTextSectionUserElement(userID, nil),
+	))
+
+	return elements
 }
