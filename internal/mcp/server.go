@@ -248,7 +248,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				Msg("Failed to marshal approval response")
 			return nil, fmt.Errorf("failed to marshal approval response: %w", err)
 		}
-
 		// Log approval response
 		s.logger.Info().
 			Str("method", "HandleApprovalPrompt").
