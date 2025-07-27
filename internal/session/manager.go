@@ -60,6 +60,16 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 // CreateSessionWithResume creates a new session or resumes an existing one
 // Returns: session, resumed, previousSessionID, error
 func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*ccslack.Session, bool, string, error) {
+	// Check if thread exists and get working directory
+	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
+		ChannelID: channelID,
+		ThreadTs:  threadTS,
+	})
+	if err == nil && thread.WorkingDirectory != "" {
+		// Use existing working directory from thread
+		workDir = thread.WorkingDirectory
+	}
+
 	// Check if should resume
 	shouldResume, previousSessionID, err := m.ShouldResume(ctx, channelID, threadTS)
 	if err != nil {
@@ -83,7 +93,7 @@ func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, thread
 // createSessionInternal handles the actual session creation
 func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir string, shouldResume bool, previousSessionID string) (*ccslack.Session, bool, error) {
 	// Get or create thread ID
-	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS)
+	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS, workDir)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get or create thread: %w", err)
 	}
@@ -93,10 +103,9 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 
 	// Create session in database (model will be updated from SystemMessage)
 	_, err = m.queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:         threadID,
-		SessionID:        tempSessionID,
-		WorkingDirectory: workDir,
-		Model:            sql.NullString{Valid: false}, // Will be set from SystemMessage
+		ThreadID:  threadID,
+		SessionID: tempSessionID,
+		Model:     sql.NullString{Valid: false}, // Will be set from SystemMessage
 	})
 
 	if err != nil {
@@ -167,7 +176,7 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.S
 }
 
 // getOrCreateThread gets or creates a thread record
-func (m *Manager) getOrCreateThread(ctx context.Context, channelID, threadTS string) (int64, error) {
+func (m *Manager) getOrCreateThread(ctx context.Context, channelID, threadTS, workDir string) (int64, error) {
 	// Try to get existing thread
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -179,8 +188,9 @@ func (m *Manager) getOrCreateThread(ctx context.Context, channelID, threadTS str
 
 	// Create new thread
 	newThread, err := m.queries.CreateThread(ctx, db.CreateThreadParams{
-		ChannelID: channelID,
-		ThreadTs:  threadTS,
+		ChannelID:        channelID,
+		ThreadTs:         threadTS,
+		WorkingDirectory: workDir,
 	})
 	if err != nil {
 		return 0, err

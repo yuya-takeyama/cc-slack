@@ -1,6 +1,6 @@
 ---
 title: Database Schema Refactoring - Move working_directory to threads
-status: in_progress
+status: done
 ---
 
 # Database Schema Refactoring
@@ -19,30 +19,30 @@ Refactor database schema to improve data consistency:
 
 ### 1. Database Migration
 
-- [ ] Create migration to add `working_directory` column to `threads` table
-- [ ] Create migration to migrate existing data from `sessions.working_directory` to `threads.working_directory`
-- [ ] Create migration to remove `working_directory` from `sessions` table
-- [ ] Create migration to drop `working_directories` table
+- [x] Create migration to add `working_directory` column to `threads` table
+- [x] Create migration to migrate existing data from `sessions.working_directory` to `threads.working_directory`
+- [x] Create migration to remove `working_directory` from `sessions` table
+- [x] Create migration to drop `working_directories` table
 
 ### 2. Code Updates
 
-- [ ] Update sqlc queries:
-  - [ ] Modify thread queries to include `working_directory`
-  - [ ] Remove `working_directory` from session queries
-  - [ ] Delete `working_directories.sql` query file
-- [ ] Update session creation logic:
-  - [ ] Store `working_directory` in thread on first creation
-  - [ ] Retrieve `working_directory` from thread for subsequent sessions
-- [ ] Update session resume logic:
-  - [ ] Get `working_directory` from thread instead of previous session
-- [ ] Remove all references to `working_directories` table in the codebase
+- [x] Update sqlc queries:
+  - [x] Modify thread queries to include `working_directory`
+  - [x] Remove `working_directory` from session queries
+  - [x] Delete `working_directories.sql` query file
+- [x] Update session creation logic:
+  - [x] Store `working_directory` in thread on first creation
+  - [x] Retrieve `working_directory` from thread for subsequent sessions
+- [x] Update session resume logic:
+  - [x] Get `working_directory` from thread instead of previous session
+- [x] Remove all references to `working_directories` table in the codebase
 
 ### 3. Testing
 
-- [ ] Test session creation with new schema
-- [ ] Test session resume functionality
-- [ ] Test data migration on existing database
-- [ ] Verify backward compatibility
+- [x] Test session creation with new schema
+- [x] Test session resume functionality
+- [x] Test data migration on existing database
+- [x] Verify backward compatibility
 
 ## Implementation Details
 

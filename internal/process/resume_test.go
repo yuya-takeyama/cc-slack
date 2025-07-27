@@ -50,10 +50,9 @@ func TestResumeManager_GetLatestSessionID(t *testing.T) {
 
 	// Create test session
 	session, err := queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:         thread.ID,
-		SessionID:        "test-session-123",
-		WorkingDirectory: "/test/dir",
-		Model:            sql.NullString{String: "claude-3", Valid: true},
+		ThreadID:  thread.ID,
+		SessionID: "test-session-123",
+		Model:     sql.NullString{String: "claude-3", Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
@@ -111,10 +110,9 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 
 	// Create test session that ended recently
 	session, err := queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:         thread.ID,
-		SessionID:        "test-session-recent",
-		WorkingDirectory: "/test/dir",
-		Model:            sql.NullString{String: "claude-3", Valid: true},
+		ThreadID:  thread.ID,
+		SessionID: "test-session-recent",
+		Model:     sql.NullString{String: "claude-3", Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
@@ -162,10 +160,9 @@ func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
 
 	// Create test session that ended long ago
 	session, err := queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:         thread.ID,
-		SessionID:        "test-session-old",
-		WorkingDirectory: "/test/dir",
-		Model:            sql.NullString{String: "claude-3", Valid: true},
+		ThreadID:  thread.ID,
+		SessionID: "test-session-old",
+		Model:     sql.NullString{String: "claude-3", Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
@@ -218,10 +215,9 @@ func TestResumeManager_CheckActiveSession(t *testing.T) {
 
 	// Create active session
 	_, err = queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:         thread.ID,
-		SessionID:        "test-session-active",
-		WorkingDirectory: "/test/dir",
-		Model:            sql.NullString{String: "claude-3", Valid: true},
+		ThreadID:  thread.ID,
+		SessionID: "test-session-active",
+		Model:     sql.NullString{String: "claude-3", Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)

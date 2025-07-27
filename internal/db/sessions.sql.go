@@ -25,33 +25,26 @@ func (q *Queries) CountActiveSessionsByThread(ctx context.Context, threadID int6
 
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (
-    thread_id, session_id, working_directory, model
+    thread_id, session_id, model
 ) VALUES (
-    ?, ?, ?, ?
+    ?, ?, ?
 )
-RETURNING id, thread_id, session_id, working_directory, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns
+RETURNING id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns
 `
 
 type CreateSessionParams struct {
-	ThreadID         int64          `json:"thread_id"`
-	SessionID        string         `json:"session_id"`
-	WorkingDirectory string         `json:"working_directory"`
-	Model            sql.NullString `json:"model"`
+	ThreadID  int64          `json:"thread_id"`
+	SessionID string         `json:"session_id"`
+	Model     sql.NullString `json:"model"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
-	row := q.queryRow(ctx, q.createSessionStmt, createSession,
-		arg.ThreadID,
-		arg.SessionID,
-		arg.WorkingDirectory,
-		arg.Model,
-	)
+	row := q.queryRow(ctx, q.createSessionStmt, createSession, arg.ThreadID, arg.SessionID, arg.Model)
 	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.ThreadID,
 		&i.SessionID,
-		&i.WorkingDirectory,
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.Status,
@@ -66,7 +59,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 }
 
 const getActiveSessionByThread = `-- name: GetActiveSessionByThread :one
-SELECT s.id, s.thread_id, s.session_id, s.working_directory, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
+SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
 FROM sessions s
 WHERE s.thread_id = ?
   AND s.status = 'active'
@@ -81,7 +74,6 @@ func (q *Queries) GetActiveSessionByThread(ctx context.Context, threadID int64) 
 		&i.ID,
 		&i.ThreadID,
 		&i.SessionID,
-		&i.WorkingDirectory,
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.Status,
@@ -96,7 +88,7 @@ func (q *Queries) GetActiveSessionByThread(ctx context.Context, threadID int64) 
 }
 
 const getLatestSessionByThread = `-- name: GetLatestSessionByThread :one
-SELECT s.id, s.thread_id, s.session_id, s.working_directory, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
+SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
 FROM sessions s
 WHERE s.thread_id = ?
   AND s.status = 'completed'
@@ -111,7 +103,6 @@ func (q *Queries) GetLatestSessionByThread(ctx context.Context, threadID int64) 
 		&i.ID,
 		&i.ThreadID,
 		&i.SessionID,
-		&i.WorkingDirectory,
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.Status,
@@ -126,7 +117,7 @@ func (q *Queries) GetLatestSessionByThread(ctx context.Context, threadID int64) 
 }
 
 const getSession = `-- name: GetSession :one
-SELECT id, thread_id, session_id, working_directory, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
 WHERE session_id = ?
 LIMIT 1
 `
@@ -138,7 +129,6 @@ func (q *Queries) GetSession(ctx context.Context, sessionID string) (Session, er
 		&i.ID,
 		&i.ThreadID,
 		&i.SessionID,
-		&i.WorkingDirectory,
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.Status,
@@ -153,7 +143,7 @@ func (q *Queries) GetSession(ctx context.Context, sessionID string) (Session, er
 }
 
 const getThreadBySlackIDs = `-- name: GetThreadBySlackIDs :one
-SELECT t.id, t.channel_id, t.thread_ts, t.created_at, t.updated_at
+SELECT t.id, t.channel_id, t.thread_ts, t.working_directory, t.created_at, t.updated_at
 FROM threads t
 WHERE t.channel_id = ? AND t.thread_ts = ?
 LIMIT 1
@@ -171,6 +161,7 @@ func (q *Queries) GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackI
 		&i.ID,
 		&i.ChannelID,
 		&i.ThreadTs,
+		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -178,7 +169,7 @@ func (q *Queries) GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackI
 }
 
 const listActiveSessions = `-- name: ListActiveSessions :many
-SELECT id, thread_id, session_id, working_directory, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
 WHERE status = 'active'
 ORDER BY started_at DESC
 `
@@ -196,7 +187,6 @@ func (q *Queries) ListActiveSessions(ctx context.Context) ([]Session, error) {
 			&i.ID,
 			&i.ThreadID,
 			&i.SessionID,
-			&i.WorkingDirectory,
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.Status,

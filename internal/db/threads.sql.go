@@ -11,25 +11,27 @@ import (
 
 const createThread = `-- name: CreateThread :one
 INSERT INTO threads (
-    channel_id, thread_ts
+    channel_id, thread_ts, working_directory
 ) VALUES (
-    ?, ?
+    ?, ?, ?
 )
-RETURNING id, channel_id, thread_ts, created_at, updated_at
+RETURNING id, channel_id, thread_ts, working_directory, created_at, updated_at
 `
 
 type CreateThreadParams struct {
-	ChannelID string `json:"channel_id"`
-	ThreadTs  string `json:"thread_ts"`
+	ChannelID        string `json:"channel_id"`
+	ThreadTs         string `json:"thread_ts"`
+	WorkingDirectory string `json:"working_directory"`
 }
 
 func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error) {
-	row := q.queryRow(ctx, q.createThreadStmt, createThread, arg.ChannelID, arg.ThreadTs)
+	row := q.queryRow(ctx, q.createThreadStmt, createThread, arg.ChannelID, arg.ThreadTs, arg.WorkingDirectory)
 	var i Thread
 	err := row.Scan(
 		&i.ID,
 		&i.ChannelID,
 		&i.ThreadTs,
+		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -37,7 +39,7 @@ func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thr
 }
 
 const getThread = `-- name: GetThread :one
-SELECT id, channel_id, thread_ts, created_at, updated_at FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 WHERE channel_id = ? AND thread_ts = ?
 LIMIT 1
 `
@@ -54,6 +56,7 @@ func (q *Queries) GetThread(ctx context.Context, arg GetThreadParams) (Thread, e
 		&i.ID,
 		&i.ChannelID,
 		&i.ThreadTs,
+		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -61,7 +64,7 @@ func (q *Queries) GetThread(ctx context.Context, arg GetThreadParams) (Thread, e
 }
 
 const getThreadByID = `-- name: GetThreadByID :one
-SELECT id, channel_id, thread_ts, created_at, updated_at FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 WHERE id = ?
 LIMIT 1
 `
@@ -73,6 +76,7 @@ func (q *Queries) GetThreadByID(ctx context.Context, id int64) (Thread, error) {
 		&i.ID,
 		&i.ChannelID,
 		&i.ThreadTs,
+		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
