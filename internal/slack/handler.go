@@ -555,8 +555,6 @@ func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTex
 
 	// Header
 	elements = append(elements, slack.NewRichTextSection(
-		slack.NewRichTextSectionEmojiElement("lock", 0, nil),
-		slack.NewRichTextSectionTextElement(" ", nil),
 		slack.NewRichTextSectionTextElement("ツールの実行許可が必要です", &slack.RichTextSectionTextStyle{Bold: true}),
 	))
 
@@ -584,20 +582,19 @@ func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTex
 	if prompt != "" {
 		// Content/Prompt
 		elements = append(elements, slack.NewRichTextSection(
-			slack.NewRichTextSectionTextElement("内容: ", &slack.RichTextSectionTextStyle{Bold: true}),
+			slack.NewRichTextSectionTextElement("内容:", &slack.RichTextSectionTextStyle{Bold: true}),
 		))
 
-		// Add prompt with appropriate styling
-		if len(prompt) > 100 {
-			// For long prompts, use code style
-			elements = append(elements, slack.NewRichTextSection(
-				slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Code: true}),
-			))
-		} else {
-			elements = append(elements, slack.NewRichTextSection(
-				slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Italic: true}),
-			))
-		}
+		// Add prompt as code block style with triple quotes
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", &slack.RichTextSectionTextStyle{Code: true}),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Code: true}),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", &slack.RichTextSectionTextStyle{Code: true}),
+		))
 	}
 
 	return elements
