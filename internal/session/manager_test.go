@@ -137,3 +137,71 @@ func TestSessionTimeoutMessage(t *testing.T) {
 		t.Error("Expected message to contain restart instructions")
 	}
 }
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		name     string
+		ms       int
+		expected string
+	}{
+		{
+			name:     "less than 1 minute",
+			ms:       5000,
+			expected: "5秒",
+		},
+		{
+			name:     "exactly 1 minute",
+			ms:       60000,
+			expected: "1分0秒",
+		},
+		{
+			name:     "2 minutes 5 seconds",
+			ms:       125000,
+			expected: "2分5秒",
+		},
+		{
+			name:     "59 minutes 59 seconds",
+			ms:       3599000,
+			expected: "59分59秒",
+		},
+		{
+			name:     "exactly 1 hour",
+			ms:       3600000,
+			expected: "1時間0分0秒",
+		},
+		{
+			name:     "1 hour 1 minute 5 seconds",
+			ms:       3665000,
+			expected: "1時間1分5秒",
+		},
+		{
+			name:     "2 hours 30 minutes 45 seconds",
+			ms:       9045000,
+			expected: "2時間30分45秒",
+		},
+		{
+			name:     "realistic example from description",
+			ms:       296414,
+			expected: "4分56秒",
+		},
+		{
+			name:     "0 seconds",
+			ms:       0,
+			expected: "0秒",
+		},
+		{
+			name:     "999 milliseconds (rounds down)",
+			ms:       999,
+			expected: "0秒",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatDuration(tt.ms)
+			if result != tt.expected {
+				t.Errorf("formatDuration(%d) = %s, want %s", tt.ms, result, tt.expected)
+			}
+		})
+	}
+}
