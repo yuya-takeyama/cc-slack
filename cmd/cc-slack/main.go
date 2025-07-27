@@ -12,7 +12,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
+	"github.com/yuya-takeyama/cc-slack/internal/database"
+	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
+	"github.com/yuya-takeyama/cc-slack/internal/process"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
@@ -24,14 +27,35 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
+	// Open database connection
+	sqlDB, err := database.Open(cfg.Database.Path)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer sqlDB.Close()
+
+	// Run database migrations
+	if err := database.Migrate(sqlDB, cfg.Database.MigrationsPath); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Create database queries
+	queries := db.New(sqlDB)
+
+	// Create resume manager
+	resumeManager := process.NewResumeManager(queries, cfg.Session.ResumeWindow)
+
 	// Create MCP server
 	mcpServer, err := mcp.NewServer()
 	if err != nil {
 		log.Fatalf("Failed to create MCP server: %v", err)
 	}
 
-	// Create session manager
-	sessionMgr := session.NewManager(mcpServer, cfg.Server.BaseURL, cfg)
+	// Create memory-based session manager
+	memoryMgr := session.NewManager(mcpServer, cfg.Server.BaseURL, cfg)
+
+	// Wrap with database-backed session manager
+	sessionMgr := session.NewDBManager(memoryMgr, queries, resumeManager)
 
 	// Create Slack handler
 	slackHandler := slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
@@ -40,7 +64,7 @@ func main() {
 	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
 
 	// Set Slack handler in session manager
-	sessionMgr.SetSlackHandler(slackHandler)
+	memoryMgr.SetSlackHandler(slackHandler)
 
 	// Set Slack integration in MCP server
 	mcpServer.SetSlackIntegration(slackHandler, sessionMgr)
@@ -105,6 +129,7 @@ func main() {
 	log.Printf("Session timeout: %v", cfg.Session.Timeout)
 	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
 	log.Printf("Resume window: %v", cfg.Session.ResumeWindow)
+	log.Printf("Database path: %s", cfg.Database.Path)
 	if cfg.Slack.Assistant.Username != "" || cfg.Slack.Assistant.IconEmoji != "" || cfg.Slack.Assistant.IconURL != "" {
 		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
 			cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)

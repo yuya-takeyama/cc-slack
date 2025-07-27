@@ -8,6 +8,7 @@ import (
 
 	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
+	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 // DBManager extends Manager with database persistence
@@ -196,6 +197,23 @@ func (dm *DBManager) createSessionInternal(ctx context.Context, channelID, threa
 	dm.mu.Unlock()
 
 	return session, nil
+}
+
+// CreateSession implements SessionManager interface for compatibility
+func (dm *DBManager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
+	ctx := context.Background()
+	session, _, err := dm.CreateSessionWithResume(ctx, channelID, threadTS, workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to slack.Session type
+	return &ccslack.Session{
+		SessionID: session.ID,
+		ChannelID: session.ChannelID,
+		ThreadTS:  session.ThreadTS,
+		WorkDir:   session.WorkDir,
+	}, nil
 }
 
 // createResultHandlerWithDB creates result handler that updates database

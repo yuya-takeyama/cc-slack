@@ -1,6 +1,6 @@
 ---
 title: セッション再開（Resume）機能の実装
-status: draft
+status: done
 ---
 
 # セッション再開（Resume）機能の実装
