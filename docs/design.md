@@ -958,3 +958,601 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 4. **「ゴロ寝コンピューティング」の部分的実現**
    - approval_prompt により、モバイルから承認可能
    - 完全なリモート開発体験への第一歩
+
+## 拡張機能設計（2025-07-27追加）
+
+### 概要
+
+cc-slack の実用性を大幅に向上させるため、以下の機能拡張を計画する：
+
+1. **セッション再開機能**: 同一Slackスレッド内でのセッション継続
+2. **Webマネジメントコンソール**: セッション履歴の可視化
+3. **設定ファイル対応**: Viperによる柔軟な設定管理
+4. **複数ワーキングディレクトリ対応**: プロジェクト切り替えの簡易化
+5. **データ永続化**: SQLiteによるセッション情報の保存
+
+### データモデル設計
+
+#### データベーススキーマ
+
+```sql
+-- Slackスレッドとセッションの関係を管理
+CREATE TABLE threads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id TEXT NOT NULL,
+    thread_ts TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, thread_ts)
+);
+
+-- Claude Code セッション情報
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id INTEGER NOT NULL,
+    session_id TEXT NOT NULL UNIQUE,
+    working_directory TEXT NOT NULL,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    status TEXT CHECK(status IN ('active', 'completed', 'failed', 'timeout')) DEFAULT 'active',
+    model TEXT,
+    total_cost_usd REAL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    duration_ms INTEGER,
+    num_turns INTEGER,
+    FOREIGN KEY (thread_id) REFERENCES threads(id)
+);
+
+-- メッセージログ（将来の分析用）
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    message_type TEXT NOT NULL, -- 'system', 'assistant', 'user', 'result'
+    direction TEXT CHECK(direction IN ('inbound', 'outbound')) NOT NULL,
+    content TEXT NOT NULL, -- JSON形式で保存
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- ツール実行ログ
+CREATE TABLE tool_executions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    tool_name TEXT NOT NULL,
+    input TEXT, -- JSON形式
+    output TEXT, -- JSON形式
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    duration_ms INTEGER,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- 承認プロンプト履歴
+CREATE TABLE approval_prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    tool_name TEXT NOT NULL,
+    request_params TEXT, -- JSON形式
+    decision TEXT CHECK(decision IN ('allow', 'deny')),
+    decided_by TEXT, -- Slack user ID
+    decided_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- ワーキングディレクトリ設定
+CREATE TABLE working_directories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL,
+    description TEXT,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- インデックス
+CREATE INDEX idx_sessions_thread_id ON sessions(thread_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
+CREATE INDEX idx_messages_session_id ON messages(session_id);
+CREATE INDEX idx_tool_executions_session_id ON tool_executions(session_id);
+CREATE INDEX idx_approval_prompts_session_id ON approval_prompts(session_id);
+```
+
+#### エンティティ定義（Go構造体）
+
+```go
+// internal/models/thread.go
+type Thread struct {
+    ID        int64     `db:"id"`
+    ChannelID string    `db:"channel_id"`
+    ThreadTS  string    `db:"thread_ts"`
+    CreatedAt time.Time `db:"created_at"`
+    UpdatedAt time.Time `db:"updated_at"`
+}
+
+// internal/models/session.go
+type Session struct {
+    ID               int64      `db:"id"`
+    ThreadID         int64      `db:"thread_id"`
+    SessionID        string     `db:"session_id"`
+    WorkingDirectory string     `db:"working_directory"`
+    StartedAt        time.Time  `db:"started_at"`
+    EndedAt          *time.Time `db:"ended_at"`
+    Status           string     `db:"status"`
+    Model            *string    `db:"model"`
+    TotalCostUSD     *float64   `db:"total_cost_usd"`
+    InputTokens      *int       `db:"input_tokens"`
+    OutputTokens     *int       `db:"output_tokens"`
+    DurationMS       *int       `db:"duration_ms"`
+    NumTurns         *int       `db:"num_turns"`
+}
+
+// internal/models/message.go
+type Message struct {
+    ID          int64     `db:"id"`
+    SessionID   int64     `db:"session_id"`
+    MessageType string    `db:"message_type"`
+    Direction   string    `db:"direction"`
+    Content     string    `db:"content"` // JSON
+    CreatedAt   time.Time `db:"created_at"`
+}
+```
+
+### セッション再開機能（--resume）
+
+#### 設計方針
+
+1. **セッション継続の条件**:
+   - 同一Slackスレッド内での新規メンション
+   - 前回セッションが正常終了している
+   - タイムアウトから一定時間内（設定可能）
+
+2. **実装詳細**:
+   ```go
+   // internal/process/resume.go
+   type ResumeManager struct {
+       db *sql.DB
+   }
+
+   func (rm *ResumeManager) GetLatestSessionID(channelID, threadTS string) (string, error) {
+       // 1. threads テーブルから thread_id を取得
+       // 2. sessions テーブルから最新の completed セッションを取得
+       // 3. session_id を返す
+   }
+
+   func (rm *ResumeManager) ShouldResume(channelID, threadTS string) (bool, string, error) {
+       // 1. 最新セッションを確認
+       // 2. 終了から一定時間内かチェック
+       // 3. resume可能なら session_id を返す
+   }
+   ```
+
+3. **Claude Code 起動時の処理**:
+   ```go
+   // セッション再開時のコマンド構築
+   if shouldResume {
+       args = append(args, "--resume", previousSessionID)
+   }
+   ```
+
+### Webマネジメントコンソール
+
+#### アーキテクチャ
+
+```
+┌─────────────────────────────────────┐
+│         cc-slack HTTP Server        │
+├─────────────────────────────────────┤
+│  /slack/*  │  /mcp/*  │  /web/*    │
+│            │          │             │
+│   Slack    │   MCP    │  Web UI    │
+│  Handler   │ Handler  │  Handler   │
+└────────────┴──────────┴─────────────┘
+```
+
+#### 技術スタック
+
+- **フロントエンド**:
+  - HTML + Tailwind CSS（CDN版）
+  - Alpine.js または Vanilla JS（軽量性重視）
+  - レスポンシブデザイン（モバイル・PC両対応）
+
+- **バックエンド**:
+  - RESTful API（JSON）
+  - Server-Sent Events（リアルタイム更新）
+
+#### APIエンドポイント
+
+```
+GET  /web/                    # Web UI（静的HTML）
+GET  /web/api/threads         # スレッド一覧
+GET  /web/api/threads/:id     # スレッド詳細
+GET  /web/api/sessions        # セッション一覧
+GET  /web/api/sessions/:id    # セッション詳細
+GET  /web/api/sessions/:id/stream  # SSEでリアルタイム更新
+GET  /web/api/stats           # 統計情報
+```
+
+#### UI設計
+
+```
+┌─────────────────────────────────────────────┐
+│ cc-slack Management Console                 │
+├─────────────────────────────────────────────┤
+│ ┌─────────┐ ┌─────────────────────────────┐│
+│ │Thread   │ │Session Details              ││
+│ │List     │ │                             ││
+│ │         │ │ Session: f0b25458-564a...   ││
+│ │#general │ │ Status: Completed           ││
+│ │ └sess1  │ │ Duration: 2m 34s            ││
+│ │ └sess2  │ │ Cost: $0.294                ││
+│ │         │ │                             ││
+│ │#project │ │ [Messages Timeline]         ││
+│ │ └sess3  │ │                             ││
+│ └─────────┘ └─────────────────────────────┘│
+└─────────────────────────────────────────────┘
+```
+
+### 設定ファイル対応（Viper）
+
+#### 設定ファイル構造
+
+```yaml
+# config.yaml
+server:
+  port: 8080
+  base_url: "http://localhost:8080"
+
+slack:
+  bot_token: ${SLACK_BOT_TOKEN}  # 環境変数参照
+  signing_secret: ${SLACK_SIGNING_SECRET}
+  assistant:
+    username: "Claude"
+    icon_emoji: ":robot_face:"
+
+claude:
+  executable: "claude"
+  default_options:
+    - "--verbose"
+  permission_prompt_tool: "mcp__cc-slack__approval_prompt"
+
+database:
+  path: "./data/cc-slack.db"
+  migrations_path: "./migrations"
+
+session:
+  timeout: "30m"
+  cleanup_interval: "5m"
+  resume_window: "1h"  # セッション再開可能な時間
+
+working_directories:
+  default: "/home/user/workspace"
+  directories:
+    - name: "project-a"
+      path: "/home/user/projects/project-a"
+      channels: ["C1234567890"]
+    - name: "project-b"
+      path: "/home/user/projects/project-b"
+      channels: ["C0987654321"]
+
+logging:
+  level: "info"
+  format: "json"
+  output: "./logs"
+```
+
+#### Viper統合
+
+```go
+// internal/config/config.go
+type Config struct {
+    Server    ServerConfig
+    Slack     SlackConfig
+    Claude    ClaudeConfig
+    Database  DatabaseConfig
+    Session   SessionConfig
+    WorkDirs  WorkingDirectoriesConfig
+    Logging   LoggingConfig
+}
+
+func Load() (*Config, error) {
+    viper.SetConfigName("config")
+    viper.SetConfigType("yaml")
+    viper.AddConfigPath(".")
+    viper.AddConfigPath("/etc/cc-slack/")
+    
+    // 環境変数のプレフィックス
+    viper.SetEnvPrefix("CC_SLACK")
+    viper.AutomaticEnv()
+    
+    // 環境変数の展開を有効化
+    viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+    
+    if err := viper.ReadInConfig(); err != nil {
+        // 設定ファイルがない場合は環境変数のみで動作
+        if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+            return nil, err
+        }
+    }
+    
+    var config Config
+    if err := viper.Unmarshal(&config); err != nil {
+        return nil, err
+    }
+    
+    return &config, nil
+}
+```
+
+### 複数ワーキングディレクトリ対応
+
+#### ディレクトリ選択ロジック
+
+1. **優先順位**:
+   1. メンション時の明示的な指定（例: `@cc-slack project:project-a`）
+   2. チャンネルに紐付けられたディレクトリ
+   3. デフォルトディレクトリ
+
+2. **実装**:
+   ```go
+   // internal/workspace/selector.go
+   type WorkspaceSelector struct {
+       config *config.WorkingDirectoriesConfig
+       db     *sql.DB
+   }
+
+   func (ws *WorkspaceSelector) SelectWorkspace(channelID string, message string) (string, error) {
+       // 1. メッセージから project: 指定を抽出
+       if project := extractProjectName(message); project != "" {
+           return ws.getWorkspaceByName(project)
+       }
+       
+       // 2. チャンネルに紐付けられたワークスペースを検索
+       if workspace := ws.getWorkspaceByChannel(channelID); workspace != "" {
+           return workspace, nil
+       }
+       
+       // 3. デフォルトを返す
+       return ws.config.Default, nil
+   }
+   ```
+
+### sqlc導入に伴う開発フロー
+
+#### sqlc設定ファイル
+
+```yaml
+# sqlc.yaml
+version: "2"
+sql:
+  - engine: "sqlite"
+    queries: "./internal/db/queries"
+    schema: "./migrations"
+    gen:
+      go:
+        package: "db"
+        out: "./internal/db"
+        emit_json_tags: true
+        emit_prepared_queries: true
+        emit_interface: true
+```
+
+#### クエリ定義例
+
+```sql
+-- internal/db/queries/sessions.sql
+
+-- name: GetLatestSessionByThread :one
+SELECT s.*
+FROM sessions s
+WHERE s.thread_id = ?
+  AND s.status = 'completed'
+ORDER BY s.ended_at DESC
+LIMIT 1;
+
+-- name: CreateSession :one
+INSERT INTO sessions (
+    thread_id, session_id, working_directory, model
+) VALUES (
+    ?, ?, ?, ?
+)
+RETURNING *;
+
+-- name: UpdateSessionStatus :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = CURRENT_TIMESTAMP,
+    total_cost_usd = ?,
+    input_tokens = ?,
+    output_tokens = ?,
+    duration_ms = ?,
+    num_turns = ?
+WHERE session_id = ?;
+```
+
+### 実装タスクの依存関係と優先順位
+
+```mermaid
+graph TD
+    A[データベース設計・マイグレーション] --> B[sqlc セットアップ]
+    B --> C[データアクセス層実装]
+    C --> D[セッション永続化]
+    
+    E[Viper設定] --> F[設定ファイル読み込み]
+    F --> G[複数ワークディレクトリ対応]
+    
+    D --> H[セッション再開機能]
+    D --> I[Webマネジメントコンソール]
+    
+    style A fill:#ff6b6b
+    style E fill:#ff6b6b
+    style H fill:#ffd93d
+    style I fill:#ffd93d
+```
+
+**実装順序**:
+1. **Phase 1**: データベース基盤（A→B→C）+ Viper設定（E→F）
+2. **Phase 2**: セッション永続化（D）
+3. **Phase 3**: セッション再開機能（H）+ 複数ワークディレクトリ（G）
+4. **Phase 4**: Webマネジメントコンソール（I）
+
+### 追加の考慮事項
+
+#### パフォーマンス最適化
+- メッセージログの保存は非同期処理で実装
+- 古いログの自動アーカイブ/削除機能
+- SQLiteのWALモード有効化
+
+#### セキュリティ強化
+- Web UIへの認証機能（Basic認証 or トークン認証）
+- SQLインジェクション対策（sqlcが自動的に対応）
+- 設定ファイルの権限管理
+
+#### 運用性向上
+- データベースのバックアップ機能
+- メトリクス収集（Prometheus形式）
+- ヘルスチェックエンドポイント
+
+#### 将来の拡張性
+- PostgreSQL/MySQL対応（sqlcの設定変更のみ）
+- マルチテナント対応
+- Slack Enterprise Grid対応
+
+### 追加考慮事項（実装時の詳細検討項目）
+
+#### テスト戦略の拡張
+
+1. **データベーステスト**:
+   - テスト用のインメモリSQLiteデータベース使用
+   - テストごとにクリーンなデータベース状態を保証
+   - マイグレーションのテスト自動化
+   ```go
+   // internal/db/testing.go
+   func SetupTestDB(t *testing.T) (*sql.DB, func()) {
+       db, err := sql.Open("sqlite3", ":memory:")
+       require.NoError(t, err)
+       
+       // Run migrations
+       err = RunMigrations(db, "../../migrations")
+       require.NoError(t, err)
+       
+       return db, func() { db.Close() }
+   }
+   ```
+
+2. **統合テスト**:
+   - Slack APIのモック実装
+   - Claude Code プロセスのモック
+   - End-to-Endシナリオテスト
+
+#### CI/CDパイプラインの更新
+
+```yaml
+# .github/workflows/test.yml の更新
+- name: Check sqlc generation
+  run: |
+    sqlc generate
+    git diff --exit-code
+
+- name: Check migrations
+  run: |
+    migrate -path ./migrations -database "sqlite3://./test.db" up
+    migrate -path ./migrations -database "sqlite3://./test.db" down
+```
+
+#### エラーリカバリーとレジリエンス
+
+1. **セッション復旧メカニズム**:
+   - プロセスクラッシュ時の自動復旧
+   - 部分的な状態保存（チェックポイント）
+   - デッドレター queue の実装
+
+2. **サーキットブレーカー**:
+   - Claude API への過度なリクエスト防止
+   - Slack API レート制限への対応
+   - 自動バックオフとリトライ
+
+#### モニタリングとオブザーバビリティ
+
+1. **メトリクス収集**:
+   ```go
+   // Prometheusメトリクス例
+   var (
+       activeSessionsGauge = prometheus.NewGauge(...)
+       sessionDurationHistogram = prometheus.NewHistogram(...)
+       toolExecutionCounter = prometheus.NewCounterVec(...)
+   )
+   ```
+
+2. **構造化ログの拡張**:
+   - トレーシングID の導入
+   - セッション横断的なログ相関
+   - パフォーマンスログ
+
+3. **ヘルスチェック詳細**:
+   ```json
+   GET /health
+   {
+     "status": "healthy",
+     "components": {
+       "database": "ok",
+       "slack": "ok",
+       "mcp": "ok"
+     },
+     "version": "1.0.0",
+     "uptime": 3600
+   }
+   ```
+
+#### APIドキュメント自動生成
+
+1. **OpenAPI仕様**:
+   - Web APIのOpenAPI 3.0仕様生成
+   - Swagger UIの統合
+   - クライアントSDK自動生成
+
+2. **GraphQL検討**（将来）:
+   - より柔軟なデータ取得
+   - リアルタイムサブスクリプション
+
+#### 開発者体験（DX）の向上
+
+1. **開発環境の改善**:
+   - Docker Compose による完全な開発環境
+   - ホットリロード対応
+   - デバッグツールの統合
+
+2. **CLIツール**:
+   ```bash
+   # 管理用CLIコマンド例
+   cc-slack session list
+   cc-slack session inspect <session-id>
+   cc-slack db migrate
+   cc-slack config validate
+   ```
+
+#### データプライバシーとコンプライアンス
+
+1. **データ保持ポリシー**:
+   - 自動データ削除スケジューラー
+   - PII（個人識別情報）のマスキング
+   - GDPR対応のデータエクスポート機能
+
+2. **監査ログ**:
+   - 全ての重要操作の記録
+   - 改ざん防止（チェックサム）
+   - 定期的なアーカイブ
+
+#### スケーラビリティ設計
+
+1. **水平スケーリング準備**:
+   - セッション情報のRedis共有（将来）
+   - ロードバランサー対応
+   - スティッキーセッション不要の設計
+
+2. **リソース管理**:
+   - Claude Code プロセスプール
+   - 接続プーリング
+   - メモリ使用量の監視と制限
+
+これらの考慮事項は、実装フェーズで優先度に応じて詳細設計・実装を行う。

@@ -53,6 +53,131 @@ go test ./...
 go mod tidy
 ```
 
+### Database Development (SQLite + sqlc + golang-migrate)
+
+#### Prerequisites
+
+```bash
+# Install sqlc
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+# Install golang-migrate
+go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+#### Database Schema Management
+
+**Creating new migrations:**
+
+```bash
+# Create a new migration
+migrate create -ext sql -dir migrations -seq create_threads_table
+
+# This creates two files:
+# - migrations/000001_create_threads_table.up.sql
+# - migrations/000001_create_threads_table.down.sql
+```
+
+**Running migrations:**
+
+```bash
+# Apply all pending migrations
+migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up
+
+# Rollback one migration
+migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations down 1
+
+# Check current migration version
+migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations version
+```
+
+#### sqlc Workflow
+
+**Writing queries:**
+
+1. Create SQL query files in `internal/db/queries/`:
+   ```sql
+   -- internal/db/queries/sessions.sql
+   
+   -- name: GetSession :one
+   SELECT * FROM sessions
+   WHERE session_id = ? LIMIT 1;
+   
+   -- name: ListActiveSessions :many
+   SELECT * FROM sessions
+   WHERE status = 'active'
+   ORDER BY started_at DESC;
+   ```
+
+2. Generate Go code:
+   ```bash
+   sqlc generate
+   ```
+
+3. Use generated code:
+   ```go
+   queries := db.New(sqliteDB)
+   session, err := queries.GetSession(ctx, sessionID)
+   ```
+
+**sqlc naming conventions:**
+- `:one` - Returns single row, error if not found
+- `:many` - Returns slice of rows
+- `:exec` - Executes query, returns no rows
+- `:execrows` - Executes query, returns affected rows count
+
+#### Development Workflow for Database Changes
+
+1. **Adding a new table/column:**
+   ```bash
+   # 1. Create migration
+   migrate create -ext sql -dir migrations -seq add_user_id_to_sessions
+   
+   # 2. Write migration SQL
+   # migrations/XXXXXX_add_user_id_to_sessions.up.sql:
+   ALTER TABLE sessions ADD COLUMN user_id TEXT;
+   
+   # migrations/XXXXXX_add_user_id_to_sessions.down.sql:
+   ALTER TABLE sessions DROP COLUMN user_id;
+   
+   # 3. Apply migration
+   migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up
+   
+   # 4. Update sqlc queries if needed
+   # 5. Regenerate sqlc code
+   sqlc generate
+   ```
+
+2. **Adding a new query:**
+   ```bash
+   # 1. Add query to internal/db/queries/*.sql
+   # 2. Run sqlc generate
+   sqlc generate
+   # 3. Use the generated function in your code
+   ```
+
+#### Directory Structure
+
+```
+cc-slack/
+├── migrations/                    # Database migration files
+│   ├── 000001_init.up.sql
+│   ├── 000001_init.down.sql
+│   └── ...
+├── internal/
+│   ├── db/                       # Generated sqlc code
+│   │   ├── db.go                 # Interface definitions
+│   │   ├── models.go             # Generated models
+│   │   ├── sessions.sql.go       # Generated queries
+│   │   └── queries/              # SQL query definitions
+│   │       ├── sessions.sql
+│   │       ├── threads.sql
+│   │       └── ...
+│   └── ...
+├── sqlc.yaml                     # sqlc configuration
+└── data/                         # Database files (git-ignored)
+    └── cc-slack.db
+
 ### Go Import Management
 
 **Development workflow to prevent import removal by goimports Hook:**
@@ -216,6 +341,11 @@ When adding new features, always consider:
 - `internal/slack/`: Slack event handling
 - `internal/mcp/`: MCP server implementation
 - `cmd/cc-slack/`: Main application entry point
+- `internal/db/`: Database access layer (sqlc generated)
+- `internal/config/`: Configuration management (Viper)
+- `internal/web/`: Web management console
+- `internal/workspace/`: Working directory management
+- `migrations/`: Database schema migrations
 
 ## Logging
 
@@ -226,9 +356,35 @@ Logs are written to `logs/` directory with timestamp:
 
 ## Environment Variables
 
-- `SLACK_BOT_TOKEN`: Slack bot user OAuth token
-- `SLACK_APP_TOKEN`: Slack app-level token for Socket Mode
-- `SLACK_SIGNING_SECRET`: For request verification
+**Slack Configuration:**
+- `CC_SLACK_SLACK_BOT_TOKEN`: Slack bot user OAuth token
+- `CC_SLACK_SLACK_APP_TOKEN`: Slack app-level token for Socket Mode
+- `CC_SLACK_SLACK_SIGNING_SECRET`: For request verification
+- `CC_SLACK_SLACK_ASSISTANT_USERNAME`: Claude response username (optional)
+- `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`: Claude response emoji (optional)
+- `CC_SLACK_SLACK_ASSISTANT_ICON_URL`: Claude response icon URL (optional)
+
+**Server Configuration:**
+- `CC_SLACK_SERVER_PORT`: HTTP server port (default: 8080)
+- `CC_SLACK_SERVER_BASE_URL`: Base URL for MCP connection
+
+**Claude Configuration:**
+- `CC_SLACK_CLAUDE_EXECUTABLE`: Claude CLI path (default: claude)
+- `CC_SLACK_CLAUDE_PERMISSION_PROMPT_TOOL`: Permission prompt tool name
+
+**Database Configuration:**
+- `CC_SLACK_DATABASE_PATH`: SQLite database path (default: ./data/cc-slack.db)
+- `CC_SLACK_DATABASE_MIGRATIONS_PATH`: Migrations directory (default: ./migrations)
+
+**Session Configuration:**
+- `CC_SLACK_SESSION_TIMEOUT`: Session timeout duration (default: 30m)
+- `CC_SLACK_SESSION_CLEANUP_INTERVAL`: Cleanup interval (default: 5m)
+- `CC_SLACK_SESSION_RESUME_WINDOW`: Resume window duration (default: 1h)
+
+**Working Directory Configuration:**
+- `CC_SLACK_WORKING_DIRECTORIES_DEFAULT`: Default working directory
+
+**Note:** All environment variables can also be set in `config.yaml` file using Viper
 
 ## MCP Tools
 
