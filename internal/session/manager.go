@@ -251,7 +251,6 @@ func (m *Manager) createSystemHandler(channelID, threadTS, tempSessionID string)
 					SessionID: sessionID,
 				})
 				if err != nil {
-					// Failed to update session model
 				}
 			}
 
@@ -515,7 +514,6 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 			// Update session completion status
 			if err := m.UpdateSessionOnComplete(ctx, msg.SessionID, msg); err != nil {
-				// Failed to update session
 			}
 		}
 

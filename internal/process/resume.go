@@ -53,7 +53,6 @@ func (rm *ResumeManager) GetLatestSessionID(ctx context.Context, channelID, thre
 func (rm *ResumeManager) ShouldResume(ctx context.Context, channelID, threadTS string) (bool, string, error) {
 	sessionID, err := rm.GetLatestSessionID(ctx, channelID, threadTS)
 	if err != nil {
-		// No previous session found
 		return false, "", nil
 	}
 
@@ -65,7 +64,6 @@ func (rm *ResumeManager) ShouldResume(ctx context.Context, channelID, threadTS s
 
 	// Check if session ended within resume window
 	if !session.EndedAt.Valid {
-		// Session not properly ended
 		return false, "", nil
 	}
 
