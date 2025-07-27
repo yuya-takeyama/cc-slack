@@ -31,6 +31,9 @@ const (
 	ToolExitPlanMode = "ExitPlanMode"
 	ToolNotebookRead = "NotebookRead"
 	ToolNotebookEdit = "NotebookEdit"
+
+	// Special message types
+	MessageThinking = "thinking"
 )
 
 // ToolDisplayInfo holds display information for tools
@@ -41,21 +44,24 @@ type ToolDisplayInfo struct {
 
 // toolDisplayMap maps tool types to their display information
 var toolDisplayMap = map[string]ToolDisplayInfo{
-	ToolTodoWrite:    {Username: "todo-list", Emoji: ":memo:"},
-	ToolBash:         {Username: "terminal", Emoji: ":computer:"},
-	ToolRead:         {Username: "file-reader", Emoji: ":open_book:"},
-	ToolGlob:         {Username: "file-finder", Emoji: ":mag:"},
-	ToolEdit:         {Username: "editor", Emoji: ":pencil2:"},
-	ToolMultiEdit:    {Username: "editor", Emoji: ":pencil2:"},
-	ToolWrite:        {Username: "writer", Emoji: ":memo:"},
-	ToolLS:           {Username: "directory", Emoji: ":file_folder:"},
-	ToolGrep:         {Username: "searcher", Emoji: ":mag:"},
-	ToolWebFetch:     {Username: "web-fetcher", Emoji: ":globe_with_meridians:"},
-	ToolWebSearch:    {Username: "web-search", Emoji: ":earth_americas:"},
-	ToolTask:         {Username: "agent", Emoji: ":robot_face:"},
-	ToolExitPlanMode: {Username: "planner", Emoji: ":checkered_flag:"},
-	ToolNotebookRead: {Username: "notebook-reader", Emoji: ":notebook:"},
-	ToolNotebookEdit: {Username: "notebook-editor", Emoji: ":notebook_with_decorative_cover:"},
+	ToolTodoWrite:    {Username: "TodoWrite", Emoji: ":memo:"},
+	ToolBash:         {Username: "Bash", Emoji: ":computer:"},
+	ToolRead:         {Username: "Read", Emoji: ":open_book:"},
+	ToolGlob:         {Username: "Glob", Emoji: ":mag:"},
+	ToolEdit:         {Username: "Edit", Emoji: ":pencil2:"},
+	ToolMultiEdit:    {Username: "MultiEdit", Emoji: ":pencil2:"},
+	ToolWrite:        {Username: "Write", Emoji: ":memo:"},
+	ToolLS:           {Username: "LS", Emoji: ":file_folder:"},
+	ToolGrep:         {Username: "Grep", Emoji: ":mag:"},
+	ToolWebFetch:     {Username: "WebFetch", Emoji: ":globe_with_meridians:"},
+	ToolWebSearch:    {Username: "WebSearch", Emoji: ":earth_americas:"},
+	ToolTask:         {Username: "Task", Emoji: ":robot_face:"},
+	ToolExitPlanMode: {Username: "ExitPlanMode", Emoji: ":checkered_flag:"},
+	ToolNotebookRead: {Username: "NotebookRead", Emoji: ":notebook:"},
+	ToolNotebookEdit: {Username: "NotebookEdit", Emoji: ":notebook_with_decorative_cover:"},
+
+	// Special message types
+	MessageThinking: {Username: "Thinking", Emoji: ":thinking_face:"},
 }
 
 // Handler handles Slack events and interactions

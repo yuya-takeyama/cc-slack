@@ -198,15 +198,13 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 			case "thinking":
 				// Handle thinking messages
 				if content.Thinking != "" {
-					// Create rich text with thinking emoji and italicized text
+					// Create rich text with italicized text
 					elements := []slack.RichTextElement{
 						slack.NewRichTextSection(
-							slack.NewRichTextSectionTextElement("🤔 ", nil),
-							slack.NewRichTextSectionTextElement("Thinking: ", &slack.RichTextSectionTextStyle{Bold: true}),
 							slack.NewRichTextSectionTextElement(content.Thinking, &slack.RichTextSectionTextStyle{Italic: true}),
 						),
 					}
-					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+					if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.MessageThinking); err != nil {
 						fmt.Printf("Failed to post thinking to Slack: %v\n", err)
 					}
 				}
@@ -309,6 +307,44 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 						// Post using tool-specific icon and username
 						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", pattern), ccslack.ToolGlob); err != nil {
 							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Grep" && content.Input != nil {
+					// Handle Grep tool
+					var message string
+					pattern, _ := content.Input["pattern"].(string)
+					path, _ := content.Input["path"].(string)
+
+					if path != "" {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, path)
+						message = fmt.Sprintf("Searching for `%s` in `%s`", pattern, relPath)
+					} else {
+						message = fmt.Sprintf("Searching for `%s`", pattern)
+					}
+
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolGrep); err != nil {
+						fmt.Printf("Failed to post Grep tool to Slack: %v\n", err)
+					}
+				} else if content.Name == "Edit" && content.Input != nil {
+					// Handle Edit tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Editing `%s`", relPath), ccslack.ToolEdit); err != nil {
+							fmt.Printf("Failed to post Edit tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "MultiEdit" && content.Input != nil {
+					// Handle MultiEdit tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("Editing `%s`", relPath), ccslack.ToolMultiEdit); err != nil {
+							fmt.Printf("Failed to post MultiEdit tool to Slack: %v\n", err)
 						}
 					}
 				} else {
