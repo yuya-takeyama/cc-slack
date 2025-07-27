@@ -25,7 +25,7 @@ type Manager struct {
 	sessions        map[string]*Session
 	threadToSession map[string]string
 	lastActiveID    string
-	mu              sync.Mutex
+	mu              sync.RWMutex
 
 	db                *sql.DB
 	queries           *db.Queries
@@ -865,8 +865,13 @@ func (m *Manager) GetSessionByThreadInternal(channelID, threadTS string) (*Sessi
 
 // GetSessionInfo implements mcp.SessionLookup interface
 func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, exists bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// If sessionID is empty, use the last active session
+	if sessionID == "" && m.lastActiveID != "" {
+		sessionID = m.lastActiveID
+	}
 
 	session, exists := m.sessions[sessionID]
 	if !exists {
@@ -892,8 +897,8 @@ func (m *Manager) Cleanup() {
 
 // getRelativePath converts absolute path to relative path from work directory
 func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	key := fmt.Sprintf("%s:%s", channelID, threadTS)
 	sessionID, exists := m.threadToSession[key]
