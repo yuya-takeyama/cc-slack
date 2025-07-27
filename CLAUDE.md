@@ -59,12 +59,12 @@ During development, use the cc-slack-manager for automatic restarts:
 
 **1. Start the manager (run this outside Claude Code):**
 ```bash
-go run cmd/cc-slack-manager/main.go
+./scripts/start
 ```
 
 **2. After making code changes, restart cc-slack:**
 ```bash
-./scripts/restart-cc-slack.sh
+./scripts/restart
 ```
 
 The manager provides HTTP endpoints on port 10080:

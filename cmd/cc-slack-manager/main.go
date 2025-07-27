@@ -61,6 +61,11 @@ func (m *Manager) Start() error {
 	cmd.Stderr = logFile
 	cmd.Env = os.Environ()
 
+	// Set process group so we can kill the entire group later
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return fmt.Errorf("failed to start process: %w", err)
@@ -102,8 +107,22 @@ func (m *Manager) Stop() error {
 	log.Printf("🔄 Stopping cc-slack (PID: %d)...", m.cmd.Process.Pid)
 
 	// Try graceful shutdown first
-	if err := m.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to send SIGTERM: %w", err)
+	// Note: When using 'go run', we need to send signal to the process group
+	pgid, err := syscall.Getpgid(m.cmd.Process.Pid)
+	if err == nil {
+		// Send signal to the entire process group
+		if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+			log.Printf("⚠️ Failed to send SIGTERM to process group: %v", err)
+			// Fall back to sending to the process directly
+			if err := m.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+				return fmt.Errorf("failed to send SIGTERM: %w", err)
+			}
+		}
+	} else {
+		// Fall back to sending to the process directly
+		if err := m.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			return fmt.Errorf("failed to send SIGTERM: %w", err)
+		}
 	}
 
 	// Wait for graceful shutdown with timeout

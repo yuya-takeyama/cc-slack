@@ -105,13 +105,13 @@ During development, you can use the included manager to automatically restart cc
 
 ```bash
 # Start the manager (runs cc-slack and provides HTTP control endpoints)
-./scripts/start-manager.sh
+./scripts/start
 
 # Check status
-./scripts/cc-slack-status.sh
+./scripts/status
 
 # Restart cc-slack (e.g., after code changes)
-./scripts/restart-cc-slack.sh
+./scripts/restart
 
 # Or use curl directly
 curl -X POST http://localhost:10080/restart
@@ -125,7 +125,7 @@ The manager runs on port 10080 and provides:
 
 Claude Code can trigger restarts automatically by running:
 ```bash
-./scripts/restart-cc-slack.sh
+./scripts/restart
 ```
 
 ## License
