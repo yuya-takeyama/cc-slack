@@ -895,11 +895,12 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - 構造化ログ（zerolog）導入とファイル出力
 - GitHub Actions CI設定（test, build workflow）
 - 許可プロンプトツール設定（--permission-prompt-tool）
-- **approval_prompt ツールのSlack統合**: ✅ 完了！
+- **approval_prompt ツールのSlack統合**: ✅ 完了！（[PR #14](https://github.com/yuya-takeyama/cc-slack/pull/14) で解決）
   - MCPサーバーで `approval_prompt` ツールを実装
   - Slackで承認ボタン付きメッセージを表示
   - 承認/拒否の結果をMCPサーバーに返す
   - `--permission-prompt-tool mcp__cc-slack__approval_prompt` オプションでClaude Codeと連携
+  - 内蔵ツール（WebFetch等）の許可プロンプトも正常に動作
 - **セッションタイムアウト機能**: ✅ 完了！
   - アイドルセッションの自動クリーンアップ
   - タイムアウト時のSlack通知
@@ -908,15 +909,15 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 ### 実装中・未完了
 - チャンネルごとの設定管理
 - エラーハンドリングの強化
-- WebFetchなどの内蔵ツールの許可プロンプトの動作確認が必要
 
 ### 追加実装済み（2025-07-27以降）
 - **Slack表示改善機能**: ✅ 完了！（PR #6）
   - ツールごとのカスタムアイコンとユーザー名表示
-  - PostAssistantMessage, PostToolUseMessage の実装
+  - PostAssistantMessage, PostToolMessage の実装（internal/slack/handler.go）
+  - tools.GetToolInfo による統一的なツール情報管理（internal/tools/display.go）
   - 環境変数によるアシスタント表示のカスタマイズ
 - **cc-slack-manager**: ✅ 完了！（PR #3）
-  - 開発時の自動リスタート機能
+  - 開発時の自動リスタート機能（cmd/cc-slack-manager/main.go）
   - HTTP制御エンドポイント（ポート10080）
   - /scripts/start, /scripts/restart, /scripts/status スクリプト
   - cc-slack プロセスの管理とログ出力
@@ -933,7 +934,7 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 ## 技術スタック
 
 - **言語**: Go 1.24.4+
-- **MCP SDK**: Go 標準 MCP SDK（実装予定）
+- **MCP SDK**: modelcontextprotocol/go-sdk/mcp（実装済み）
 - **Slack SDK**: slack-go/slack
 - **その他**: 
   - gorilla/mux (HTTP routing)
