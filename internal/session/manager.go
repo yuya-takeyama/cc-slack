@@ -4,14 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
@@ -27,12 +24,11 @@ type Manager struct {
 	lastActiveID    string
 	mu              sync.RWMutex
 
-	db                *sql.DB
-	queries           *db.Queries
-	config            *config.Config
-	slackHandler      *ccslack.Handler
-	mcpBaseURL        string
-	resumeDebugLogger *zerolog.Logger
+	db           *sql.DB
+	queries      *db.Queries
+	config       *config.Config
+	slackHandler *ccslack.Handler
+	mcpBaseURL   string
 }
 
 // Session represents an active Claude session
@@ -49,59 +45,28 @@ type Session struct {
 func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Handler, mcpBaseURL string) *Manager {
 	queries := db.New(database)
 
-	// Set up resume debug logger
-	var resumeDebugLogger *zerolog.Logger
-	if logFile := os.Getenv("RESUME_DEBUG_LOG"); logFile != "" {
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			logger := zerolog.New(file).With().Timestamp().Logger()
-			resumeDebugLogger = &logger
-			logger.Info().Msg("UnifiedManager resume debug logging initialized")
-		} else {
-			log.Printf("Failed to open resume debug log file: %v", err)
-		}
-	}
-
 	return &Manager{
-		sessions:          make(map[string]*Session),
-		threadToSession:   make(map[string]string),
-		db:                database,
-		queries:           queries,
-		config:            cfg,
-		slackHandler:      slackHandler,
-		mcpBaseURL:        mcpBaseURL,
-		resumeDebugLogger: resumeDebugLogger,
+		sessions:        make(map[string]*Session),
+		threadToSession: make(map[string]string),
+		db:              database,
+		queries:         queries,
+		config:          cfg,
+		slackHandler:    slackHandler,
+		mcpBaseURL:      mcpBaseURL,
 	}
 }
 
 // CreateSessionWithResume creates a new session or resumes an existing one
 // Returns: session, resumed, previousSessionID, error
 func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*ccslack.Session, bool, string, error) {
-	m.logResumeDebug("session_manager", "CreateSessionWithResume called", map[string]interface{}{
-		"channel_id": channelID,
-		"thread_ts":  threadTS,
-		"work_dir":   workDir,
-	})
-
 	// Check if should resume
 	shouldResume, previousSessionID, err := m.ShouldResume(ctx, channelID, threadTS)
-	m.logResumeDebug("session_manager", "ShouldResume result", map[string]interface{}{
-		"should_resume":       shouldResume,
-		"previous_session_id": previousSessionID,
-		"error":               err,
-	})
-
 	if err != nil {
 		return nil, false, "", fmt.Errorf("failed to check resume status: %w", err)
 	}
 
 	// Check for active session
 	hasActive, err := m.CheckActiveSession(ctx, channelID, threadTS)
-	m.logResumeDebug("session_manager", "CheckActiveSession result", map[string]interface{}{
-		"has_active": hasActive,
-		"error":      err,
-	})
-
 	if err != nil {
 		return nil, false, "", fmt.Errorf("failed to check active session: %w", err)
 	}
@@ -121,12 +86,6 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get or create thread: %w", err)
 	}
-
-	m.logResumeDebug("session_manager", "Creating session internal", map[string]interface{}{
-		"thread_id":           threadID,
-		"should_resume":       shouldResume,
-		"previous_session_id": previousSessionID,
-	})
 
 	// Generate temporary session ID
 	tempSessionID := fmt.Sprintf("temp_%d", time.Now().UnixNano())
@@ -148,10 +107,6 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	if shouldResume {
 		resumeSessionID = previousSessionID
 	}
-
-	m.logResumeDebug("session_manager", "Creating Claude process", map[string]interface{}{
-		"resume_session_id": resumeSessionID,
-	})
 
 	claudeProcess, err := process.NewClaudeProcess(ctx, process.Options{
 		WorkDir:              workDir,
@@ -194,11 +149,6 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	m.threadToSession[key] = tempSessionID
 	m.lastActiveID = tempSessionID
 	m.mu.Unlock()
-
-	m.logResumeDebug("session_manager", "Session created successfully", map[string]interface{}{
-		"session_id": tempSessionID,
-		"resumed":    shouldResume,
-	})
 
 	return &ccslack.Session{
 		SessionID: tempSessionID,
@@ -274,18 +224,8 @@ func (m *Manager) updateSessionID(channelID, threadTS string, newSessionID strin
 			SessionID_2: oldSessionID,
 		})
 		if err != nil {
-			m.logResumeDebug("session_manager", "Failed to update session ID", map[string]interface{}{
-				"old_session_id": oldSessionID,
-				"new_session_id": newSessionID,
-				"error":          err,
-			})
 			return
 		}
-
-		m.logResumeDebug("session_manager", "Session ID updated successfully", map[string]interface{}{
-			"old_session_id": oldSessionID,
-			"new_session_id": newSessionID,
-		})
 	}
 }
 
@@ -311,16 +251,7 @@ func (m *Manager) createSystemHandler(channelID, threadTS, tempSessionID string)
 					SessionID: sessionID,
 				})
 				if err != nil {
-					m.logResumeDebug("session_manager", "Failed to update session model", map[string]interface{}{
-						"session_id": sessionID,
-						"model":      msg.Model,
-						"error":      err,
-					})
-				} else {
-					m.logResumeDebug("session_manager", "Session model updated", map[string]interface{}{
-						"session_id": sessionID,
-						"model":      msg.Model,
-					})
+					// Failed to update session model
 				}
 			}
 
@@ -573,14 +504,6 @@ func (m *Manager) createUserHandler(channelID, threadTS string) func(process.Use
 
 func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string) func(process.ResultMessage) error {
 	return func(msg process.ResultMessage) error {
-		m.logResumeDebug("session_manager", "ResultMessage received", map[string]interface{}{
-			"session_id":   msg.SessionID,
-			"is_error":     msg.IsError,
-			"total_cost":   msg.TotalCostUSD,
-			"num_turns":    msg.NumTurns,
-			"temp_session": tempSessionID,
-		})
-
 		// Update database
 		if msg.SessionID != "" {
 			ctx := context.Background()
@@ -592,20 +515,7 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 			// Update session completion status
 			if err := m.UpdateSessionOnComplete(ctx, msg.SessionID, msg); err != nil {
-				m.logResumeDebug("session_manager", "Failed to update session", map[string]interface{}{
-					"session_id": msg.SessionID,
-					"error":      err,
-				})
-			} else {
-				m.logResumeDebug("session_manager", "Session updated successfully", map[string]interface{}{
-					"session_id": msg.SessionID,
-					"status": func() string {
-						if msg.IsError {
-							return "failed"
-						}
-						return "completed"
-					}(),
-				})
+				// Failed to update session
 			}
 		}
 
@@ -713,11 +623,6 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 
 // Resume-related methods
 func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) (bool, string, error) {
-	m.logResumeDebug("resume_manager", "ShouldResume called", map[string]interface{}{
-		"channel_id": channelID,
-		"thread_ts":  threadTS,
-	})
-
 	// Get thread
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -725,9 +630,6 @@ func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) 
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {
-			m.logResumeDebug("resume_manager", "No previous session found", map[string]interface{}{
-				"error": fmt.Errorf("thread not found for channel %s, thread %s", channelID, threadTS),
-			})
 			return false, "", nil
 		}
 		return false, "", fmt.Errorf("failed to get thread: %w", err)
@@ -737,9 +639,6 @@ func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) 
 	session, err := m.queries.GetLatestSessionByThread(ctx, thread.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			m.logResumeDebug("resume_manager", "No previous session found", map[string]interface{}{
-				"error": fmt.Errorf("no completed sessions found for thread"),
-			})
 			return false, "", nil
 		}
 		return false, "", fmt.Errorf("failed to get latest session: %w", err)
@@ -747,22 +646,11 @@ func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) 
 
 	// Check if session ended within resume window
 	if !session.EndedAt.Valid {
-		m.logResumeDebug("resume_manager", "Session not properly ended", map[string]interface{}{
-			"session_id": session.SessionID,
-		})
 		return false, "", nil
 	}
 
 	resumeWindow := m.config.Session.ResumeWindow
 	timeSinceEnd := time.Since(session.EndedAt.Time)
-
-	m.logResumeDebug("resume_manager", "Checking resume window", map[string]interface{}{
-		"session_id":     session.SessionID,
-		"ended_at":       session.EndedAt.Time,
-		"time_since_end": timeSinceEnd,
-		"resume_window":  resumeWindow,
-		"within_window":  timeSinceEnd <= resumeWindow,
-	})
 
 	if timeSinceEnd <= resumeWindow {
 		return true, session.SessionID, nil
@@ -772,11 +660,6 @@ func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) 
 }
 
 func (m *Manager) CheckActiveSession(ctx context.Context, channelID, threadTS string) (bool, error) {
-	m.logResumeDebug("resume_manager", "CheckActiveSession called", map[string]interface{}{
-		"channel_id": channelID,
-		"thread_ts":  threadTS,
-	})
-
 	// Get thread
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -784,10 +667,6 @@ func (m *Manager) CheckActiveSession(ctx context.Context, channelID, threadTS st
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {
-			m.logResumeDebug("resume_manager", "No thread exists", map[string]interface{}{
-				"channel_id": channelID,
-				"thread_ts":  threadTS,
-			})
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to get thread: %w", err)
@@ -798,12 +677,6 @@ func (m *Manager) CheckActiveSession(ctx context.Context, channelID, threadTS st
 	if err != nil {
 		return false, fmt.Errorf("failed to count active sessions: %w", err)
 	}
-
-	m.logResumeDebug("resume_manager", "Active session count", map[string]interface{}{
-		"thread_id":    thread.ID,
-		"active_count": count,
-		"has_active":   count > 0,
-	})
 
 	return count > 0, nil
 }
@@ -823,17 +696,6 @@ func (m *Manager) UpdateSessionOnComplete(ctx context.Context, sessionID string,
 		NumTurns:     sql.NullInt64{Int64: int64(result.NumTurns), Valid: true},
 		SessionID:    sessionID,
 	})
-}
-
-// Helper methods
-func (m *Manager) logResumeDebug(component, message string, fields map[string]interface{}) {
-	if m.resumeDebugLogger != nil {
-		event := m.resumeDebugLogger.Info().Str("component", component)
-		for k, v := range fields {
-			event = event.Interface(k, v)
-		}
-		event.Msg(message)
-	}
 }
 
 // GetSessionByThread returns a session by channel and thread (for slack.SessionManager interface)

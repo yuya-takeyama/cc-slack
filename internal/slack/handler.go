@@ -8,11 +8,8 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
@@ -51,41 +48,6 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
-	resumeDebugLogger  *ResumeDebugLogger
-}
-
-// ResumeDebugLogger is a helper for debug logging
-type ResumeDebugLogger struct {
-	logger  zerolog.Logger
-	logFile *os.File
-}
-
-// NewResumeDebugLogger creates a new resume debug logger
-func NewResumeDebugLogger() (*ResumeDebugLogger, error) {
-	// Create logs directory
-	logDir := "logs"
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create logs directory: %w", err)
-	}
-
-	// Create log file with timestamp
-	logFileName := fmt.Sprintf("resume-debug-%s.log", time.Now().Format("20060102-150405"))
-	logPath := filepath.Join(logDir, logFileName)
-	logFile, err := os.Create(logPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create log file: %w", err)
-	}
-
-	// Setup logger
-	logger := zerolog.New(logFile).With().
-		Timestamp().
-		Str("component", "resume_debug").
-		Logger()
-
-	return &ResumeDebugLogger{
-		logger:  logger,
-		logFile: logFile,
-	}, nil
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -115,13 +77,6 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 		client:        slack.New(token),
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
-	}
-
-	// Initialize resume debug logger (errors are non-fatal)
-	if debugLogger, err := NewResumeDebugLogger(); err == nil {
-		h.resumeDebugLogger = debugLogger
-	} else {
-		fmt.Printf("Failed to create resume debug logger: %v\n", err)
 	}
 
 	return h
@@ -201,16 +156,6 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 // handleAppMention handles bot mentions
 func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
-	// Log the incoming mention
-	if h.resumeDebugLogger != nil {
-		h.resumeDebugLogger.logger.Info().
-			Str("event", "app_mention").
-			Str("channel", event.Channel).
-			Str("timestamp", event.TimeStamp).
-			Str("text", event.Text).
-			Msg("Received app mention")
-	}
-
 	// Extract message without mention
 	text := h.removeBotMention(event.Text)
 	if text == "" {
@@ -227,37 +172,9 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 		threadTS = event.TimeStamp
 	}
 
-	if h.resumeDebugLogger != nil {
-		h.resumeDebugLogger.logger.Info().
-			Str("event", "pre_create_session").
-			Str("channel", event.Channel).
-			Str("timestamp", event.TimeStamp).
-			Str("thread_timestamp", event.ThreadTimeStamp).
-			Str("resolved_thread_ts", threadTS).
-			Str("work_dir", workDir).
-			Msg("About to create session with resume check")
-	}
-
 	// Create session with resume check
 	ctx := context.Background()
 	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir)
-
-	if h.resumeDebugLogger != nil {
-		h.resumeDebugLogger.logger.Info().
-			Str("event", "post_create_session").
-			Str("channel", event.Channel).
-			Str("timestamp", event.TimeStamp).
-			Bool("resumed", resumed).
-			Err(err).
-			Str("session_id", func() string {
-				if session != nil {
-					return session.SessionID
-				}
-				return ""
-			}()).
-			Msg("CreateSessionWithResume result")
-	}
-
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
