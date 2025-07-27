@@ -49,19 +49,9 @@ go build -o cc-slack cmd/cc-slack/main.go
 
 ### Exposing Local Development to Slack
 
-Since Slack requires HTTPS endpoints for webhooks, you need to expose your local cc-slack instance. We recommend using Tailscale Funnel:
+Since Slack requires HTTPS endpoints for webhooks, you need to expose your local cc-slack instance.
 
-#### Using Tailscale Funnel (Recommended)
-
-1. Enable Funnel in your Tailnet settings
-2. Run cc-slack locally (default port 8080)
-3. Expose it with Tailscale:
-   ```bash
-   tailscale funnel 8080
-   ```
-4. Use the provided `https://<machine-name>.<tailnet-name>.ts.net` URL for Slack webhook URLs
-
-#### Alternative: ngrok
+#### ngrok
 
 ```bash
 ngrok http 8080
