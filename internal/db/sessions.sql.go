@@ -152,6 +152,31 @@ func (q *Queries) GetSession(ctx context.Context, sessionID string) (Session, er
 	return i, err
 }
 
+const getThreadBySlackIDs = `-- name: GetThreadBySlackIDs :one
+SELECT t.id, t.channel_id, t.thread_ts, t.created_at, t.updated_at
+FROM threads t
+WHERE t.channel_id = ? AND t.thread_ts = ?
+LIMIT 1
+`
+
+type GetThreadBySlackIDsParams struct {
+	ChannelID string `json:"channel_id"`
+	ThreadTs  string `json:"thread_ts"`
+}
+
+func (q *Queries) GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackIDsParams) (Thread, error) {
+	row := q.queryRow(ctx, q.getThreadBySlackIDsStmt, getThreadBySlackIDs, arg.ChannelID, arg.ThreadTs)
+	var i Thread
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.ThreadTs,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listActiveSessions = `-- name: ListActiveSessions :many
 SELECT id, thread_id, session_id, working_directory, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
 WHERE status = 'active'
@@ -209,6 +234,109 @@ type UpdateSessionEndTimeParams struct {
 
 func (q *Queries) UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error {
 	_, err := q.exec(ctx, q.updateSessionEndTimeStmt, updateSessionEndTime, arg.Status, arg.SessionID)
+	return err
+}
+
+const updateSessionID = `-- name: UpdateSessionID :exec
+UPDATE sessions
+SET session_id = ?
+WHERE session_id = ?
+`
+
+type UpdateSessionIDParams struct {
+	SessionID   string `json:"session_id"`
+	SessionID_2 string `json:"session_id_2"`
+}
+
+func (q *Queries) UpdateSessionID(ctx context.Context, arg UpdateSessionIDParams) error {
+	_, err := q.exec(ctx, q.updateSessionIDStmt, updateSessionID, arg.SessionID, arg.SessionID_2)
+	return err
+}
+
+const updateSessionModel = `-- name: UpdateSessionModel :exec
+UPDATE sessions
+SET model = ?
+WHERE session_id = ?
+`
+
+type UpdateSessionModelParams struct {
+	Model     sql.NullString `json:"model"`
+	SessionID string         `json:"session_id"`
+}
+
+func (q *Queries) UpdateSessionModel(ctx context.Context, arg UpdateSessionModelParams) error {
+	_, err := q.exec(ctx, q.updateSessionModelStmt, updateSessionModel, arg.Model, arg.SessionID)
+	return err
+}
+
+const updateSessionOnComplete = `-- name: UpdateSessionOnComplete :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = ?,
+    total_cost_usd = ?,
+    input_tokens = ?,
+    output_tokens = ?,
+    num_turns = ?,
+    model = ?
+WHERE session_id = ?
+`
+
+type UpdateSessionOnCompleteParams struct {
+	Status       sql.NullString  `json:"status"`
+	EndedAt      sql.NullTime    `json:"ended_at"`
+	TotalCostUsd sql.NullFloat64 `json:"total_cost_usd"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	NumTurns     sql.NullInt64   `json:"num_turns"`
+	Model        sql.NullString  `json:"model"`
+	SessionID    string          `json:"session_id"`
+}
+
+func (q *Queries) UpdateSessionOnComplete(ctx context.Context, arg UpdateSessionOnCompleteParams) error {
+	_, err := q.exec(ctx, q.updateSessionOnCompleteStmt, updateSessionOnComplete,
+		arg.Status,
+		arg.EndedAt,
+		arg.TotalCostUsd,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.NumTurns,
+		arg.Model,
+		arg.SessionID,
+	)
+	return err
+}
+
+const updateSessionOnError = `-- name: UpdateSessionOnError :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = CURRENT_TIMESTAMP
+WHERE session_id = ?
+`
+
+type UpdateSessionOnErrorParams struct {
+	Status    sql.NullString `json:"status"`
+	SessionID string         `json:"session_id"`
+}
+
+func (q *Queries) UpdateSessionOnError(ctx context.Context, arg UpdateSessionOnErrorParams) error {
+	_, err := q.exec(ctx, q.updateSessionOnErrorStmt, updateSessionOnError, arg.Status, arg.SessionID)
+	return err
+}
+
+const updateSessionOnTimeout = `-- name: UpdateSessionOnTimeout :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = CURRENT_TIMESTAMP
+WHERE session_id = ?
+`
+
+type UpdateSessionOnTimeoutParams struct {
+	Status    sql.NullString `json:"status"`
+	SessionID string         `json:"session_id"`
+}
+
+func (q *Queries) UpdateSessionOnTimeout(ctx context.Context, arg UpdateSessionOnTimeoutParams) error {
+	_, err := q.exec(ctx, q.updateSessionOnTimeoutStmt, updateSessionOnTimeout, arg.Status, arg.SessionID)
 	return err
 }
 

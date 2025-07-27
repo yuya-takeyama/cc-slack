@@ -13,9 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
-	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
-	"github.com/yuya-takeyama/cc-slack/internal/process"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
@@ -39,32 +37,24 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	// Create database queries
-	queries := db.New(sqlDB)
-
-	// Create resume manager
-	resumeManager := process.NewResumeManager(queries, cfg.Session.ResumeWindow)
-
 	// Create MCP server
 	mcpServer, err := mcp.NewServer()
 	if err != nil {
 		log.Fatalf("Failed to create MCP server: %v", err)
 	}
 
-	// Create memory-based session manager
-	memoryMgr := session.NewManager(mcpServer, cfg.Server.BaseURL, cfg)
+	// We need to create the slack handler and session manager in two steps
+	// First create a placeholder handler
+	slackHandler := &slack.Handler{}
 
-	// Wrap with database-backed session manager
-	sessionMgr := session.NewDBManager(memoryMgr, queries, resumeManager)
+	// Create session manager with database support
+	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL)
 
-	// Create Slack handler
-	slackHandler := slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
+	// Now create the actual Slack handler with the session manager
+	*slackHandler = *slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
 
 	// Set assistant display options
 	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
-
-	// Set Slack handler in session manager
-	memoryMgr.SetSlackHandler(slackHandler)
 
 	// Set Slack integration in MCP server
 	mcpServer.SetSlackIntegration(slackHandler, sessionMgr)

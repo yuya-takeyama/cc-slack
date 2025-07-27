@@ -19,10 +19,16 @@ type Querier interface {
 	GetSession(ctx context.Context, sessionID string) (Session, error)
 	GetThread(ctx context.Context, arg GetThreadParams) (Thread, error)
 	GetThreadByID(ctx context.Context, id int64) (Thread, error)
+	GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackIDsParams) (Thread, error)
 	GetWorkingDirectoriesByChannel(ctx context.Context, channelID string) ([]WorkingDirectory, error)
 	GetWorkingDirectory(ctx context.Context, arg GetWorkingDirectoryParams) (WorkingDirectory, error)
 	ListActiveSessions(ctx context.Context) ([]Session, error)
 	UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error
+	UpdateSessionID(ctx context.Context, arg UpdateSessionIDParams) error
+	UpdateSessionModel(ctx context.Context, arg UpdateSessionModelParams) error
+	UpdateSessionOnComplete(ctx context.Context, arg UpdateSessionOnCompleteParams) error
+	UpdateSessionOnError(ctx context.Context, arg UpdateSessionOnErrorParams) error
+	UpdateSessionOnTimeout(ctx context.Context, arg UpdateSessionOnTimeoutParams) error
 	UpdateSessionStatus(ctx context.Context, arg UpdateSessionStatusParams) error
 	UpdateThreadTimestamp(ctx context.Context, id int64) error
 	UpdateWorkingDirectory(ctx context.Context, arg UpdateWorkingDirectoryParams) (WorkingDirectory, error)

@@ -53,3 +53,42 @@ ORDER BY started_at DESC;
 SELECT COUNT(*) as count
 FROM sessions
 WHERE thread_id = ? AND status = 'active';
+
+-- name: UpdateSessionID :exec
+UPDATE sessions
+SET session_id = ?
+WHERE session_id = ?;
+
+-- name: UpdateSessionOnTimeout :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = CURRENT_TIMESTAMP
+WHERE session_id = ?;
+
+-- name: UpdateSessionOnError :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = CURRENT_TIMESTAMP
+WHERE session_id = ?;
+
+-- name: UpdateSessionOnComplete :exec
+UPDATE sessions
+SET status = ?,
+    ended_at = ?,
+    total_cost_usd = ?,
+    input_tokens = ?,
+    output_tokens = ?,
+    num_turns = ?,
+    model = ?
+WHERE session_id = ?;
+
+-- name: GetThreadBySlackIDs :one
+SELECT t.*
+FROM threads t
+WHERE t.channel_id = ? AND t.thread_ts = ?
+LIMIT 1;
+
+-- name: UpdateSessionModel :exec
+UPDATE sessions
+SET model = ?
+WHERE session_id = ?;

@@ -54,6 +54,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getThreadByIDStmt, err = db.PrepareContext(ctx, getThreadByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetThreadByID: %w", err)
 	}
+	if q.getThreadBySlackIDsStmt, err = db.PrepareContext(ctx, getThreadBySlackIDs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetThreadBySlackIDs: %w", err)
+	}
 	if q.getWorkingDirectoriesByChannelStmt, err = db.PrepareContext(ctx, getWorkingDirectoriesByChannel); err != nil {
 		return nil, fmt.Errorf("error preparing query GetWorkingDirectoriesByChannel: %w", err)
 	}
@@ -65,6 +68,21 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updateSessionEndTimeStmt, err = db.PrepareContext(ctx, updateSessionEndTime); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSessionEndTime: %w", err)
+	}
+	if q.updateSessionIDStmt, err = db.PrepareContext(ctx, updateSessionID); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionID: %w", err)
+	}
+	if q.updateSessionModelStmt, err = db.PrepareContext(ctx, updateSessionModel); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionModel: %w", err)
+	}
+	if q.updateSessionOnCompleteStmt, err = db.PrepareContext(ctx, updateSessionOnComplete); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionOnComplete: %w", err)
+	}
+	if q.updateSessionOnErrorStmt, err = db.PrepareContext(ctx, updateSessionOnError); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionOnError: %w", err)
+	}
+	if q.updateSessionOnTimeoutStmt, err = db.PrepareContext(ctx, updateSessionOnTimeout); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateSessionOnTimeout: %w", err)
 	}
 	if q.updateSessionStatusStmt, err = db.PrepareContext(ctx, updateSessionStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSessionStatus: %w", err)
@@ -130,6 +148,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getThreadByIDStmt: %w", cerr)
 		}
 	}
+	if q.getThreadBySlackIDsStmt != nil {
+		if cerr := q.getThreadBySlackIDsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getThreadBySlackIDsStmt: %w", cerr)
+		}
+	}
 	if q.getWorkingDirectoriesByChannelStmt != nil {
 		if cerr := q.getWorkingDirectoriesByChannelStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getWorkingDirectoriesByChannelStmt: %w", cerr)
@@ -148,6 +171,31 @@ func (q *Queries) Close() error {
 	if q.updateSessionEndTimeStmt != nil {
 		if cerr := q.updateSessionEndTimeStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateSessionEndTimeStmt: %w", cerr)
+		}
+	}
+	if q.updateSessionIDStmt != nil {
+		if cerr := q.updateSessionIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionIDStmt: %w", cerr)
+		}
+	}
+	if q.updateSessionModelStmt != nil {
+		if cerr := q.updateSessionModelStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionModelStmt: %w", cerr)
+		}
+	}
+	if q.updateSessionOnCompleteStmt != nil {
+		if cerr := q.updateSessionOnCompleteStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionOnCompleteStmt: %w", cerr)
+		}
+	}
+	if q.updateSessionOnErrorStmt != nil {
+		if cerr := q.updateSessionOnErrorStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionOnErrorStmt: %w", cerr)
+		}
+	}
+	if q.updateSessionOnTimeoutStmt != nil {
+		if cerr := q.updateSessionOnTimeoutStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateSessionOnTimeoutStmt: %w", cerr)
 		}
 	}
 	if q.updateSessionStatusStmt != nil {
@@ -214,10 +262,16 @@ type Queries struct {
 	getSessionStmt                     *sql.Stmt
 	getThreadStmt                      *sql.Stmt
 	getThreadByIDStmt                  *sql.Stmt
+	getThreadBySlackIDsStmt            *sql.Stmt
 	getWorkingDirectoriesByChannelStmt *sql.Stmt
 	getWorkingDirectoryStmt            *sql.Stmt
 	listActiveSessionsStmt             *sql.Stmt
 	updateSessionEndTimeStmt           *sql.Stmt
+	updateSessionIDStmt                *sql.Stmt
+	updateSessionModelStmt             *sql.Stmt
+	updateSessionOnCompleteStmt        *sql.Stmt
+	updateSessionOnErrorStmt           *sql.Stmt
+	updateSessionOnTimeoutStmt         *sql.Stmt
 	updateSessionStatusStmt            *sql.Stmt
 	updateThreadTimestampStmt          *sql.Stmt
 	updateWorkingDirectoryStmt         *sql.Stmt
@@ -237,10 +291,16 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getSessionStmt:                     q.getSessionStmt,
 		getThreadStmt:                      q.getThreadStmt,
 		getThreadByIDStmt:                  q.getThreadByIDStmt,
+		getThreadBySlackIDsStmt:            q.getThreadBySlackIDsStmt,
 		getWorkingDirectoriesByChannelStmt: q.getWorkingDirectoriesByChannelStmt,
 		getWorkingDirectoryStmt:            q.getWorkingDirectoryStmt,
 		listActiveSessionsStmt:             q.listActiveSessionsStmt,
 		updateSessionEndTimeStmt:           q.updateSessionEndTimeStmt,
+		updateSessionIDStmt:                q.updateSessionIDStmt,
+		updateSessionModelStmt:             q.updateSessionModelStmt,
+		updateSessionOnCompleteStmt:        q.updateSessionOnCompleteStmt,
+		updateSessionOnErrorStmt:           q.updateSessionOnErrorStmt,
+		updateSessionOnTimeoutStmt:         q.updateSessionOnTimeoutStmt,
 		updateSessionStatusStmt:            q.updateSessionStatusStmt,
 		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
 		updateWorkingDirectoryStmt:         q.updateWorkingDirectoryStmt,
