@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/messages"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
-	"github.com/yuya-takeyama/cc-slack/internal/slack"
+	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 // Manager manages Claude sessions with database persistence
@@ -28,7 +30,7 @@ type Manager struct {
 	db                *sql.DB
 	queries           *db.Queries
 	config            *config.Config
-	slackHandler      *slack.Handler
+	slackHandler      *ccslack.Handler
 	mcpBaseURL        string
 	resumeDebugLogger *zerolog.Logger
 }
@@ -39,11 +41,12 @@ type Session struct {
 	Process    *process.ClaudeProcess
 	ChannelID  string
 	ThreadTS   string
+	WorkDir    string
 	LastActive time.Time
 }
 
 // NewManager creates a new session manager
-func NewManager(database *sql.DB, cfg *config.Config, slackHandler *slack.Handler, mcpBaseURL string) *Manager {
+func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Handler, mcpBaseURL string) *Manager {
 	queries := db.New(database)
 
 	// Set up resume debug logger
@@ -73,7 +76,7 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *slack.Handle
 
 // CreateSessionWithResume creates a new session or resumes an existing one
 // Returns: session, resumed, previousSessionID, error
-func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*slack.Session, bool, string, error) {
+func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*ccslack.Session, bool, string, error) {
 	m.logResumeDebug("session_manager", "CreateSessionWithResume called", map[string]interface{}{
 		"channel_id": channelID,
 		"thread_ts":  threadTS,
@@ -112,7 +115,7 @@ func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, thread
 }
 
 // createSessionInternal handles the actual session creation
-func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir string, shouldResume bool, previousSessionID string) (*slack.Session, bool, error) {
+func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir string, shouldResume bool, previousSessionID string) (*ccslack.Session, bool, error) {
 	// Get or create thread ID
 	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS)
 	if err != nil {
@@ -180,6 +183,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 		Process:    claudeProcess,
 		ChannelID:  channelID,
 		ThreadTS:   threadTS,
+		WorkDir:    workDir,
 		LastActive: time.Now(),
 	}
 
@@ -196,7 +200,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 		"resumed":    shouldResume,
 	})
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: tempSessionID,
 		ChannelID: channelID,
 		ThreadTS:  threadTS,
@@ -205,7 +209,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 }
 
 // CreateSession creates a new session (compatibility method)
-func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Session, error) {
+func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
 	ctx := context.Background()
 	session, _, _, err := m.CreateSessionWithResume(ctx, channelID, threadTS, workDir)
 	return session, err
@@ -332,16 +336,219 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 		var text string
 
 		for _, content := range msg.Message.Content {
-			if content.Type == "text" {
-				text = content.Text
-				break
+			switch content.Type {
+			case "text":
+				text += content.Text + "\n"
+			case "thinking":
+				// Handle thinking messages
+				if content.Thinking != "" {
+					// Create rich text with italicized text
+					elements := []slack.RichTextElement{
+						slack.NewRichTextSection(
+							slack.NewRichTextSectionTextElement(content.Thinking, &slack.RichTextSectionTextStyle{Italic: true}),
+						),
+					}
+					if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.MessageThinking); err != nil {
+						fmt.Printf("Failed to post thinking to Slack: %v\n", err)
+					}
+				}
+			case "tool_use":
+				// Check if this is TodoWrite
+				if content.Name == "TodoWrite" && content.Input != nil {
+					// Handle TodoWrite tool
+					if todosInterface, ok := content.Input["todos"]; ok {
+						// Create rich text elements for todo list
+						var elements []slack.RichTextElement
+
+						if todos, ok := todosInterface.([]interface{}); ok {
+							for _, todoInterface := range todos {
+								if todo, ok := todoInterface.(map[string]interface{}); ok {
+									content := ""
+									status := ""
+									priority := ""
+
+									if c, ok := todo["content"].(string); ok {
+										content = c
+									}
+									if s, ok := todo["status"].(string); ok {
+										status = s
+									}
+									if p, ok := todo["priority"].(string); ok {
+										priority = p
+									}
+
+									// Create text style based on priority
+									var textStyle *slack.RichTextSectionTextStyle
+									switch priority {
+									case "high":
+										// Bold for high priority
+										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
+									case "low":
+										// Italic for low priority
+										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
+									default:
+										// Normal for medium priority
+										textStyle = nil
+									}
+
+									// Create rich text section for each todo item with proper emoji handling
+									var sectionElements []slack.RichTextSectionElement
+
+									switch status {
+									case "completed":
+										// Unicode emoji can be used as text
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement("✅ ", nil))
+									case "in_progress":
+										// Unicode emoji can be used as text
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement("▶️ ", nil))
+									default: // pending
+										// Slack emoji needs to use emoji element
+										sectionElements = append(sectionElements, slack.NewRichTextSectionEmojiElement("ballot_box_with_check", 0, nil))
+										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(" ", nil))
+									}
+
+									// Add the todo content with priority-based styling
+									sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(content, textStyle))
+
+									elements = append(elements, slack.NewRichTextSection(sectionElements...))
+								}
+							}
+						}
+
+						if len(elements) == 0 {
+							// Fallback if no todos
+							elements = append(elements, slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("Todo list updated", nil),
+							))
+						}
+
+						// Post using tool-specific rich text
+						if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.ToolTodoWrite); err != nil {
+							fmt.Printf("Failed to post TodoWrite to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Bash" && content.Input != nil {
+					// Extract command from input
+					if cmd, ok := content.Input["command"].(string); ok {
+						formattedCmd := messages.FormatBashToolMessage(cmd)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, formattedCmd, ccslack.ToolBash); err != nil {
+							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Read" && content.Input != nil {
+					// Handle Read tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+
+						// Get optional offset and limit parameters
+						offset := 0
+						limit := 0
+						if offsetVal, ok := content.Input["offset"].(float64); ok {
+							offset = int(offsetVal)
+						}
+						if limitVal, ok := content.Input["limit"].(float64); ok {
+							limit = int(limitVal)
+						}
+
+						message := messages.FormatReadToolMessage(relPath, offset, limit)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolRead); err != nil {
+							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Glob" && content.Input != nil {
+					// Handle Glob tool
+					if pattern, ok := content.Input["pattern"].(string); ok {
+						message := messages.FormatGlobToolMessage(pattern)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolGlob); err != nil {
+							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Grep" && content.Input != nil {
+					// Handle Grep tool
+					pattern, _ := content.Input["pattern"].(string)
+					path, _ := content.Input["path"].(string)
+
+					var relPath string
+					if path != "" {
+						// Get relative path from work directory
+						relPath = m.getRelativePath(channelID, threadTS, path)
+					}
+
+					message := messages.FormatGrepToolMessage(pattern, relPath)
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolGrep); err != nil {
+						fmt.Printf("Failed to post Grep tool to Slack: %v\n", err)
+					}
+				} else if content.Name == "Edit" && content.Input != nil {
+					// Handle Edit tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatEditToolMessage(relPath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolEdit); err != nil {
+							fmt.Printf("Failed to post Edit tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "MultiEdit" && content.Input != nil {
+					// Handle MultiEdit tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatEditToolMessage(relPath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolMultiEdit); err != nil {
+							fmt.Printf("Failed to post MultiEdit tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Write" && content.Input != nil {
+					// Handle Write tool
+					if filePath, ok := content.Input["file_path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, filePath)
+						message := messages.FormatWriteToolMessage(relPath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolWrite); err != nil {
+							fmt.Printf("Failed to post Write tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "LS" && content.Input != nil {
+					// Handle LS tool
+					if path, ok := content.Input["path"].(string); ok {
+						// Get relative path from work directory
+						relPath := m.getRelativePath(channelID, threadTS, path)
+						message := messages.FormatLSToolMessage(relPath)
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolLS); err != nil {
+							fmt.Printf("Failed to post LS tool to Slack: %v\n", err)
+						}
+					}
+				} else if content.Name == "Task" && content.Input != nil {
+					// Handle Task tool
+					description, _ := content.Input["description"].(string)
+					prompt, _ := content.Input["prompt"].(string)
+
+					message := messages.FormatTaskToolMessage(description, prompt)
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolTask); err != nil {
+						fmt.Printf("Failed to post Task tool to Slack: %v\n", err)
+					}
+				} else {
+					// Other tools - use tool-specific display or fallback
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, content.Name, content.Name); err != nil {
+						fmt.Printf("Failed to post %s tool to Slack: %v\n", content.Name, err)
+					}
+				}
 			}
 		}
 
 		if text != "" {
-			return m.slackHandler.PostToThread(channelID, threadTS, text)
+			return m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
 		}
-
 		return nil
 	}
 }
@@ -627,17 +834,17 @@ func (m *Manager) logResumeDebug(component, message string, fields map[string]in
 }
 
 // GetSessionByThread returns a session by channel and thread (for slack.SessionManager interface)
-func (m *Manager) GetSessionByThread(channelID, threadTS string) (*slack.Session, error) {
+func (m *Manager) GetSessionByThread(channelID, threadTS string) (*ccslack.Session, error) {
 	session, exists := m.GetSessionByThreadInternal(channelID, threadTS)
 	if !exists {
 		return nil, fmt.Errorf("session not found for thread %s:%s", channelID, threadTS)
 	}
 
-	return &slack.Session{
+	return &ccslack.Session{
 		SessionID: session.ID,
 		ChannelID: session.ChannelID,
 		ThreadTS:  session.ThreadTS,
-		WorkDir:   "", // WorkDir not stored in memory session
+		WorkDir:   session.WorkDir,
 	}, nil
 }
 
@@ -681,4 +888,29 @@ func (m *Manager) Cleanup() {
 	m.sessions = make(map[string]*Session)
 	m.threadToSession = make(map[string]string)
 	m.lastActiveID = ""
+}
+
+// getRelativePath converts absolute path to relative path from work directory
+func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	sessionID, exists := m.threadToSession[key]
+	if !exists {
+		return absolutePath
+	}
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return absolutePath
+	}
+
+	relPath, err := filepath.Rel(session.WorkDir, absolutePath)
+	if err != nil {
+		// If relative path cannot be computed, return absolute path
+		return absolutePath
+	}
+
+	return relPath
 }
