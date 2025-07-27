@@ -286,8 +286,12 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 				} else if content.Name == "Bash" && content.Input != nil {
 					// Extract command from input
 					if cmd, ok := content.Input["command"].(string); ok {
+						// Escape triple backticks in command
+						escapedCmd := strings.ReplaceAll(cmd, "```", "\\`\\`\\`")
+						// Format command as code block
+						formattedCmd := fmt.Sprintf("```\n%s\n```", escapedCmd)
 						// Post using tool-specific icon and username
-						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", cmd), ccslack.ToolBash); err != nil {
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, formattedCmd, ccslack.ToolBash); err != nil {
 							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
 						}
 					}
