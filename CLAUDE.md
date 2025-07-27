@@ -417,3 +417,24 @@ The session resume feature allows users to continue previous Claude Code session
 ## MCP Tools
 
 - `approval_prompt`: Handles permission requests in Slack threads
+
+## Documentation Structure
+
+The project documentation is organized as follows:
+
+### Core Documentation
+- **`docs/requirements.md`**: Product Requirements Document (PRD) - Defines what we're building and why
+- **`docs/design.md`**: Software Design Document - Describes how the system is architected
+
+### Task Tracking
+- **`docs/todos/`**: Directory containing task tracking documents
+  - Each file follows the pattern `NNN-description.md` (e.g., `001-initial.md`)
+  - Files include YAML front matter with:
+    - `title`: Brief description of what the tasks accomplish
+    - `status`: Current status (`draft`, `in_progress`, or `done`)
+  - The body contains task checklists and progress updates
+
+### Documentation Guidelines
+- **Requirements and Design**: These documents represent the stable specifications and are updated only when requirements or architecture changes
+- **Task Documents**: Track implementation progress and are actively updated during development
+- **Separation of Concerns**: This structure separates "what and how" (requirements/design) from "progress tracking" (todos)
