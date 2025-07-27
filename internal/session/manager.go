@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -251,7 +252,7 @@ func (m *Manager) createSystemHandler(channelID, threadTS, tempSessionID string)
 					SessionID: sessionID,
 				})
 				if err != nil {
-					fmt.Printf("Failed to update session model: %v\n", err)
+					fmt.Fprintf(os.Stderr, "Failed to update session model: %v\n", err)
 				}
 			}
 
@@ -515,7 +516,7 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 			// Update session completion status
 			if err := m.UpdateSessionOnComplete(ctx, msg.SessionID, msg); err != nil {
-				fmt.Printf("Failed to update session on complete: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Failed to update session on complete: %v\n", err)
 			}
 		}
 
