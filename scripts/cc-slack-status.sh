@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Check cc-slack status
+response=$(curl -s http://localhost:10080/status)
+
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to connect to manager on port 10080"
+    exit 1
+fi
+
+# Parse JSON using simple grep/sed (works on most systems)
+running=$(echo "$response" | grep -o '"running":[^,}]*' | sed 's/"running"://')
+pid=$(echo "$response" | grep -o '"pid":[^,}]*' | sed 's/"pid"://')
+
+if [ "$running" = "true" ]; then
+    echo "✅ cc-slack is running (PID: $pid)"
+else
+    echo "🛑 cc-slack is not running"
+fi
+
+echo "📊 Full status: $response"

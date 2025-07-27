@@ -53,6 +53,28 @@ go test ./...
 go mod tidy
 ```
 
+### Development Workflow with Auto-Restart
+
+During development, use the cc-slack-manager for automatic restarts:
+
+**1. Start the manager (run this outside Claude Code):**
+```bash
+go run cmd/cc-slack-manager/main.go
+```
+
+**2. After making code changes, restart cc-slack:**
+```bash
+./scripts/restart-cc-slack.sh
+```
+
+The manager provides HTTP endpoints on port 10080:
+- `GET /status` - Check if cc-slack is running
+- `POST /restart` - Gracefully restart cc-slack
+- `POST /stop` - Stop cc-slack  
+- `POST /start` - Start cc-slack
+
+**Claude Code should automatically run the restart script after significant code changes to cc-slack.**
+
 ## Design Principles
 
 ### Pure Functions and Unit Testing

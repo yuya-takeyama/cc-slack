@@ -97,6 +97,37 @@ claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
 
 Note: Claude Code sessions use the current working directory where cc-slack is running.
 
+## Development Tools
+
+### Auto-Restart Manager
+
+During development, you can use the included manager to automatically restart cc-slack when code changes:
+
+```bash
+# Start the manager (runs cc-slack and provides HTTP control endpoints)
+./scripts/start-manager.sh
+
+# Check status
+./scripts/cc-slack-status.sh
+
+# Restart cc-slack (e.g., after code changes)
+./scripts/restart-cc-slack.sh
+
+# Or use curl directly
+curl -X POST http://localhost:10080/restart
+```
+
+The manager runs on port 10080 and provides:
+- `GET /status` - Check if cc-slack is running
+- `POST /restart` - Gracefully restart cc-slack
+- `POST /stop` - Stop cc-slack
+- `POST /start` - Start cc-slack
+
+Claude Code can trigger restarts automatically by running:
+```bash
+./scripts/restart-cc-slack.sh
+```
+
 ## License
 
 MIT
