@@ -493,10 +493,10 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
 	// Parse the message to extract structured information
 	// This is a simple parser for the current format from mcp/server.go
-	toolName, url, prompt := parseApprovalMessage(message)
+	info := parseApprovalMessage(message)
 
 	// Create rich text elements for the approval request
-	elements := buildApprovalRichTextElements(toolName, url, prompt)
+	elements := buildApprovalRichTextElements(info)
 
 	// Get tool display info for permission prompt
 	toolInfo := tools.GetToolInfo(MessageApprovalPrompt)
@@ -529,28 +529,43 @@ func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID st
 	return err
 }
 
-// parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
-func parseApprovalMessage(message string) (toolName, url, prompt string) {
-	// Parse the message format from mcp/server.go:
-	// 🔐 **ツールの実行許可が必要です**\n\n**ツール**: %s\n\n**URL**: %s\n**内容**: %s
+// ApprovalInfo holds structured information about an approval request
+type ApprovalInfo struct {
+	ToolName    string
+	URL         string
+	Prompt      string
+	Command     string
+	Description string
+}
 
+// parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
+func parseApprovalMessage(message string) *ApprovalInfo {
+	// Parse the message format from mcp/server.go:
+	// For WebFetch: **ツール**: WebFetch \n **URL**: %s \n **内容**: %s
+	// For Bash: **ツール**: Bash \n **コマンド**: %s \n **説明**: %s
+
+	info := &ApprovalInfo{}
 	lines := strings.Split(message, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "**ツール**: ") {
-			toolName = strings.TrimPrefix(line, "**ツール**: ")
+			info.ToolName = strings.TrimPrefix(line, "**ツール**: ")
 		} else if strings.HasPrefix(line, "**URL**: ") {
-			url = strings.TrimPrefix(line, "**URL**: ")
+			info.URL = strings.TrimPrefix(line, "**URL**: ")
 		} else if strings.HasPrefix(line, "**内容**: ") {
-			prompt = strings.TrimPrefix(line, "**内容**: ")
+			info.Prompt = strings.TrimPrefix(line, "**内容**: ")
+		} else if strings.HasPrefix(line, "**コマンド**: ") {
+			info.Command = strings.TrimPrefix(line, "**コマンド**: ")
+		} else if strings.HasPrefix(line, "**説明**: ") {
+			info.Description = strings.TrimPrefix(line, "**説明**: ")
 		}
 	}
 
-	return toolName, url, prompt
+	return info
 }
 
 // buildApprovalRichTextElements creates rich text elements for approval request
-func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTextElement {
+func buildApprovalRichTextElements(info *ApprovalInfo) []slack.RichTextElement {
 	var elements []slack.RichTextElement
 
 	// Header
@@ -563,23 +578,24 @@ func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTex
 		slack.NewRichTextSectionTextElement("\n", nil),
 	))
 
-	if toolName != "" {
+	if info.ToolName != "" {
 		// Tool name
 		elements = append(elements, slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement("ツール: ", &slack.RichTextSectionTextStyle{Bold: true}),
-			slack.NewRichTextSectionTextElement(toolName, nil),
+			slack.NewRichTextSectionTextElement(info.ToolName, nil),
 		))
 	}
 
-	if url != "" {
+	// Handle WebFetch tool
+	if info.URL != "" {
 		// URL
 		elements = append(elements, slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement("URL: ", &slack.RichTextSectionTextStyle{Bold: true}),
-			slack.NewRichTextSectionLinkElement(url, url, nil),
+			slack.NewRichTextSectionLinkElement(info.URL, info.URL, nil),
 		))
 	}
 
-	if prompt != "" {
+	if info.Prompt != "" {
 		// Content/Prompt
 		elements = append(elements, slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement("内容:", &slack.RichTextSectionTextStyle{Bold: true}),
@@ -590,7 +606,44 @@ func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTex
 			slack.NewRichTextSectionTextElement("```", nil),
 		))
 		elements = append(elements, slack.NewRichTextSection(
-			slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Code: true}),
+			slack.NewRichTextSectionTextElement(info.Prompt, &slack.RichTextSectionTextStyle{Code: true}),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", nil),
+		))
+	}
+
+	// Handle Bash tool
+	if info.Command != "" {
+		// Command
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("コマンド:", &slack.RichTextSectionTextStyle{Bold: true}),
+		))
+
+		// Add command as code block style with triple quotes
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", nil),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement(info.Command, &slack.RichTextSectionTextStyle{Code: true}),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", nil),
+		))
+	}
+
+	if info.Description != "" {
+		// Description
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("説明:", &slack.RichTextSectionTextStyle{Bold: true}),
+		))
+
+		// Add description as code block style with triple quotes
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement("```", nil),
+		))
+		elements = append(elements, slack.NewRichTextSection(
+			slack.NewRichTextSectionTextElement(info.Description, &slack.RichTextSectionTextStyle{Code: true}),
 		))
 		elements = append(elements, slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement("```", nil),

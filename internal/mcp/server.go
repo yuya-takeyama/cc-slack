@@ -192,13 +192,22 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 
 			// Add tool input details if available
 			if params.Arguments.Input != nil {
+				// Handle WebFetch tool
 				if url, ok := params.Arguments.Input["url"].(string); ok {
 					message += fmt.Sprintf("\n\n**URL**: %s", url)
 				}
 				if prompt, ok := params.Arguments.Input["prompt"].(string); ok && len(prompt) > 100 {
 					message += fmt.Sprintf("\n**内容**: %s...", prompt[:100])
-				} else if prompt != "" {
+				} else if prompt, ok := params.Arguments.Input["prompt"].(string); ok && prompt != "" {
 					message += fmt.Sprintf("\n**内容**: %s", prompt)
+				}
+
+				// Handle Bash tool
+				if command, ok := params.Arguments.Input["command"].(string); ok {
+					message += fmt.Sprintf("\n\n**コマンド**: %s", command)
+				}
+				if description, ok := params.Arguments.Input["description"].(string); ok && description != "" {
+					message += fmt.Sprintf("\n**説明**: %s", description)
 				}
 			}
 
