@@ -362,17 +362,29 @@ func (b *MessageBatcher) Add(msg string) {
 # Slack 設定
 CC_SLACK_SLACK_BOT_TOKEN=xoxb-...
 CC_SLACK_SLACK_SIGNING_SECRET=...
+CC_SLACK_SLACK_APP_TOKEN=xapp-...       # Socket Mode用（未実装）
 
-# cc-slack 設定
-CC_SLACK_PORT=8080
-CC_SLACK_DEFAULT_WORKDIR=/path/to/default/workspace
-CC_SLACK_BASE_URL=http://localhost:8080  # MCP接続用のベースURL
+# Server 設定
+CC_SLACK_SERVER_PORT=8080
+CC_SLACK_SERVER_BASE_URL=http://localhost:8080  # MCP接続用のベースURL
 
 # Claude Code 設定
-CC_SLACK_CLAUDE_CODE_PATH=claude  # デフォルトは PATH から検索
+CC_SLACK_CLAUDE_EXECUTABLE=claude  # デフォルトは PATH から検索
+CC_SLACK_CLAUDE_PERMISSION_PROMPT_TOOL=mcp__cc-slack__approval_prompt
 
-# MCP 設定
-CC_SLACK_MCP_SERVER_NAME=cc-slack
+# Database 設定
+CC_SLACK_DATABASE_PATH=./data/cc-slack.db
+CC_SLACK_DATABASE_MIGRATIONS_PATH=./migrations
+
+# Session 設定
+CC_SLACK_SESSION_TIMEOUT=30m
+CC_SLACK_SESSION_CLEANUP_INTERVAL=5m
+CC_SLACK_SESSION_RESUME_WINDOW=1h
+
+# Logging 設定
+CC_SLACK_LOGGING_LEVEL=info
+CC_SLACK_LOGGING_FORMAT=json
+CC_SLACK_LOGGING_OUTPUT=./logs
 
 # Slack表示設定
 CC_SLACK_SLACK_ASSISTANT_USERNAME=     # Claudeレスポンス時のユーザー名（オプション）
@@ -925,11 +937,12 @@ CREATE TABLE approval_prompts (
 -- ワーキングディレクトリ設定
 CREATE TABLE working_directories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    channel_id TEXT NOT NULL,
+    name TEXT NOT NULL,
     path TEXT NOT NULL,
-    description TEXT,
-    is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(channel_id, name)
 );
 
 -- インデックス
@@ -938,6 +951,7 @@ CREATE INDEX idx_sessions_status ON sessions(status);
 CREATE INDEX idx_messages_session_id ON messages(session_id);
 CREATE INDEX idx_tool_executions_session_id ON tool_executions(session_id);
 CREATE INDEX idx_approval_prompts_session_id ON approval_prompts(session_id);
+CREATE INDEX idx_working_directories_channel_id ON working_directories(channel_id);
 ```
 
 #### エンティティ定義（Go構造体）
@@ -1175,29 +1189,11 @@ func Load() (*Config, error) {
    2. チャンネルに紐付けられたディレクトリ
    3. デフォルトディレクトリ
 
-2. **実装**:
-   ```go
-   // internal/workspace/selector.go
-   type WorkspaceSelector struct {
-       config *config.WorkingDirectoriesConfig
-       db     *sql.DB
-   }
-
-   func (ws *WorkspaceSelector) SelectWorkspace(channelID string, message string) (string, error) {
-       // 1. メッセージから project: 指定を抽出
-       if project := extractProjectName(message); project != "" {
-           return ws.getWorkspaceByName(project)
-       }
-       
-       // 2. チャンネルに紐付けられたワークスペースを検索
-       if workspace := ws.getWorkspaceByChannel(channelID); workspace != "" {
-           return workspace, nil
-       }
-       
-       // 3. デフォルトを返す
-       return ws.config.Default, nil
-   }
-   ```
+2. **実装方針**:
+   - working_directoriesテーブルでチャンネルごとのワーキングディレクトリを管理
+   - `channel_id`と`name`の組み合わせで複数のディレクトリを登録可能
+   - セッション開始時にディレクトリを選択するロジックを実装
+   - 現在の実装では、ハードコードされたデフォルトディレクトリを使用
 
 ### sqlc導入に伴う開発フロー
 
