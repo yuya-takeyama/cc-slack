@@ -190,7 +190,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	// Store session
 	m.mu.Lock()
 	m.sessions[tempSessionID] = session
-	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	key := formatThreadKey(channelID, threadTS)
 	m.threadToSession[key] = tempSessionID
 	m.lastActiveID = tempSessionID
 	m.mu.Unlock()
@@ -243,7 +243,7 @@ func (m *Manager) updateSessionID(channelID, threadTS string, newSessionID strin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	key := formatThreadKey(channelID, threadTS)
 	oldSessionID, exists := m.threadToSession[key]
 	if !exists {
 		return
@@ -342,14 +342,18 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 			case "thinking":
 				// Handle thinking messages
 				if content.Thinking != "" {
-					// Create rich text with italicized text
-					elements := []slack.RichTextElement{
-						slack.NewRichTextSection(
-							slack.NewRichTextSectionTextElement(content.Thinking, &slack.RichTextSectionTextStyle{Italic: true}),
-						),
-					}
-					if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.MessageThinking); err != nil {
-						fmt.Printf("Failed to post thinking to Slack: %v\n", err)
+					// Trim leading and trailing newlines from thinking content
+					trimmedThinking := trimNewlines(content.Thinking)
+					if trimmedThinking != "" {
+						// Create rich text with italicized text
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement(trimmedThinking, &slack.RichTextSectionTextStyle{Italic: true}),
+							),
+						}
+						if err := m.slackHandler.PostToolRichTextMessage(channelID, threadTS, elements, ccslack.MessageThinking); err != nil {
+							fmt.Printf("Failed to post thinking to Slack: %v\n", err)
+						}
 					}
 				}
 			case "tool_use":
@@ -378,18 +382,7 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 									}
 
 									// Create text style based on priority
-									var textStyle *slack.RichTextSectionTextStyle
-									switch priority {
-									case "high":
-										// Bold for high priority
-										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
-									case "low":
-										// Italic for low priority
-										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
-									default:
-										// Normal for medium priority
-										textStyle = nil
-									}
+									textStyle := getPriorityTextStyle(priority)
 
 									// Create rich text section for each todo item with proper emoji handling
 									var sectionElements []slack.RichTextSectionElement
@@ -557,7 +550,7 @@ func (m *Manager) createUserHandler(channelID, threadTS string) func(process.Use
 	return func(msg process.UserMessage) error {
 		// Update last active time
 		m.mu.Lock()
-		key := fmt.Sprintf("%s:%s", channelID, threadTS)
+		key := formatThreadKey(channelID, threadTS)
 		if sessionID, exists := m.threadToSession[key]; exists {
 			if session, exists := m.sessions[sessionID]; exists {
 				session.LastActive = time.Now()
@@ -608,7 +601,7 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 		// Clean up session
 		m.mu.Lock()
-		key := fmt.Sprintf("%s:%s", channelID, threadTS)
+		key := formatThreadKey(channelID, threadTS)
 		sessionID := m.threadToSession[key]
 		delete(m.sessions, sessionID)
 		delete(m.threadToSession, key)
@@ -853,7 +846,7 @@ func (m *Manager) GetSessionByThreadInternal(channelID, threadTS string) (*Sessi
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	key := formatThreadKey(channelID, threadTS)
 	sessionID, exists := m.threadToSession[key]
 	if !exists {
 		return nil, false
@@ -900,7 +893,7 @@ func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) stri
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	key := fmt.Sprintf("%s:%s", channelID, threadTS)
+	key := formatThreadKey(channelID, threadTS)
 	sessionID, exists := m.threadToSession[key]
 	if !exists {
 		return absolutePath
@@ -911,11 +904,50 @@ func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) stri
 		return absolutePath
 	}
 
-	relPath, err := filepath.Rel(session.WorkDir, absolutePath)
+	return computeRelativePath(session.WorkDir, absolutePath)
+}
+
+// trimNewlines removes leading and trailing newlines from a string
+func trimNewlines(s string) string {
+	// Remove all leading newlines
+	for len(s) > 0 && (s[0] == '\n' || s[0] == '\r') {
+		s = s[1:]
+	}
+
+	// Remove all trailing newlines
+	for len(s) > 0 && (s[len(s)-1] == '\n' || s[len(s)-1] == '\r') {
+		s = s[:len(s)-1]
+	}
+
+	return s
+}
+
+// formatThreadKey creates a key from channel ID and thread timestamp
+func formatThreadKey(channelID, threadTS string) string {
+	return fmt.Sprintf("%s:%s", channelID, threadTS)
+}
+
+// getPriorityTextStyle returns text style based on todo priority
+func getPriorityTextStyle(priority string) *slack.RichTextSectionTextStyle {
+	switch priority {
+	case "high":
+		// Bold for high priority
+		return &slack.RichTextSectionTextStyle{Bold: true}
+	case "low":
+		// Italic for low priority
+		return &slack.RichTextSectionTextStyle{Italic: true}
+	default:
+		// Normal for medium priority
+		return nil
+	}
+}
+
+// computeRelativePath converts absolute path to relative path from work directory
+func computeRelativePath(workDir, absolutePath string) string {
+	relPath, err := filepath.Rel(workDir, absolutePath)
 	if err != nil {
 		// If relative path cannot be computed, return absolute path
 		return absolutePath
 	}
-
 	return relPath
 }
