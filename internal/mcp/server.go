@@ -248,7 +248,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				Msg("Failed to marshal approval response")
 			return nil, fmt.Errorf("failed to marshal approval response: %w", err)
 		}
-
 		// Log approval response
 		s.logger.Info().
 			Str("method", "HandleApprovalPrompt").
@@ -258,12 +257,14 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 			Interface("updated_input", promptResp.UpdatedInput).
 			Msg("Returning approval response")
 
+		// Return response with Content only (permission prompt tool expects JSON string response)
 		result := &mcpsdk.CallToolResultFor[PermissionPromptResponse]{
 			Content: []mcpsdk.Content{
 				&mcpsdk.TextContent{
 					Text: string(jsonData),
 				},
 			},
+			// StructuredContent is intentionally not set for permission prompt tool
 		}
 
 		s.logger.Debug().
@@ -297,6 +298,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 					Text: string(jsonData),
 				},
 			},
+			// StructuredContent is intentionally not set for permission prompt tool
 		}, nil
 
 	case <-ctx.Done():
