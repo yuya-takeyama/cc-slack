@@ -533,7 +533,9 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 		if msg.IsError {
 			text = messages.FormatErrorMessage(msg.SessionID)
 		} else {
-			text = messages.FormatCompletionMessage(msg.SessionID, msg.NumTurns, msg.TotalCostUSD)
+			// Convert milliseconds to time.Duration
+			duration := time.Duration(msg.DurationMS) * time.Millisecond
+			text = messages.FormatSessionCompleteMessage(duration, msg.NumTurns, msg.TotalCostUSD, msg.Usage.InputTokens, msg.Usage.OutputTokens)
 		}
 
 		return m.slackHandler.PostToThread(channelID, threadTS, text)
