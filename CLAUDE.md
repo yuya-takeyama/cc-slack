@@ -75,6 +75,20 @@ The manager provides HTTP endpoints on port 10080:
 
 **Claude Code should automatically run the restart script after significant code changes to cc-slack.**
 
+### Checking cc-slack Status
+
+Use the status script to check if cc-slack is running:
+
+```bash
+./scripts/cc-slack-status.sh
+```
+
+This will show:
+- Whether cc-slack is running
+- Process ID (PID)
+- Uptime and start time
+- Full JSON status details
+
 ## Design Principles
 
 ### Pure Functions and Unit Testing

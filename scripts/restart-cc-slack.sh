@@ -5,7 +5,8 @@ echo "🔄 Requesting cc-slack restart..."
 
 response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:10080/restart)
 http_code=$(echo "$response" | tail -n1)
-json_response=$(echo "$response" | head -n-1)
+# macOS compatible: get all lines except the last one
+json_response=$(echo "$response" | sed '$d')
 
 if [ "$http_code" = "200" ]; then
     echo "✅ Restart completed successfully!"

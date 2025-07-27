@@ -19,6 +19,7 @@ type Manager struct {
 	mcpServer       *mcp.Server
 	slackHandler    *slack.Handler
 	mcpBaseURL      string
+	lastActiveID    string // Track the last active session for approval prompts
 }
 
 // Session represents an active Claude Code session
@@ -45,6 +46,24 @@ func NewManager(mcpServer *mcp.Server, mcpBaseURL string) *Manager {
 // SetSlackHandler sets the Slack handler for posting messages
 func (m *Manager) SetSlackHandler(handler *slack.Handler) {
 	m.slackHandler = handler
+}
+
+// GetSessionInfo returns channel and thread information for a session ID
+func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, exists bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// If sessionID is empty, use the last active session
+	if sessionID == "" && m.lastActiveID != "" {
+		sessionID = m.lastActiveID
+	}
+
+	session, exists := m.sessions[sessionID]
+	if !exists {
+		return "", "", false
+	}
+
+	return session.ChannelID, session.ThreadTS, true
 }
 
 // GetSessionByThread retrieves a session by channel and thread timestamp
@@ -114,6 +133,7 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Ses
 	m.mu.Lock()
 	m.sessions[sessionID] = session
 	m.threadToSession[fmt.Sprintf("%s:%s", channelID, threadTS)] = sessionID
+	m.lastActiveID = sessionID // Track as last active
 	m.mu.Unlock()
 
 	return &slack.Session{
@@ -126,16 +146,18 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*slack.Ses
 
 // SendMessage sends a message to a Claude Code session
 func (m *Manager) SendMessage(sessionID, message string) error {
-	m.mu.RLock()
+	m.mu.Lock()
 	session, exists := m.sessions[sessionID]
-	m.mu.RUnlock()
+	if exists {
+		// Update last active time and track as last active
+		session.LastActive = time.Now()
+		m.lastActiveID = sessionID
+	}
+	m.mu.Unlock()
 
 	if !exists {
 		return fmt.Errorf("session not found: %s", sessionID)
 	}
-
-	// Update last active time
-	session.LastActive = time.Now()
 
 	// Send message to Claude process
 	return session.Process.SendMessage(message)
@@ -246,6 +268,11 @@ func (m *Manager) updateSessionID(channelID, threadTS string, newSessionID strin
 	session.ID = newSessionID
 	m.sessions[newSessionID] = session
 	m.threadToSession[key] = newSessionID
+
+	// Update lastActiveID if it was the old session
+	if m.lastActiveID == oldSessionID {
+		m.lastActiveID = newSessionID
+	}
 }
 
 // CleanupIdleSessions removes sessions that have been idle for too long
@@ -256,6 +283,17 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 	now := time.Now()
 	for sessionID, session := range m.sessions {
 		if now.Sub(session.LastActive) > maxIdleTime {
+			// Notify Slack about timeout
+			if m.slackHandler != nil {
+				idleMinutes := int(now.Sub(session.LastActive).Minutes())
+				message := fmt.Sprintf("⏰ セッションがタイムアウトしました\n"+
+					"アイドル時間: %d分\n"+
+					"セッションID: %s\n\n"+
+					"新しいセッションを開始するには、再度メンションしてください。",
+					idleMinutes, sessionID)
+				m.slackHandler.PostToThread(session.ChannelID, session.ThreadTS, message)
+			}
+
 			// Close Claude process
 			session.Process.Close()
 
@@ -263,6 +301,11 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 			delete(m.sessions, sessionID)
 			key := fmt.Sprintf("%s:%s", session.ChannelID, session.ThreadTS)
 			delete(m.threadToSession, key)
+
+			// Clear lastActiveID if it was this session
+			if m.lastActiveID == sessionID {
+				m.lastActiveID = ""
+			}
 		}
 	}
 }
