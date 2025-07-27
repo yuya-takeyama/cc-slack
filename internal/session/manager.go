@@ -293,7 +293,18 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
-						message := messages.FormatReadToolMessage(relPath)
+
+						// Get optional offset and limit parameters
+						offset := 0
+						limit := 0
+						if offsetVal, ok := content.Input["offset"].(float64); ok {
+							offset = int(offsetVal)
+						}
+						if limitVal, ok := content.Input["limit"].(float64); ok {
+							limit = int(limitVal)
+						}
+
+						message := messages.FormatReadToolMessage(relPath, offset, limit)
 						// Post using tool-specific icon and username
 						if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolRead); err != nil {
 							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)

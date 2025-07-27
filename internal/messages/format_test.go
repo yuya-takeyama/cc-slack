@@ -182,28 +182,57 @@ func TestFormatReadToolMessage(t *testing.T) {
 	tests := []struct {
 		name     string
 		filePath string
+		offset   int
+		limit    int
 		want     string
 	}{
 		{
-			name:     "simple path",
+			name:     "simple path - entire file",
 			filePath: "main.go",
-			want:     "`main.go`",
+			offset:   0,
+			limit:    0,
+			want:     "Reading `main.go`",
 		},
 		{
-			name:     "path with spaces",
+			name:     "path with spaces - entire file",
 			filePath: "my file.txt",
-			want:     "`my file.txt`",
+			offset:   0,
+			limit:    0,
+			want:     "Reading `my file.txt`",
 		},
 		{
-			name:     "absolute path",
+			name:     "absolute path - entire file",
 			filePath: "/Users/name/project/src/main.go",
-			want:     "`/Users/name/project/src/main.go`",
+			offset:   0,
+			limit:    0,
+			want:     "Reading `/Users/name/project/src/main.go`",
+		},
+		{
+			name:     "with offset and limit",
+			filePath: "main.go",
+			offset:   100,
+			limit:    50,
+			want:     "Reading `main.go` (lines 100-149)",
+		},
+		{
+			name:     "with offset only",
+			filePath: "config.json",
+			offset:   200,
+			limit:    0,
+			want:     "Reading `config.json` (from line 200)",
+		},
+		{
+			name:     "with limit only",
+			filePath: "README.md",
+			offset:   0,
+			limit:    100,
+			want:     "Reading `README.md` (first 100 lines)",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatReadToolMessage(tt.filePath)
+			got := FormatReadToolMessage(tt.filePath, tt.offset, tt.limit)
 			if got != tt.want {
 				t.Errorf("FormatReadToolMessage() = %v, want %v", got, tt.want)
 			}

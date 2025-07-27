@@ -54,8 +54,19 @@ func FormatBashToolMessage(command string) string {
 }
 
 // FormatReadToolMessage formats the Read tool message
-func FormatReadToolMessage(filePath string) string {
-	return fmt.Sprintf("`%s`", filePath)
+func FormatReadToolMessage(filePath string, offset, limit int) string {
+	if offset > 0 || limit > 0 {
+		// Include line range information when offset or limit is specified
+		if offset > 0 && limit > 0 {
+			return fmt.Sprintf("Reading `%s` (lines %d-%d)", filePath, offset, offset+limit-1)
+		} else if offset > 0 {
+			return fmt.Sprintf("Reading `%s` (from line %d)", filePath, offset)
+		} else {
+			return fmt.Sprintf("Reading `%s` (first %d lines)", filePath, limit)
+		}
+	}
+	// Default format when reading entire file
+	return fmt.Sprintf("Reading `%s`", filePath)
 }
 
 // FormatGrepToolMessage formats the Grep tool message
