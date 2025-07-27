@@ -223,12 +223,30 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 								if todo, ok := todoInterface.(map[string]interface{}); ok {
 									content := ""
 									status := ""
+									priority := ""
 
 									if c, ok := todo["content"].(string); ok {
 										content = c
 									}
 									if s, ok := todo["status"].(string); ok {
 										status = s
+									}
+									if p, ok := todo["priority"].(string); ok {
+										priority = p
+									}
+
+									// Create text style based on priority
+									var textStyle *slack.RichTextSectionTextStyle
+									switch priority {
+									case "high":
+										// Bold for high priority
+										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
+									case "low":
+										// Italic for low priority
+										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
+									default:
+										// Normal for medium priority
+										textStyle = nil
 									}
 
 									// Create rich text section for each todo item with proper emoji handling
@@ -247,8 +265,8 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 										sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(" ", nil))
 									}
 
-									// Add the todo content
-									sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(content, nil))
+									// Add the todo content with priority-based styling
+									sectionElements = append(sectionElements, slack.NewRichTextSectionTextElement(content, textStyle))
 
 									elements = append(elements, slack.NewRichTextSection(sectionElements...))
 								}
