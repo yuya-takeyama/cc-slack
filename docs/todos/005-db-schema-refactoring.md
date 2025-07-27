@@ -15,7 +15,6 @@ Refactor database schema to improve data consistency and simplify the architectu
 
 1. **Working Directory Consistency**: The same thread should maintain consistent working directory throughout its lifecycle
 2. **Configuration Simplification**: Channel-specific working directories should be managed via config file, not database
-3. **Thread-level Settings**: Enable future expansion of thread-specific settings
 
 ## Tasks
 
@@ -56,7 +55,6 @@ CREATE TABLE threads (
     channel_id TEXT NOT NULL,
     thread_ts TEXT NOT NULL,
     working_directory TEXT NOT NULL,  -- Moved from sessions
-    settings JSON,                    -- For future expansions
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(channel_id, thread_ts)
