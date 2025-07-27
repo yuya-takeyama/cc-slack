@@ -68,21 +68,35 @@ type LoggingConfig struct {
 
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("/etc/cc-slack/")
+	v := viper.New()
+
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("/etc/cc-slack/")
 
 	// Environment variable settings
-	viper.SetEnvPrefix("CC_SLACK")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetEnvPrefix("CC_SLACK")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
 
-	// Set defaults
-	setDefaults()
+	// Explicitly bind environment variables
+	v.BindEnv("slack.bot_token")
+	v.BindEnv("slack.signing_secret")
+	v.BindEnv("slack.app_token")
+	v.BindEnv("server.port")
+	v.BindEnv("server.base_url")
+	v.BindEnv("database.path")
+	v.BindEnv("database.migrations_path")
+	v.BindEnv("session.timeout")
+	v.BindEnv("session.cleanup_interval")
+	v.BindEnv("session.resume_window")
+
+	// Set defaults with the new viper instance
+	setDefaultsWithViper(v)
 
 	// Read config file if exists
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		// It's okay if config file doesn't exist
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -91,7 +105,7 @@ func Load() (*Config, error) {
 
 	// Unmarshal to struct
 	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
+	if err := v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
@@ -103,29 +117,29 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-// setDefaults sets default values
-func setDefaults() {
+// setDefaultsWithViper sets default values with a specific viper instance
+func setDefaultsWithViper(v *viper.Viper) {
 	// Server defaults
-	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("server.base_url", "http://localhost:8080")
+	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.base_url", "http://localhost:8080")
 
 	// Claude defaults
-	viper.SetDefault("claude.executable", "claude")
-	viper.SetDefault("claude.permission_prompt_tool", "mcp__cc-slack__approval_prompt")
+	v.SetDefault("claude.executable", "claude")
+	v.SetDefault("claude.permission_prompt_tool", "mcp__cc-slack__approval_prompt")
 
 	// Database defaults
-	viper.SetDefault("database.path", "./data/cc-slack.db")
-	viper.SetDefault("database.migrations_path", "./migrations")
+	v.SetDefault("database.path", "./data/cc-slack.db")
+	v.SetDefault("database.migrations_path", "./migrations")
 
 	// Session defaults
-	viper.SetDefault("session.timeout", "30m")
-	viper.SetDefault("session.cleanup_interval", "5m")
-	viper.SetDefault("session.resume_window", "1h")
+	v.SetDefault("session.timeout", "30m")
+	v.SetDefault("session.cleanup_interval", "5m")
+	v.SetDefault("session.resume_window", "1h")
 
 	// Logging defaults
-	viper.SetDefault("logging.level", "info")
-	viper.SetDefault("logging.format", "json")
-	viper.SetDefault("logging.output", "./logs")
+	v.SetDefault("logging.level", "info")
+	v.SetDefault("logging.format", "json")
+	v.SetDefault("logging.output", "./logs")
 }
 
 // validate validates the configuration

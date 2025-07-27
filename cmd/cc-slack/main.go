@@ -18,8 +18,11 @@ import (
 )
 
 func main() {
-	// Load configuration from environment variables
-	config := loadConfig()
+	// Load configuration from environment variables and config file
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
 
 	// Create MCP server
 	mcpServer, err := mcp.NewServer()
@@ -28,13 +31,13 @@ func main() {
 	}
 
 	// Create session manager
-	sessionMgr := session.NewManager(mcpServer, config.BaseURL)
+	sessionMgr := session.NewManager(mcpServer, cfg.Server.BaseURL, cfg)
 
 	// Create Slack handler
-	slackHandler := slack.NewHandler(config.SlackToken, config.SlackSigningSecret, sessionMgr)
+	slackHandler := slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
 
 	// Set assistant display options
-	slackHandler.SetAssistantOptions(config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
 
 	// Set Slack handler in session manager
 	sessionMgr.SetSlackHandler(slackHandler)
@@ -64,17 +67,17 @@ func main() {
 	// Create HTTP server
 	srv := &http.Server{
 		Handler:      router,
-		Addr:         fmt.Sprintf(":%s", config.Port),
+		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
 
 	// Start cleanup routine
 	go func() {
-		ticker := time.NewTicker(config.CleanupInterval)
+		ticker := time.NewTicker(cfg.Session.CleanupInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			sessionMgr.CleanupIdleSessions(config.SessionTimeout)
+			sessionMgr.CleanupIdleSessions(cfg.Session.Timeout)
 		}
 	}()
 
@@ -96,58 +99,21 @@ func main() {
 		close(done)
 	}()
 
-	log.Printf("Server starting on port %s", config.Port)
-	log.Printf("MCP endpoint: %s/mcp", config.BaseURL)
-	log.Printf("Slack webhook endpoint: %s/slack/events", config.BaseURL)
-	log.Printf("Session timeout: %v", config.SessionTimeout)
-	log.Printf("Cleanup interval: %v", config.CleanupInterval)
-	if config.AssistantUsername != "" || config.AssistantIconEmoji != "" || config.AssistantIconURL != "" {
+	log.Printf("Server starting on port %d", cfg.Server.Port)
+	log.Printf("MCP endpoint: %s/mcp", cfg.Server.BaseURL)
+	log.Printf("Slack webhook endpoint: %s/slack/events", cfg.Server.BaseURL)
+	log.Printf("Session timeout: %v", cfg.Session.Timeout)
+	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
+	log.Printf("Resume window: %v", cfg.Session.ResumeWindow)
+	if cfg.Slack.Assistant.Username != "" || cfg.Slack.Assistant.IconEmoji != "" || cfg.Slack.Assistant.IconURL != "" {
 		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
-			config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+			cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
 	}
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Could not listen on %s: %v\n", config.Port, err)
+		log.Fatalf("Could not listen on %d: %v\n", cfg.Server.Port, err)
 	}
 
 	<-done
 	log.Println("Server stopped")
-}
-
-// Config holds the application configuration
-type Config struct {
-	Port               string
-	SlackToken         string
-	SlackSigningSecret string
-	BaseURL            string
-	SessionTimeout     time.Duration
-	CleanupInterval    time.Duration
-	AssistantUsername  string
-	AssistantIconEmoji string
-	AssistantIconURL   string
-}
-
-// loadConfig loads configuration from environment variables
-func loadConfig() *Config {
-	config := &Config{
-		Port:               config.GetEnv("CC_SLACK_PORT", "8080"),
-		SlackToken:         config.GetEnv("CC_SLACK_SLACK_BOT_TOKEN", ""),
-		SlackSigningSecret: config.GetEnv("CC_SLACK_SLACK_SIGNING_SECRET", ""),
-		BaseURL:            config.GetEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
-		SessionTimeout:     config.GetDurationEnv("CC_SLACK_SESSION_TIMEOUT", 30*time.Minute),
-		CleanupInterval:    config.GetDurationEnv("CC_SLACK_CLEANUP_INTERVAL", 5*time.Minute),
-		AssistantUsername:  config.GetEnv("CC_SLACK_ASSISTANT_USERNAME", ""),
-		AssistantIconEmoji: config.GetEnv("CC_SLACK_ASSISTANT_ICON_EMOJI", ""),
-		AssistantIconURL:   config.GetEnv("CC_SLACK_ASSISTANT_ICON_URL", ""),
-	}
-
-	// Validate required fields
-	if config.SlackToken == "" {
-		log.Fatal("CC_SLACK_SLACK_BOT_TOKEN is required")
-	}
-	if config.SlackSigningSecret == "" {
-		log.Fatal("CC_SLACK_SLACK_SIGNING_SECRET is required")
-	}
-
-	return config
 }

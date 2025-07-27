@@ -4,14 +4,9 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	"github.com/spf13/viper"
 )
 
 func TestConfigDefaults(t *testing.T) {
-	// Reset viper
-	viper.Reset()
-
 	// Set required values
 	os.Setenv("CC_SLACK_SLACK_BOT_TOKEN", "xoxb-test")
 	os.Setenv("CC_SLACK_SLACK_SIGNING_SECRET", "test-secret")
@@ -47,9 +42,6 @@ func TestConfigDefaults(t *testing.T) {
 }
 
 func TestConfigEnvironment(t *testing.T) {
-	// Reset viper
-	viper.Reset()
-
 	// Set environment variables
 	os.Setenv("CC_SLACK_SLACK_BOT_TOKEN", "xoxb-test")
 	os.Setenv("CC_SLACK_SLACK_SIGNING_SECRET", "test-secret")
@@ -126,9 +118,6 @@ func TestConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset viper
-			viper.Reset()
-
 			// Clear specific env vars
 			os.Unsetenv("CC_SLACK_SLACK_BOT_TOKEN")
 			os.Unsetenv("CC_SLACK_SLACK_SIGNING_SECRET")

@@ -115,6 +115,7 @@ type Options struct {
 	PermissionPromptTool string // MCP tool name for permission prompts (default: mcp__cc-slack__approval_prompt)
 	// Must follow pattern: mcp__<serverName>__<toolName>
 	ResumeSessionID string // Session ID to resume from (optional)
+	ExecutablePath  string // Path to Claude executable (default: claude)
 	Handlers        MessageHandlers
 }
 
@@ -125,6 +126,11 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	// Format: mcp__<serverName>__<toolName>
 	if opts.PermissionPromptTool == "" {
 		opts.PermissionPromptTool = "mcp__cc-slack__approval_prompt"
+	}
+
+	// Set default executable path if not specified
+	if opts.ExecutablePath == "" {
+		opts.ExecutablePath = "claude"
 	}
 
 	// Create logs directory
@@ -179,7 +185,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 			Msg("Resuming previous session")
 	}
 
-	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd := exec.CommandContext(ctx, opts.ExecutablePath, args...)
 	cmd.Dir = opts.WorkDir
 
 	// Set up pipes

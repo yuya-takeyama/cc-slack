@@ -6,13 +6,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 )
+
+func testConfig() *config.Config {
+	return &config.Config{
+		Claude: config.ClaudeConfig{
+			Executable:           "claude",
+			PermissionPromptTool: "mcp__cc-slack__approval_prompt",
+		},
+	}
+}
 
 func TestCleanupIdleSessions(t *testing.T) {
 	// Create manager
 	mcpServer, _ := mcp.NewServer()
-	manager := NewManager(mcpServer, "http://localhost:8080")
+	manager := NewManager(mcpServer, "http://localhost:8080", testConfig())
 
 	// Track if process Close was called
 	closeCalled := false
@@ -69,7 +79,7 @@ func TestCleanupIdleSessions(t *testing.T) {
 func TestGetSessionInfo(t *testing.T) {
 	// Create manager
 	mcpServer, _ := mcp.NewServer()
-	manager := NewManager(mcpServer, "http://localhost:8080")
+	manager := NewManager(mcpServer, "http://localhost:8080", testConfig())
 
 	// Add a test session
 	manager.mu.Lock()

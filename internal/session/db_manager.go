@@ -145,8 +145,10 @@ func (dm *DBManager) getOrCreateThread(ctx context.Context, channelID, threadTS 
 func (dm *DBManager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir string, shouldResume bool, previousSessionID string) (*Session, error) {
 	// Create process options
 	opts := process.Options{
-		WorkDir:    workDir,
-		MCPBaseURL: dm.mcpBaseURL,
+		WorkDir:              workDir,
+		MCPBaseURL:           dm.mcpBaseURL,
+		ExecutablePath:       dm.config.Claude.Executable,
+		PermissionPromptTool: dm.config.Claude.PermissionPromptTool,
 		Handlers: process.MessageHandlers{
 			OnSystem:    dm.createSystemHandler(channelID, threadTS),
 			OnAssistant: dm.createAssistantHandler(channelID, threadTS),

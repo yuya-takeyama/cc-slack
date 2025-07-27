@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
+	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/messages"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
@@ -23,6 +24,7 @@ type Manager struct {
 	slackHandler    *ccslack.Handler
 	mcpBaseURL      string
 	lastActiveID    string // Track the last active session for approval prompts
+	config          *config.Config
 }
 
 // Session represents an active Claude Code session
@@ -37,12 +39,13 @@ type Session struct {
 }
 
 // NewManager creates a new session manager
-func NewManager(mcpServer *mcp.Server, mcpBaseURL string) *Manager {
+func NewManager(mcpServer *mcp.Server, mcpBaseURL string, cfg *config.Config) *Manager {
 	return &Manager{
 		sessions:        make(map[string]*Session),
 		threadToSession: make(map[string]string),
 		mcpServer:       mcpServer,
 		mcpBaseURL:      mcpBaseURL,
+		config:          cfg,
 	}
 }
 
@@ -99,8 +102,10 @@ func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.S
 
 	// Create Claude process with message handlers
 	claude, err := process.NewClaudeProcess(ctx, process.Options{
-		WorkDir:    workDir,
-		MCPBaseURL: m.mcpBaseURL,
+		WorkDir:              workDir,
+		MCPBaseURL:           m.mcpBaseURL,
+		ExecutablePath:       m.config.Claude.Executable,
+		PermissionPromptTool: m.config.Claude.PermissionPromptTool,
 		Handlers: process.MessageHandlers{
 			OnSystem:    m.createSystemHandler(channelID, threadTS),
 			OnAssistant: m.createAssistantHandler(channelID, threadTS),
