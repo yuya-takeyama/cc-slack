@@ -469,6 +469,85 @@ func TestFormatWebFetchToolMessage(t *testing.T) {
 	}
 }
 
+func TestFormatCompletionMessage(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+		turns     int
+		cost      float64
+		want      string
+	}{
+		{
+			name:      "normal session",
+			sessionID: "session-123",
+			turns:     5,
+			cost:      0.05,
+			want: "✅ セッション完了\n" +
+				"セッションID: `session-123`\n" +
+				"ターン数: 5\n" +
+				"コスト: $0.050000 USD",
+		},
+		{
+			name:      "high cost session",
+			sessionID: "session-456",
+			turns:     20,
+			cost:      1.5,
+			want: "✅ セッション完了\n" +
+				"セッションID: `session-456`\n" +
+				"ターン数: 20\n" +
+				"コスト: $1.500000 USD\n" +
+				"⚠️ 高コストセッション",
+		},
+		{
+			name:      "UUID session ID",
+			sessionID: "d423f0ad-9ba7-46e4-8afb-869f70a89fff",
+			turns:     10,
+			cost:      0.25,
+			want: "✅ セッション完了\n" +
+				"セッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
+				"ターン数: 10\n" +
+				"コスト: $0.250000 USD",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatCompletionMessage(tt.sessionID, tt.turns, tt.cost)
+			if got != tt.want {
+				t.Errorf("FormatCompletionMessage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatErrorMessage(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+		want      string
+	}{
+		{
+			name:      "simple session ID",
+			sessionID: "session-123",
+			want:      "❌ セッションがエラーで終了しました\nセッションID: `session-123`",
+		},
+		{
+			name:      "UUID session ID",
+			sessionID: "d423f0ad-9ba7-46e4-8afb-869f70a89fff",
+			want:      "❌ セッションがエラーで終了しました\nセッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatErrorMessage(tt.sessionID)
+			if got != tt.want {
+				t.Errorf("FormatErrorMessage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name     string
