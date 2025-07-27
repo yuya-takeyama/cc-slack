@@ -67,11 +67,6 @@ status: done
 
 ## 追加実装済み（2025-07-27以降）
 
-### ✅ データベース基盤（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
-- [x] SQLiteデータベース統合（internal/database/）
-- [x] golang-migrateによるスキーマ管理（migrations/）
-- [x] sqlcによる型安全なクエリ生成（internal/db/）
-- [x] データベース初期化とマイグレーション実行
 
 ### ✅ Viper設定管理（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
 - [x] 環境変数の中央集権的管理（internal/config/）
@@ -79,16 +74,7 @@ status: done
 - [x] 環境変数のプレフィックス対応（CC_SLACK_）
 - [x] デフォルト値と検証機能
 
-### ✅ セッション永続化（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
-- [x] セッション情報のDB保存（internal/session/db_manager.go）
-- [x] スレッドとセッションの紐付け管理
-- [x] セッション統計情報の記録（コスト、トークン数、実行時間）
 
-### ✅ セッション再開機能（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
-- [x] 同一スレッド内でのセッション継続（--resume オプション）
-- [x] 再開可能時間の設定（デフォルト1時間）
-- [x] ResumeManagerによる再開判定ロジック（internal/process/resume.go）
-- [x] 既存セッションの自動検出と再利用
 
 ### ✅ Slack表示改善機能（PR #6）
 - [x] ツールごとのカスタムアイコンとユーザー名表示
