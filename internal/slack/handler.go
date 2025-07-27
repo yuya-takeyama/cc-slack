@@ -587,13 +587,13 @@ func buildApprovalRichTextElements(toolName, url, prompt string) []slack.RichTex
 
 		// Add prompt as code block style with triple quotes
 		elements = append(elements, slack.NewRichTextSection(
-			slack.NewRichTextSectionTextElement("```", &slack.RichTextSectionTextStyle{Code: true}),
+			slack.NewRichTextSectionTextElement("```", nil),
 		))
 		elements = append(elements, slack.NewRichTextSection(
 			slack.NewRichTextSectionTextElement(prompt, &slack.RichTextSectionTextStyle{Code: true}),
 		))
 		elements = append(elements, slack.NewRichTextSection(
-			slack.NewRichTextSectionTextElement("```", &slack.RichTextSectionTextStyle{Code: true}),
+			slack.NewRichTextSectionTextElement("```", nil),
 		))
 	}
 
