@@ -91,16 +91,16 @@ Claude Code Hooks automatically runs goimports, which removes unused imports. To
 - Add imports afterwards (or let goimports auto-add them)
 - When multiple imports are needed, write the code that uses them before organizing imports
 
-### Development Workflow with Auto-Restart
+### Development Workflow with Restart
 
-During development, use the cc-slack-manager for automatic restarts:
+During development, use the cc-slack-manager for restarting cc-slack:
 
-**After making code changes, restart cc-slack:**
+**To restart cc-slack when explicitly requested:**
 ```bash
 ./scripts/restart
 ```
 
-**Claude Code should automatically run the restart script after significant code changes to cc-slack.**
+**Important:** Claude Code should only run the restart script when explicitly requested by the user. Do not automatically restart after code changes, as this will terminate cc-slack and end the current session.
 
 ### Checking cc-slack Status
 
