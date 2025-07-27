@@ -540,6 +540,7 @@ type ApprovalInfo struct {
 	Prompt      string
 	Command     string
 	Description string
+	FilePath    string
 }
 
 // parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
@@ -562,6 +563,8 @@ func parseApprovalMessage(message string) *ApprovalInfo {
 			info.Command = strings.TrimPrefix(line, "**コマンド**: ")
 		} else if strings.HasPrefix(line, "**説明**: ") {
 			info.Description = strings.TrimPrefix(line, "**説明**: ")
+		} else if strings.HasPrefix(line, "**ファイルパス**: ") {
+			info.FilePath = strings.TrimPrefix(line, "**ファイルパス**: ")
 		}
 	}
 
@@ -601,6 +604,11 @@ func buildApprovalMarkdownText(info *ApprovalInfo) string {
 		}
 		text.WriteString("*説明:*\n")
 		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Description))
+	}
+
+	// Handle Write tool
+	if info.FilePath != "" {
+		text.WriteString(fmt.Sprintf("*ファイルパス:* `%s`", info.FilePath))
 	}
 
 	return text.String()

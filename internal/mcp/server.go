@@ -209,6 +209,11 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				if description, ok := params.Arguments.Input["description"].(string); ok && description != "" {
 					message += fmt.Sprintf("\n**説明**: %s", description)
 				}
+
+				// Handle Write tool
+				if filePath, ok := params.Arguments.Input["file_path"].(string); ok {
+					message += fmt.Sprintf("\n\n**ファイルパス**: %s", filePath)
+				}
 			}
 
 			err := s.slackPoster.PostApprovalRequest(channelID, threadTS, message, requestID)
