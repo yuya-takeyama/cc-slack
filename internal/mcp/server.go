@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/jsonschema"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/rs/zerolog"
 )
 
 // SlackPoster interface for posting to Slack
@@ -29,11 +32,16 @@ type Server struct {
 
 	// Approval requests waiting for response
 	approvalRequests map[string]chan ApprovalResponse
+	approvalInputs   map[string]map[string]interface{} // Store original inputs by requestID
 	approvalMu       sync.Mutex
 
 	// Slack integration
 	slackPoster   SlackPoster
 	sessionLookup SessionLookup
+
+	// Logger
+	logger  zerolog.Logger
+	logFile *os.File
 }
 
 // ApprovalRequest represents a request for user approval
@@ -54,8 +62,33 @@ type ApprovalResponse struct {
 	UpdatedInput map[string]interface{} `json:"updatedInput,omitempty"`
 }
 
+// generateLogFileName generates a log file name with prefix and timestamp
+func generateLogFileName(prefix string) string {
+	return fmt.Sprintf("%s-%s.log", prefix, time.Now().Format("20060102-150405"))
+}
+
 // NewServer creates a new MCP server
 func NewServer() (*Server, error) {
+	// Create log directory if it doesn't exist
+	logDir := "logs"
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	// Create log file
+	logFileName := generateLogFileName("mcp")
+	logPath := filepath.Join(logDir, logFileName)
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	// Setup logger
+	logger := zerolog.New(logFile).With().
+		Timestamp().
+		Str("component", "mcp_server").
+		Logger()
+
 	// Create MCP server instance
 	mcp := mcpsdk.NewServer(&mcpsdk.Implementation{
 		Name:    "cc-slack",
@@ -65,6 +98,9 @@ func NewServer() (*Server, error) {
 	s := &Server{
 		mcp:              mcp,
 		approvalRequests: make(map[string]chan ApprovalResponse),
+		approvalInputs:   make(map[string]map[string]interface{}),
+		logger:           logger,
+		logFile:          logFile,
 	}
 
 	// Register the approval_prompt tool
@@ -123,20 +159,23 @@ type PermissionPromptResponse struct {
 // HandleApprovalPrompt handles approval requests
 // Permission prompt tools must return a specific response format
 func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.ServerSession, params *mcpsdk.CallToolParamsFor[ApprovalRequest]) (*mcpsdk.CallToolResultFor[PermissionPromptResponse], error) {
-	// Debug logging
-	fmt.Printf("[MCP] HandleApprovalPrompt called\n")
-	fmt.Printf("[MCP]   Arguments: %+v\n", params.Arguments)
-	fmt.Printf("[MCP]   ToolName: %s\n", params.Arguments.ToolName)
-	fmt.Printf("[MCP]   Input: %+v\n", params.Arguments.Input)
-	fmt.Printf("[MCP]   ToolUseID: %s\n", params.Arguments.ToolUseID)
-
 	// Generate request ID
 	requestID := fmt.Sprintf("approval_%d", time.Now().UnixNano())
 
-	// Create channel for response
+	// Log incoming request
+	s.logger.Info().
+		Str("method", "HandleApprovalPrompt").
+		Str("request_id", requestID).
+		Str("tool_name", params.Arguments.ToolName).
+		Interface("input", params.Arguments.Input).
+		Str("tool_use_id", params.Arguments.ToolUseID).
+		Msg("Received approval prompt request")
+
+	// Create channel for response and store original input
 	respChan := make(chan ApprovalResponse, 1)
 	s.approvalMu.Lock()
 	s.approvalRequests[requestID] = respChan
+	s.approvalInputs[requestID] = params.Arguments.Input
 	s.approvalMu.Unlock()
 
 	// Send approval request to Slack
@@ -166,7 +205,13 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 			err := s.slackPoster.PostApprovalRequest(channelID, threadTS, message, requestID)
 			if err != nil {
 				// Log error but continue with timeout fallback
-				// Log error but continue with timeout fallback
+				s.logger.Error().
+					Err(err).
+					Str("method", "HandleApprovalPrompt").
+					Str("request_id", requestID).
+					Str("channel_id", channelID).
+					Str("thread_ts", threadTS).
+					Msg("Failed to post approval request to Slack")
 			}
 		}
 	}
@@ -174,9 +219,11 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 	// Wait for response or timeout
 	select {
 	case resp := <-respChan:
-		// Clean up
+		// Clean up and get original input
 		s.approvalMu.Lock()
 		delete(s.approvalRequests, requestID)
+		originalInput := s.approvalInputs[requestID]
+		delete(s.approvalInputs, requestID)
 		s.approvalMu.Unlock()
 
 		// Create permission prompt response
@@ -187,25 +234,44 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 		}
 
 		// Ensure updatedInput is set for allow behavior
-		if promptResp.Behavior == "allow" && promptResp.UpdatedInput == nil {
-			promptResp.UpdatedInput = map[string]interface{}{}
+		// If Slack sent empty map or nil, use the original input
+		if promptResp.Behavior == "allow" && (promptResp.UpdatedInput == nil || len(promptResp.UpdatedInput) == 0) {
+			promptResp.UpdatedInput = originalInput
 		}
 
-		// Debug log
-		jsonData, _ := json.Marshal(promptResp)
-		fmt.Printf("[MCP] Returning approval response: %s\n", string(jsonData))
+		// Marshal response to JSON
+		jsonData, err := json.Marshal(promptResp)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("method", "HandleApprovalPrompt").
+				Msg("Failed to marshal approval response")
+			return nil, fmt.Errorf("failed to marshal approval response: %w", err)
+		}
 
-		// Return response with both Content and StructuredContent
+		// Log approval response
+		s.logger.Info().
+			Str("method", "HandleApprovalPrompt").
+			Str("request_id", requestID).
+			Str("behavior", promptResp.Behavior).
+			Str("json_response", string(jsonData)).
+			Interface("updated_input", promptResp.UpdatedInput).
+			Msg("Returning approval response")
+
 		result := &mcpsdk.CallToolResultFor[PermissionPromptResponse]{
 			Content: []mcpsdk.Content{
 				&mcpsdk.TextContent{
 					Text: string(jsonData),
 				},
 			},
-			StructuredContent: promptResp,
 		}
 
-		fmt.Printf("[MCP] CallToolResultFor created with both Content and StructuredContent\n")
+		s.logger.Debug().
+			Str("method", "HandleApprovalPrompt").
+			Str("request_id", requestID).
+			Str("content_type", "text/json").
+			Int("content_length", len(jsonData)).
+			Msg("CallToolResultFor created with Content only")
 
 		return result, nil
 
@@ -213,6 +279,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 		// Timeout - return deny
 		s.approvalMu.Lock()
 		delete(s.approvalRequests, requestID)
+		delete(s.approvalInputs, requestID)
 		s.approvalMu.Unlock()
 
 		// Create deny response for timeout
@@ -230,13 +297,13 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 					Text: string(jsonData),
 				},
 			},
-			StructuredContent: promptResp,
 		}, nil
 
 	case <-ctx.Done():
 		// Context cancelled
 		s.approvalMu.Lock()
 		delete(s.approvalRequests, requestID)
+		delete(s.approvalInputs, requestID)
 		s.approvalMu.Unlock()
 
 		return nil, ctx.Err()
