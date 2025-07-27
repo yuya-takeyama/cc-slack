@@ -31,3 +31,12 @@ type Thread struct {
 	CreatedAt sql.NullTime `json:"created_at"`
 	UpdatedAt sql.NullTime `json:"updated_at"`
 }
+
+type WorkingDirectory struct {
+	ID        int64        `json:"id"`
+	ChannelID string       `json:"channel_id"`
+	Name      string       `json:"name"`
+	Path      string       `json:"path"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}

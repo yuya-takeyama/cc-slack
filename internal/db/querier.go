@@ -12,15 +12,20 @@ type Querier interface {
 	CountActiveSessionsByThread(ctx context.Context, threadID int64) (int64, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
+	CreateWorkingDirectory(ctx context.Context, arg CreateWorkingDirectoryParams) (WorkingDirectory, error)
+	DeleteWorkingDirectory(ctx context.Context, arg DeleteWorkingDirectoryParams) error
 	GetActiveSessionByThread(ctx context.Context, threadID int64) (Session, error)
 	GetLatestSessionByThread(ctx context.Context, threadID int64) (Session, error)
 	GetSession(ctx context.Context, sessionID string) (Session, error)
 	GetThread(ctx context.Context, arg GetThreadParams) (Thread, error)
 	GetThreadByID(ctx context.Context, id int64) (Thread, error)
+	GetWorkingDirectoriesByChannel(ctx context.Context, channelID string) ([]WorkingDirectory, error)
+	GetWorkingDirectory(ctx context.Context, arg GetWorkingDirectoryParams) (WorkingDirectory, error)
 	ListActiveSessions(ctx context.Context) ([]Session, error)
 	UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error
 	UpdateSessionStatus(ctx context.Context, arg UpdateSessionStatusParams) error
 	UpdateThreadTimestamp(ctx context.Context, id int64) error
+	UpdateWorkingDirectory(ctx context.Context, arg UpdateWorkingDirectoryParams) (WorkingDirectory, error)
 }
 
 var _ Querier = (*Queries)(nil)

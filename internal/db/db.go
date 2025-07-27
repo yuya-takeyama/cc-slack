@@ -33,6 +33,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createThreadStmt, err = db.PrepareContext(ctx, createThread); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateThread: %w", err)
 	}
+	if q.createWorkingDirectoryStmt, err = db.PrepareContext(ctx, createWorkingDirectory); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateWorkingDirectory: %w", err)
+	}
+	if q.deleteWorkingDirectoryStmt, err = db.PrepareContext(ctx, deleteWorkingDirectory); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteWorkingDirectory: %w", err)
+	}
 	if q.getActiveSessionByThreadStmt, err = db.PrepareContext(ctx, getActiveSessionByThread); err != nil {
 		return nil, fmt.Errorf("error preparing query GetActiveSessionByThread: %w", err)
 	}
@@ -48,6 +54,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getThreadByIDStmt, err = db.PrepareContext(ctx, getThreadByID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetThreadByID: %w", err)
 	}
+	if q.getWorkingDirectoriesByChannelStmt, err = db.PrepareContext(ctx, getWorkingDirectoriesByChannel); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWorkingDirectoriesByChannel: %w", err)
+	}
+	if q.getWorkingDirectoryStmt, err = db.PrepareContext(ctx, getWorkingDirectory); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWorkingDirectory: %w", err)
+	}
 	if q.listActiveSessionsStmt, err = db.PrepareContext(ctx, listActiveSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListActiveSessions: %w", err)
 	}
@@ -59,6 +71,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.updateThreadTimestampStmt, err = db.PrepareContext(ctx, updateThreadTimestamp); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateThreadTimestamp: %w", err)
+	}
+	if q.updateWorkingDirectoryStmt, err = db.PrepareContext(ctx, updateWorkingDirectory); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateWorkingDirectory: %w", err)
 	}
 	return &q, nil
 }
@@ -78,6 +93,16 @@ func (q *Queries) Close() error {
 	if q.createThreadStmt != nil {
 		if cerr := q.createThreadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createThreadStmt: %w", cerr)
+		}
+	}
+	if q.createWorkingDirectoryStmt != nil {
+		if cerr := q.createWorkingDirectoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createWorkingDirectoryStmt: %w", cerr)
+		}
+	}
+	if q.deleteWorkingDirectoryStmt != nil {
+		if cerr := q.deleteWorkingDirectoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteWorkingDirectoryStmt: %w", cerr)
 		}
 	}
 	if q.getActiveSessionByThreadStmt != nil {
@@ -105,6 +130,16 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getThreadByIDStmt: %w", cerr)
 		}
 	}
+	if q.getWorkingDirectoriesByChannelStmt != nil {
+		if cerr := q.getWorkingDirectoriesByChannelStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWorkingDirectoriesByChannelStmt: %w", cerr)
+		}
+	}
+	if q.getWorkingDirectoryStmt != nil {
+		if cerr := q.getWorkingDirectoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWorkingDirectoryStmt: %w", cerr)
+		}
+	}
 	if q.listActiveSessionsStmt != nil {
 		if cerr := q.listActiveSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listActiveSessionsStmt: %w", cerr)
@@ -123,6 +158,11 @@ func (q *Queries) Close() error {
 	if q.updateThreadTimestampStmt != nil {
 		if cerr := q.updateThreadTimestampStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateThreadTimestampStmt: %w", cerr)
+		}
+	}
+	if q.updateWorkingDirectoryStmt != nil {
+		if cerr := q.updateWorkingDirectoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateWorkingDirectoryStmt: %w", cerr)
 		}
 	}
 	return err
@@ -162,37 +202,47 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                              DBTX
-	tx                              *sql.Tx
-	countActiveSessionsByThreadStmt *sql.Stmt
-	createSessionStmt               *sql.Stmt
-	createThreadStmt                *sql.Stmt
-	getActiveSessionByThreadStmt    *sql.Stmt
-	getLatestSessionByThreadStmt    *sql.Stmt
-	getSessionStmt                  *sql.Stmt
-	getThreadStmt                   *sql.Stmt
-	getThreadByIDStmt               *sql.Stmt
-	listActiveSessionsStmt          *sql.Stmt
-	updateSessionEndTimeStmt        *sql.Stmt
-	updateSessionStatusStmt         *sql.Stmt
-	updateThreadTimestampStmt       *sql.Stmt
+	db                                 DBTX
+	tx                                 *sql.Tx
+	countActiveSessionsByThreadStmt    *sql.Stmt
+	createSessionStmt                  *sql.Stmt
+	createThreadStmt                   *sql.Stmt
+	createWorkingDirectoryStmt         *sql.Stmt
+	deleteWorkingDirectoryStmt         *sql.Stmt
+	getActiveSessionByThreadStmt       *sql.Stmt
+	getLatestSessionByThreadStmt       *sql.Stmt
+	getSessionStmt                     *sql.Stmt
+	getThreadStmt                      *sql.Stmt
+	getThreadByIDStmt                  *sql.Stmt
+	getWorkingDirectoriesByChannelStmt *sql.Stmt
+	getWorkingDirectoryStmt            *sql.Stmt
+	listActiveSessionsStmt             *sql.Stmt
+	updateSessionEndTimeStmt           *sql.Stmt
+	updateSessionStatusStmt            *sql.Stmt
+	updateThreadTimestampStmt          *sql.Stmt
+	updateWorkingDirectoryStmt         *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                              tx,
-		tx:                              tx,
-		countActiveSessionsByThreadStmt: q.countActiveSessionsByThreadStmt,
-		createSessionStmt:               q.createSessionStmt,
-		createThreadStmt:                q.createThreadStmt,
-		getActiveSessionByThreadStmt:    q.getActiveSessionByThreadStmt,
-		getLatestSessionByThreadStmt:    q.getLatestSessionByThreadStmt,
-		getSessionStmt:                  q.getSessionStmt,
-		getThreadStmt:                   q.getThreadStmt,
-		getThreadByIDStmt:               q.getThreadByIDStmt,
-		listActiveSessionsStmt:          q.listActiveSessionsStmt,
-		updateSessionEndTimeStmt:        q.updateSessionEndTimeStmt,
-		updateSessionStatusStmt:         q.updateSessionStatusStmt,
-		updateThreadTimestampStmt:       q.updateThreadTimestampStmt,
+		db:                                 tx,
+		tx:                                 tx,
+		countActiveSessionsByThreadStmt:    q.countActiveSessionsByThreadStmt,
+		createSessionStmt:                  q.createSessionStmt,
+		createThreadStmt:                   q.createThreadStmt,
+		createWorkingDirectoryStmt:         q.createWorkingDirectoryStmt,
+		deleteWorkingDirectoryStmt:         q.deleteWorkingDirectoryStmt,
+		getActiveSessionByThreadStmt:       q.getActiveSessionByThreadStmt,
+		getLatestSessionByThreadStmt:       q.getLatestSessionByThreadStmt,
+		getSessionStmt:                     q.getSessionStmt,
+		getThreadStmt:                      q.getThreadStmt,
+		getThreadByIDStmt:                  q.getThreadByIDStmt,
+		getWorkingDirectoriesByChannelStmt: q.getWorkingDirectoriesByChannelStmt,
+		getWorkingDirectoryStmt:            q.getWorkingDirectoryStmt,
+		listActiveSessionsStmt:             q.listActiveSessionsStmt,
+		updateSessionEndTimeStmt:           q.updateSessionEndTimeStmt,
+		updateSessionStatusStmt:            q.updateSessionStatusStmt,
+		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
+		updateWorkingDirectoryStmt:         q.updateWorkingDirectoryStmt,
 	}
 }
