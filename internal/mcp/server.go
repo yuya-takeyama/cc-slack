@@ -265,7 +265,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 					Text: string(jsonData),
 				},
 			},
-			// StructuredContent is intentionally not set for permission prompt tool
 		}
 
 		s.logger.Debug().
@@ -299,7 +298,6 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 					Text: string(jsonData),
 				},
 			},
-			// StructuredContent is intentionally not set for permission prompt tool
 		}, nil
 
 	case <-ctx.Done():
