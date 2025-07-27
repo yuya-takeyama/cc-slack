@@ -215,25 +215,14 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 				if content.Name == "TodoWrite" && content.Input != nil {
 					// Handle TodoWrite tool
 					if todosInterface, ok := content.Input["todos"]; ok {
-						// Create rich text for todo list
-						elements := []slack.RichTextElement{
-							slack.NewRichTextSection(
-								slack.NewRichTextSectionTextElement("📋 ", nil),
-								slack.NewRichTextSectionTextElement("TodoWrite", &slack.RichTextSectionTextStyle{Bold: true}),
-								slack.NewRichTextSectionTextElement(":", nil),
-							),
-						}
+						// Create todo list with emoji bullets
+						var todoLines []string
 
-						// Try to parse todos
 						if todos, ok := todosInterface.([]interface{}); ok {
-							// Build list elements for todos
-							listElements := []slack.RichTextElement{}
-
 							for _, todoInterface := range todos {
 								if todo, ok := todoInterface.(map[string]interface{}); ok {
 									content := ""
 									status := ""
-									priority := ""
 
 									if c, ok := todo["content"].(string); ok {
 										content = c
@@ -241,11 +230,8 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 									if s, ok := todo["status"].(string); ok {
 										status = s
 									}
-									if p, ok := todo["priority"].(string); ok {
-										priority = p
-									}
 
-									// Create status emoji
+									// Create status emoji as bullet
 									statusEmoji := ""
 									switch status {
 									case "completed":
@@ -253,54 +239,29 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 									case "in_progress":
 										statusEmoji = "▶️"
 									default: // pending
-										statusEmoji = "⏳"
+										statusEmoji = ":ballot_box_with_check:"
 									}
 
-									// Create text style based on priority
-									var textStyle *slack.RichTextSectionTextStyle
-									switch priority {
-									case "high":
-										// Bold for high priority
-										textStyle = &slack.RichTextSectionTextStyle{Bold: true}
-									case "low":
-										// Italic for low priority
-										textStyle = &slack.RichTextSectionTextStyle{Italic: true}
-									default:
-										// Normal for medium priority
-										textStyle = nil
-									}
-
-									// Create list item as RichTextSection
-									listElements = append(listElements, slack.NewRichTextSection(
-										slack.NewRichTextSectionTextElement(statusEmoji+" ", nil),
-										slack.NewRichTextSectionTextElement(content, textStyle),
-									))
+									todoLines = append(todoLines, fmt.Sprintf("%s %s", statusEmoji, content))
 								}
-							}
-
-							// Add the list if we have any todos
-							if len(listElements) > 0 {
-								elements = append(elements, slack.NewRichTextList(slack.RTEListBullet, 0, listElements...))
 							}
 						}
 
-						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						todoText := strings.Join(todoLines, "\n")
+						if todoText == "" {
+							todoText = "Todo list updated"
+						}
+
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, todoText, ccslack.ToolTodoWrite); err != nil {
 							fmt.Printf("Failed to post TodoWrite to Slack: %v\n", err)
 						}
 					}
 				} else if content.Name == "Bash" && content.Input != nil {
 					// Extract command from input
 					if cmd, ok := content.Input["command"].(string); ok {
-						// Create rich text with bold "Bash" and code-style command
-						elements := []slack.RichTextElement{
-							slack.NewRichTextSection(
-								slack.NewRichTextSectionTextElement("🖥️ ", nil),
-								slack.NewRichTextSectionTextElement("Bash", &slack.RichTextSectionTextStyle{Bold: true}),
-								slack.NewRichTextSectionTextElement(": ", nil),
-								slack.NewRichTextSectionTextElement(cmd, &slack.RichTextSectionTextStyle{Code: true}),
-							),
-						}
-						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", cmd), ccslack.ToolBash); err != nil {
 							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
 						}
 					}
@@ -309,47 +270,22 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if filePath, ok := content.Input["file_path"].(string); ok {
 						// Get relative path from work directory
 						relPath := m.getRelativePath(channelID, threadTS, filePath)
-						// Create rich text with bold "Read" and code-style path
-						elements := []slack.RichTextElement{
-							slack.NewRichTextSection(
-								slack.NewRichTextSectionTextElement("📖 ", nil),
-								slack.NewRichTextSectionTextElement("Read", &slack.RichTextSectionTextStyle{Bold: true}),
-								slack.NewRichTextSectionTextElement(": ", nil),
-								slack.NewRichTextSectionTextElement(relPath, &slack.RichTextSectionTextStyle{Code: true}),
-							),
-						}
-						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", relPath), ccslack.ToolRead); err != nil {
 							fmt.Printf("Failed to post Read tool to Slack: %v\n", err)
 						}
 					}
 				} else if content.Name == "Glob" && content.Input != nil {
 					// Handle Glob tool
 					if pattern, ok := content.Input["pattern"].(string); ok {
-						// Create rich text with bold "Glob" and code-style pattern
-						elements := []slack.RichTextElement{
-							slack.NewRichTextSection(
-								slack.NewRichTextSectionTextElement("🔍 ", nil),
-								slack.NewRichTextSectionTextElement("Glob", &slack.RichTextSectionTextStyle{Bold: true}),
-								slack.NewRichTextSectionTextElement(": ", nil),
-								slack.NewRichTextSectionTextElement(pattern, &slack.RichTextSectionTextStyle{Code: true}),
-							),
-						}
-						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						// Post using tool-specific icon and username
+						if err := m.slackHandler.PostToolMessage(channelID, threadTS, fmt.Sprintf("`%s`", pattern), ccslack.ToolGlob); err != nil {
 							fmt.Printf("Failed to post Glob tool to Slack: %v\n", err)
 						}
 					}
 				} else {
-					// Other tools - use tool-specific emoji and format
-					emoji := m.getToolEmoji(content.Name)
-
-					// Create rich text with bold tool name
-					elements := []slack.RichTextElement{
-						slack.NewRichTextSection(
-							slack.NewRichTextSectionTextElement(emoji+" ", nil),
-							slack.NewRichTextSectionTextElement(content.Name, &slack.RichTextSectionTextStyle{Bold: true}),
-						),
-					}
-					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+					// Other tools - use tool-specific display or fallback
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, content.Name, content.Name); err != nil {
 						fmt.Printf("Failed to post %s tool to Slack: %v\n", content.Name, err)
 					}
 				}

@@ -14,6 +14,50 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 )
 
+// Tool type constants for tool-specific display
+const (
+	ToolTodoWrite    = "TodoWrite"
+	ToolBash         = "Bash"
+	ToolRead         = "Read"
+	ToolGlob         = "Glob"
+	ToolEdit         = "Edit"
+	ToolMultiEdit    = "MultiEdit"
+	ToolWrite        = "Write"
+	ToolLS           = "LS"
+	ToolGrep         = "Grep"
+	ToolWebFetch     = "WebFetch"
+	ToolWebSearch    = "WebSearch"
+	ToolTask         = "Task"
+	ToolExitPlanMode = "ExitPlanMode"
+	ToolNotebookRead = "NotebookRead"
+	ToolNotebookEdit = "NotebookEdit"
+)
+
+// ToolDisplayInfo holds display information for tools
+type ToolDisplayInfo struct {
+	Username string
+	Emoji    string
+}
+
+// toolDisplayMap maps tool types to their display information
+var toolDisplayMap = map[string]ToolDisplayInfo{
+	ToolTodoWrite:    {Username: "todo-list", Emoji: ":memo:"},
+	ToolBash:         {Username: "terminal", Emoji: ":computer:"},
+	ToolRead:         {Username: "file-reader", Emoji: ":open_book:"},
+	ToolGlob:         {Username: "file-finder", Emoji: ":mag:"},
+	ToolEdit:         {Username: "editor", Emoji: ":pencil2:"},
+	ToolMultiEdit:    {Username: "editor", Emoji: ":pencil2:"},
+	ToolWrite:        {Username: "writer", Emoji: ":memo:"},
+	ToolLS:           {Username: "directory", Emoji: ":file_folder:"},
+	ToolGrep:         {Username: "searcher", Emoji: ":mag:"},
+	ToolWebFetch:     {Username: "web-fetcher", Emoji: ":globe_with_meridians:"},
+	ToolWebSearch:    {Username: "web-search", Emoji: ":earth_americas:"},
+	ToolTask:         {Username: "agent", Emoji: ":robot_face:"},
+	ToolExitPlanMode: {Username: "planner", Emoji: ":checkered_flag:"},
+	ToolNotebookRead: {Username: "notebook-reader", Emoji: ":notebook:"},
+	ToolNotebookEdit: {Username: "notebook-editor", Emoji: ":notebook_with_decorative_cover:"},
+}
+
 // Handler handles Slack events and interactions
 type Handler struct {
 	client             *slack.Client
@@ -332,6 +376,29 @@ func (h *Handler) PostAssistantMessage(channelID, threadTS, text string) error {
 		options = append(options, slack.MsgOptionIconEmoji(h.assistantIconEmoji))
 	} else if h.assistantIconURL != "" {
 		options = append(options, slack.MsgOptionIconURL(h.assistantIconURL))
+	}
+
+	_, _, err := h.client.PostMessage(channelID, options...)
+	return err
+}
+
+// PostToolMessage posts a message with tool-specific display options
+func (h *Handler) PostToolMessage(channelID, threadTS, text, toolType string) error {
+	options := []slack.MsgOption{
+		slack.MsgOptionText(text, false),
+		slack.MsgOptionTS(threadTS),
+	}
+
+	// Get tool display info
+	if displayInfo, exists := toolDisplayMap[toolType]; exists {
+		// Add username
+		options = append(options, slack.MsgOptionUsername(displayInfo.Username))
+		// Add icon emoji
+		options = append(options, slack.MsgOptionIconEmoji(displayInfo.Emoji))
+	} else {
+		// Fallback to generic tool display
+		options = append(options, slack.MsgOptionUsername("tool"))
+		options = append(options, slack.MsgOptionIconEmoji(":wrench:"))
 	}
 
 	_, _, err := h.client.PostMessage(channelID, options...)
