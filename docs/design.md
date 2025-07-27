@@ -909,8 +909,29 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 ### 実装中・未完了
 - チャンネルごとの設定管理
 - エラーハンドリングの強化
+- 複数ワーキングディレクトリ対応（設定基盤は完了、UI実装が必要）
+- Webマネジメントコンソール
 
 ### 追加実装済み（2025-07-27以降）
+- **データベース基盤**: ✅ 完了！（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
+  - SQLiteデータベース統合（internal/database/）
+  - golang-migrateによるスキーマ管理（migrations/）
+  - sqlcによる型安全なクエリ生成（internal/db/）
+  - データベース初期化とマイグレーション実行
+- **Viper設定管理**: ✅ 完了！（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
+  - 環境変数の中央集権的管理（internal/config/）
+  - 設定ファイル対応の基盤（config.yaml読み込み可能）
+  - 環境変数のプレフィックス対応（CC_SLACK_）
+  - デフォルト値と検証機能
+- **セッション永続化**: ✅ 完了！（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
+  - セッション情報のDB保存（internal/session/db_manager.go）
+  - スレッドとセッションの紐付け管理
+  - セッション統計情報の記録（コスト、トークン数、実行時間）
+- **セッション再開機能**: ✅ 完了！（[PR #17](https://github.com/yuya-takeyama/cc-slack/pull/17)）
+  - 同一スレッド内でのセッション継続（--resume オプション）
+  - 再開可能時間の設定（デフォルト1時間）
+  - ResumeManagerによる再開判定ロジック（internal/process/resume.go）
+  - 既存セッションの自動検出と再利用
 - **Slack表示改善機能**: ✅ 完了！（PR #6）
   - ツールごとのカスタムアイコンとユーザー名表示
   - PostAssistantMessage, PostToolMessage の実装（internal/slack/handler.go）
@@ -936,6 +957,12 @@ func (h *Handler) sendToClaude(session *Session, message string) error {
 - **言語**: Go 1.24.4+
 - **MCP SDK**: modelcontextprotocol/go-sdk/mcp（実装済み）
 - **Slack SDK**: slack-go/slack
+- **データベース**: 
+  - mattn/go-sqlite3 (SQLite driver)
+  - golang-migrate/migrate (schema migrations)
+  - sqlc-dev/sqlc (type-safe SQL)
+- **設定管理**: 
+  - spf13/viper (configuration management)
 - **その他**: 
   - gorilla/mux (HTTP routing)
   - rs/zerolog (structured logging)
