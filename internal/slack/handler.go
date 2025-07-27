@@ -270,7 +270,7 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	// Post initial response based on whether session was resumed
 	var initialMessage string
 	if resumed {
-		initialMessage = fmt.Sprintf("前回のセッション %s を再開します...", previousSessionID)
+		initialMessage = fmt.Sprintf("前回のセッション `%s` を再開します...", previousSessionID)
 	} else {
 		initialMessage = "Claude Code セッションを開始しています..."
 	}
