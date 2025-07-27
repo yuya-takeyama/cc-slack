@@ -32,6 +32,9 @@ func main() {
 	// Create Slack handler
 	slackHandler := slack.NewHandler(config.SlackToken, config.SlackSigningSecret, sessionMgr)
 
+	// Set assistant display options
+	slackHandler.SetAssistantOptions(config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+
 	// Set Slack handler in session manager
 	sessionMgr.SetSlackHandler(slackHandler)
 
@@ -97,6 +100,10 @@ func main() {
 	log.Printf("Slack webhook endpoint: %s/slack/events", config.BaseURL)
 	log.Printf("Session timeout: %v", config.SessionTimeout)
 	log.Printf("Cleanup interval: %v", config.CleanupInterval)
+	if config.AssistantUsername != "" || config.AssistantIconEmoji != "" || config.AssistantIconURL != "" {
+		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
+			config.AssistantUsername, config.AssistantIconEmoji, config.AssistantIconURL)
+	}
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Could not listen on %s: %v\n", config.Port, err)
@@ -114,6 +121,9 @@ type Config struct {
 	BaseURL            string
 	SessionTimeout     time.Duration
 	CleanupInterval    time.Duration
+	AssistantUsername  string
+	AssistantIconEmoji string
+	AssistantIconURL   string
 }
 
 // loadConfig loads configuration from environment variables
@@ -125,6 +135,9 @@ func loadConfig() *Config {
 		BaseURL:            getEnv("CC_SLACK_BASE_URL", "http://localhost:8080"),
 		SessionTimeout:     getDurationEnv("CC_SLACK_SESSION_TIMEOUT", 30*time.Minute),
 		CleanupInterval:    getDurationEnv("CC_SLACK_CLEANUP_INTERVAL", 5*time.Minute),
+		AssistantUsername:  getEnv("CC_SLACK_ASSISTANT_USERNAME", ""),
+		AssistantIconEmoji: getEnv("CC_SLACK_ASSISTANT_ICON_EMOJI", ""),
+		AssistantIconURL:   getEnv("CC_SLACK_ASSISTANT_ICON_URL", ""),
 	}
 
 	// Validate required fields

@@ -53,6 +53,44 @@ go test ./...
 go mod tidy
 ```
 
+### Go Import Management
+
+**Development workflow to prevent import removal by goimports Hook:**
+
+Claude Code Hooks automatically runs goimports, which removes unused imports. To prevent this issue:
+
+1. **❌ BAD Pattern (imports get removed):**
+   ```go
+   import (
+       "fmt"
+       "encoding/json"  // Not used yet → Will be removed!
+   )
+   
+   // Planning to use json.Marshal() later...
+   ```
+
+2. **✅ GOOD Pattern (recommended workflow):**
+   ```go
+   // 1. Write the actual code first
+   func processData(data interface{}) (string, error) {
+       bytes, err := json.Marshal(data)  // Code that uses json
+       if err != nil {
+           return "", err
+       }
+       return string(bytes), nil
+   }
+   
+   // 2. Then add necessary imports (or let goimports add them automatically)
+   import (
+       "encoding/json"  // Already in use, won't be removed!
+   )
+   ```
+
+**Development Guidelines:**
+- Write the implementation code first
+- Add imports afterwards (or let goimports auto-add them)
+- When multiple imports are needed, write the code that uses them before organizing imports
+
 ### Development Workflow with Auto-Restart
 
 During development, use the cc-slack-manager for automatic restarts:

@@ -16,10 +16,13 @@ import (
 
 // Handler handles Slack events and interactions
 type Handler struct {
-	client            *slack.Client
-	signingSecret     string
-	sessionMgr        SessionManager
-	approvalResponder ApprovalResponder
+	client             *slack.Client
+	signingSecret      string
+	sessionMgr         SessionManager
+	approvalResponder  ApprovalResponder
+	assistantUsername  string
+	assistantIconEmoji string
+	assistantIconURL   string
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -54,6 +57,13 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 // SetApprovalResponder sets the approval responder for handling approvals
 func (h *Handler) SetApprovalResponder(responder ApprovalResponder) {
 	h.approvalResponder = responder
+}
+
+// SetAssistantOptions sets the display options for assistant messages
+func (h *Handler) SetAssistantOptions(username, iconEmoji, iconURL string) {
+	h.assistantUsername = username
+	h.assistantIconEmoji = iconEmoji
+	h.assistantIconURL = iconURL
 }
 
 // HandleEvent handles Slack webhook events
@@ -302,6 +312,29 @@ func (h *Handler) PostRichTextToThread(channelID, threadTS string, elements []sl
 			slack.NewRichTextBlock("rich_text", elements...),
 		),
 	)
+	return err
+}
+
+// PostAssistantMessage posts a message with assistant display options
+func (h *Handler) PostAssistantMessage(channelID, threadTS, text string) error {
+	options := []slack.MsgOption{
+		slack.MsgOptionText(text, false),
+		slack.MsgOptionTS(threadTS),
+	}
+
+	// Add username if configured
+	if h.assistantUsername != "" {
+		options = append(options, slack.MsgOptionUsername(h.assistantUsername))
+	}
+
+	// Add icon (emoji takes precedence over URL)
+	if h.assistantIconEmoji != "" {
+		options = append(options, slack.MsgOptionIconEmoji(h.assistantIconEmoji))
+	} else if h.assistantIconURL != "" {
+		options = append(options, slack.MsgOptionIconURL(h.assistantIconURL))
+	}
+
+	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
 }
 

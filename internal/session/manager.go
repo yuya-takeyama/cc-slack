@@ -200,20 +200,17 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 				if content.Name == "Bash" && content.Input != nil {
 					// Extract command from input
 					if cmd, ok := content.Input["command"].(string); ok {
-						// Format the command for Slack
-						var cmdText string
-						if strings.Contains(cmd, "\n") {
-							// Multi-line command, use code block
-							cmdText = fmt.Sprintf("🖥️ コマンドを実行します:\n```\n%s\n```", cmd)
-						} else {
-							// Single-line command, use inline code
-							cmdText = fmt.Sprintf("🖥️ コマンドを実行します: `%s`", cmd)
+						// Create rich text with bold "Bash" and code-style command
+						elements := []slack.RichTextElement{
+							slack.NewRichTextSection(
+								slack.NewRichTextSectionTextElement("🖥️ ", nil),
+								slack.NewRichTextSectionTextElement("Bash", &slack.RichTextSectionTextStyle{Bold: true}),
+								slack.NewRichTextSectionTextElement(": ", nil),
+								slack.NewRichTextSectionTextElement(cmd, &slack.RichTextSectionTextStyle{Code: true}),
+							),
 						}
-
-						// Post command to Slack before execution
-						if err := m.slackHandler.PostToThread(channelID, threadTS, cmdText); err != nil {
-							// Log error but don't fail the whole handler
-							fmt.Printf("Failed to post command to Slack: %v\n", err)
+						if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+							fmt.Printf("Failed to post Bash tool to Slack: %v\n", err)
 						}
 					}
 				} else if content.Name == "Read" && content.Input != nil {
@@ -251,14 +248,25 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 						}
 					}
 				} else {
-					// Other tools
-					text += fmt.Sprintf("🔧 *%s* を実行中...\n", content.Name)
+					// Other tools - use tool-specific emoji and format
+					emoji := m.getToolEmoji(content.Name)
+
+					// Create rich text with bold tool name
+					elements := []slack.RichTextElement{
+						slack.NewRichTextSection(
+							slack.NewRichTextSectionTextElement(emoji+" ", nil),
+							slack.NewRichTextSectionTextElement(content.Name, &slack.RichTextSectionTextStyle{Bold: true}),
+						),
+					}
+					if err := m.slackHandler.PostRichTextToThread(channelID, threadTS, elements); err != nil {
+						fmt.Printf("Failed to post %s tool to Slack: %v\n", content.Name, err)
+					}
 				}
 			}
 		}
 
 		if text != "" {
-			return m.slackHandler.PostToThread(channelID, threadTS, text)
+			return m.slackHandler.PostAssistantMessage(channelID, threadTS, text)
 		}
 		return nil
 	}
@@ -393,4 +401,33 @@ func (m *Manager) getRelativePath(channelID, threadTS, absolutePath string) stri
 	}
 
 	return relPath
+}
+
+// getToolEmoji returns an appropriate emoji for each tool
+func (m *Manager) getToolEmoji(toolName string) string {
+	emojiMap := map[string]string{
+		"Edit":         "✏️",
+		"MultiEdit":    "✏️",
+		"Write":        "📝",
+		"LS":           "📁",
+		"Grep":         "🔍",
+		"WebFetch":     "🌐",
+		"WebSearch":    "🌎",
+		"Task":         "🤖",
+		"TodoWrite":    "📋",
+		"ExitPlanMode": "🏁",
+		"NotebookRead": "📓",
+		"NotebookEdit": "📔",
+	}
+
+	if emoji, ok := emojiMap[toolName]; ok {
+		return emoji
+	}
+
+	// Default emoji for unknown tools or MCP tools
+	if strings.HasPrefix(toolName, "mcp__") {
+		return "🔌" // Plugin emoji
+	}
+
+	return "🔧" // Default wrench emoji
 }
