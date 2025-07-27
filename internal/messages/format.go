@@ -112,6 +112,21 @@ func FormatTaskToolMessage(description, prompt string) string {
 	return fmt.Sprintf("Task: %s\n```\n%s\n```", description, escapedPrompt)
 }
 
+// FormatWebFetchToolMessage formats the WebFetch tool message
+func FormatWebFetchToolMessage(url, prompt string) string {
+	// Truncate prompt if too long
+	const maxPromptLength = 300
+	truncatedPrompt := prompt
+	if len(prompt) > maxPromptLength {
+		truncatedPrompt = prompt[:maxPromptLength] + "..."
+	}
+
+	// Escape triple backticks in prompt
+	escapedPrompt := strings.ReplaceAll(truncatedPrompt, "```", "\\`\\`\\`")
+
+	return fmt.Sprintf("Fetching: <%s>\n```\n%s\n```", url, escapedPrompt)
+}
+
 // FormatCompletionMessage formats the completion message with session info
 func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
 	text := fmt.Sprintf("✅ セッション完了\n"+
