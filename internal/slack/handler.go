@@ -401,21 +401,13 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 
 // PostApprovalRequest posts an approval request with buttons
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
-	// Create approval payloads
-	approvePayload := BuildApprovalPayload(channelID, threadTS, message, requestID, "approve")
-	denyPayload := BuildApprovalPayload(channelID, threadTS, message, requestID, "deny")
-
-	// Add debug curl commands to the message
-	debugCommands := GenerateDebugCurlCommands(approvePayload, denyPayload)
-	debugMessage := message + "\n\n" + debugCommands
-
 	_, _, err := h.client.PostMessage(
 		channelID,
 		slack.MsgOptionText(message, false),
 		slack.MsgOptionTS(threadTS),
 		slack.MsgOptionBlocks(
 			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, debugMessage, false, false),
+				slack.NewTextBlockObject(slack.MarkdownType, message, false, false),
 				nil,
 				nil,
 			),
