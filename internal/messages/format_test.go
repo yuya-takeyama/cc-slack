@@ -426,6 +426,49 @@ func TestFormatTaskToolMessage(t *testing.T) {
 	}
 }
 
+func TestFormatWebFetchToolMessage(t *testing.T) {
+	tests := []struct {
+		name   string
+		url    string
+		prompt string
+		want   string
+	}{
+		{
+			name:   "simple web fetch",
+			url:    "https://example.com",
+			prompt: "Extract the main content",
+			want:   "Fetching: <https://example.com>\n```\nExtract the main content\n```",
+		},
+		{
+			name:   "blog post fetch",
+			url:    "https://blog.yuyat.jp/post/how-i-learn-about-cloud-services/",
+			prompt: "Extract the article title, content summary, date, key points about learning cloud services, and any specific techniques or resources mentioned",
+			want:   "Fetching: <https://blog.yuyat.jp/post/how-i-learn-about-cloud-services/>\n```\nExtract the article title, content summary, date, key points about learning cloud services, and any specific techniques or resources mentioned\n```",
+		},
+		{
+			name:   "long prompt truncated",
+			url:    "https://docs.example.com/api",
+			prompt: strings.Repeat("a", 400),
+			want:   "Fetching: <https://docs.example.com/api>\n```\n" + strings.Repeat("a", 300) + "...\n```",
+		},
+		{
+			name:   "prompt with triple backticks",
+			url:    "https://github.com/user/repo",
+			prompt: "Extract code samples ```javascript\nconsole.log('test');\n```",
+			want:   "Fetching: <https://github.com/user/repo>\n```\nExtract code samples \\`\\`\\`javascript\nconsole.log('test');\n\\`\\`\\`\n```",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatWebFetchToolMessage(tt.url, tt.prompt)
+			if got != tt.want {
+				t.Errorf("FormatWebFetchToolMessage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		name     string

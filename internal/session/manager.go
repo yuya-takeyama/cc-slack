@@ -530,6 +530,16 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolTask); err != nil {
 						fmt.Printf("Failed to post Task tool to Slack: %v\n", err)
 					}
+				} else if content.Name == "WebFetch" && content.Input != nil {
+					// Handle WebFetch tool
+					url, _ := content.Input["url"].(string)
+					prompt, _ := content.Input["prompt"].(string)
+
+					message := messages.FormatWebFetchToolMessage(url, prompt)
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolWebFetch); err != nil {
+						fmt.Printf("Failed to post WebFetch tool to Slack: %v\n", err)
+					}
 				} else {
 					// Other tools - use tool-specific display or fallback
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, content.Name, content.Name); err != nil {
