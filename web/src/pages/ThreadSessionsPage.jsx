@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { formatDateTime } from "../utils/dateFormatter";
 
 function ThreadSessionsPage() {
   const { threadId } = useParams();
@@ -28,10 +29,6 @@ function ThreadSessionsPage() {
     fetchThreadSessions();
   }, [threadId]);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString();
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -128,10 +125,10 @@ function ThreadSessionsPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(session.started_at)}
+                    {formatDateTime(session.started_at, { format: "medium", relative: true })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(session.ended_at)}
+                    {formatDateTime(session.ended_at, { format: "medium", relative: true, fallback: "-" })}
                   </td>
                 </tr>
               ))}

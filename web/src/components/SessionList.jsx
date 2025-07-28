@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDateTime, formatDateRange, formatDuration } from "../utils/dateFormatter";
 
 function SessionList() {
   const [sessions, setSessions] = useState([]);
@@ -25,11 +26,6 @@ function SessionList() {
     fetchSessions();
   }, []);
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -83,10 +79,10 @@ function SessionList() {
                     Thread: {session.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {formatDateTime(session.started_at)} -{" "}
-                    {session.ended_at
-                      ? formatDateTime(session.ended_at)
-                      : "Active"}
+                    {formatDateRange(session.started_at, session.ended_at, { format: "medium" })}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    Duration: {formatDuration(session.started_at, session.ended_at)}
                   </p>
                 </div>
                 <span
