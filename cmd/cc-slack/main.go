@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -82,6 +83,53 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "OK")
 	}).Methods(http.MethodGet)
+
+	// Manager proxy endpoints
+	router.HandleFunc("/api/manager/{path:.*}", func(w http.ResponseWriter, r *http.Request) {
+		// Extract the path after /api/manager/
+		vars := mux.Vars(r)
+		path := vars["path"]
+
+		// Create proxy request to cc-slack-manager
+		proxyURL := fmt.Sprintf("http://localhost:10080/%s", path)
+		proxyReq, err := http.NewRequest(r.Method, proxyURL, r.Body)
+		if err != nil {
+			http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+			return
+		}
+
+		// Copy headers
+		for key, values := range r.Header {
+			for _, value := range values {
+				proxyReq.Header.Add(key, value)
+			}
+		}
+
+		// Make the request
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(proxyReq)
+		if err != nil {
+			http.Error(w, "Failed to proxy request", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		// Copy response headers
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+
+		// Copy status code
+		w.WriteHeader(resp.StatusCode)
+
+		// Copy response body
+		_, err = io.Copy(w, resp.Body)
+		if err != nil {
+			log.Printf("Error copying response body: %v", err)
+		}
+	}).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 
 	// Web console endpoints (must be last due to catch-all route)
 	webHandler, err := web.NewHandler()
