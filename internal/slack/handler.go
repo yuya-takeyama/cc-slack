@@ -149,10 +149,6 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
 			h.handleAppMention(ev)
-		case *slackevents.MessageEvent:
-			if ev.ThreadTimeStamp != "" && ev.ThreadTimeStamp != ev.TimeStamp {
-				h.handleThreadMessage(ev)
-			}
 		}
 	}
 
@@ -167,15 +163,36 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 		return
 	}
 
-	// Determine working directory
-	workDir := h.determineWorkDir(event.Channel)
-
 	// Determine thread timestamp for session management
 	// If mentioned in a thread, use thread_ts; otherwise use the message ts
 	threadTS := event.ThreadTimeStamp
 	if threadTS == "" {
 		threadTS = event.TimeStamp
 	}
+
+	// Check if mentioned in a thread with an existing session
+	if event.ThreadTimeStamp != "" {
+		// Try to find existing session
+		session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
+		if err == nil && session != nil {
+			// Existing session found - send message to it
+			err = h.sessionMgr.SendMessage(session.SessionID, text)
+			if err != nil {
+				h.client.PostMessage(
+					event.Channel,
+					slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
+					slack.MsgOptionTS(event.ThreadTimeStamp),
+				)
+			}
+			// Return early - we've sent the message to existing session
+			return
+		}
+		// If no session found or error, fall through to create new session
+	}
+
+	// No existing session - create new one or resume
+	// Determine working directory
+	workDir := h.determineWorkDir(event.Channel)
 
 	// Create session with resume check
 	ctx := context.Background()
@@ -205,30 +222,6 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	if err != nil {
 		fmt.Printf("Failed to post message: %v\n", err)
 		return
-	}
-}
-
-// handleThreadMessage handles messages in existing threads
-func (h *Handler) handleThreadMessage(event *slackevents.MessageEvent) {
-	// Skip bot messages
-	if event.BotID != "" {
-		return
-	}
-
-	// Find existing session
-	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
-	if err != nil {
-		return // Not our thread
-	}
-
-	// Send message to Claude Code
-	err = h.sessionMgr.SendMessage(session.SessionID, event.Text)
-	if err != nil {
-		h.client.PostMessage(
-			event.Channel,
-			slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
-			slack.MsgOptionTS(event.ThreadTimeStamp),
-		)
 	}
 }
 
