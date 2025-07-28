@@ -33,14 +33,21 @@ status: in_progress
 - **メリット**: 一体化されて分かりやすい
 - **デメリット**: 大きなインターフェース変更
 
-### 実装方針
+#### Option D: NewClaudeProcess に initialPrompt を追加 ✅（推奨 - Claude CLI の設計に合わせる）
+- `NewClaudeProcess` の `Options` に `InitialPrompt` フィールドを追加
+- プロセス起動直後に最初のプロンプトを送信
+- セッション作成時にDBに initial_prompt を保存
+- **メリット**: Claude CLI の設計思想に合致、インターフェースが自然、実装タイミングが明確
+- **デメリット**: 既存のインターフェース変更が必要（ただし最小限）
 
-Option A を採用し、以下の手順で実装：
+### 実装方針（修正版）
 
-1. CreateSessionWithResume から initialPrompt 引数を削除（元に戻す）
-2. Session 構造体に firstMessageSent フラグを追加
-3. SendMessage で初回メッセージ時に initial_prompt を保存
-4. UpdateSessionInitialPrompt クエリを追加
+Option D を採用し、以下の手順で実装：
+
+1. `process.Options` に `InitialPrompt` フィールドを追加
+2. `NewClaudeProcess` 内で初期プロンプトを送信
+3. `CreateSessionWithResume` で initial_prompt をDBに保存（ただし別の方法で）
+4. `handleAppMention` から `SendMessage` 呼び出しを削除
 
 ## 概要
 
@@ -50,20 +57,24 @@ Option A を採用し、以下の手順で実装：
 
 この問題を解決するため、セッション開始時の最初のプロンプト（ユーザーがClaudeに送った最初のメッセージ）をデータベースに保存し、セッション一覧画面に表示することで、各セッションの目的や内容を一目で把握できるようにする。
 
-## 修正実装手順（Option A に基づく）
+## 修正実装手順（Option D に基づく）
 
 ### 1. ロールバック作業
 - [ ] CreateSessionWithResume から initialPrompt 引数を削除
 - [ ] SessionManager インターフェースを元に戻す 
-- [ ] handleAppMention の呼び出しを元に戻す
-- [ ] CreateSessionWithInitialPrompt クエリを削除
-- [ ] sqlc generate を再実行
+- [ ] handleAppMention の呼び出しを元に戻す（ただし SendMessage 呼び出しは削除）
 
 ### 2. 新規実装
-- [ ] UpdateSessionInitialPrompt クエリを追加
-- [ ] Session 構造体に firstMessageSent フラグを追加
-- [ ] SendMessage メソッドを修正（初回メッセージ時に initial_prompt を保存）
-- [ ] sqlc generate を実行
+- [ ] `process.Options` に `InitialPrompt` フィールドを追加
+- [ ] `NewClaudeProcess` を修正:
+  - [ ] 初期プロンプトがある場合、プロセス起動後に自動送信
+  - [ ] 空の場合はスキップ（互換性のため）
+- [ ] `CreateSessionWithResume` で initial_prompt を受け取ってDBに保存:
+  - [ ] Options に渡して NewClaudeProcess で使用
+  - [ ] CreateSessionWithInitialPrompt でDBに保存（そのまま使用）
+- [ ] `handleAppMention` を修正:
+  - [ ] text を CreateSessionWithResume に渡す
+  - [ ] SendMessage 呼び出しを削除
 
 ### 3. テスト
 - [ ] 新規セッション作成時に初期プロンプトが正しく保存されることを確認
