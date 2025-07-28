@@ -26,13 +26,17 @@ jobs:
           aqua_version: v2.43.1
           working_directory: aqua
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.13.1
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Get dependencies
         run: |
