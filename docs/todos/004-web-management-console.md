@@ -91,6 +91,31 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 - [ ] pnpm all で全てのチェックが通ることを確認
 - [ ] CLAUDE.md に「フロントエンド変更時は pnpm all を必ず実行」ルールを追加
 
+### Phase 5: CI/CD パイプラインの設定（1時間）
+
+#### 5.1 GitHub Actions ワークフローの更新
+- [ ] `.github/workflows/test.yaml` に TypeScript ビルドステップを追加
+- [ ] pnpm セットアップアクションの導入（pnpm/action-setup）
+- [ ] Node.js 環境のセットアップ（actions/setup-node）
+- [ ] キャッシュ戦略の実装（pnpm store と node_modules）
+
+#### 5.2 ビルドとテストの統合
+- [ ] `web/` ディレクトリでの依存関係インストール（pnpm install）
+- [ ] TypeScript 型チェック（pnpm typecheck）
+- [ ] Biome による lint チェック（pnpm lint）
+- [ ] フロントエンドビルド（pnpm build）
+- [ ] ビルド成果物の存在確認（dist/index.html の存在チェック）
+
+#### 5.3 Go と TypeScript の統合テスト
+- [ ] フロントエンドビルド後に Go のテストを実行
+- [ ] embed.FS が正しく dist ディレクトリを読み込めることを確認
+- [ ] 両方のテストが成功した場合のみ CI をパスさせる
+
+#### 5.4 最適化と改善
+- [ ] ビルド時間の最適化（並列実行の検討）
+- [ ] エラーメッセージの改善
+- [ ] ビルドアーティファクトの管理
+
 ## 実装例
 
 ### Go定数設定（config.go）
