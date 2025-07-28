@@ -31,7 +31,7 @@ func NewHandler() (*Handler, error) {
 
 // ServeHTTP implements http.Handler
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/web")
+	path := r.URL.Path
 	if path == "" || path == "/" {
 		path = "/index.html"
 	}
@@ -88,8 +88,7 @@ func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string)
 	// Handle pattern matches
 	if strings.HasPrefix(path, "/api/threads/") && strings.HasSuffix(path, "/sessions") {
 		if r.Method == http.MethodGet {
-			// Update request path to include /web prefix for API handler
-			r.URL.Path = "/web" + path
+			// Pass request directly to API handler
 			GetThreadSessions(w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
