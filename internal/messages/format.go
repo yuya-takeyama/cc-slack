@@ -127,6 +127,14 @@ func FormatWebFetchToolMessage(url, prompt string) string {
 	return fmt.Sprintf("Fetching: <%s>\n```\n%s\n```", url, escapedPrompt)
 }
 
+// FormatWebSearchToolMessage formats the WebSearch tool message
+func FormatWebSearchToolMessage(query string) string {
+	// Escape triple backticks in query
+	escapedQuery := strings.ReplaceAll(query, "```", "\\`\\`\\`")
+
+	return fmt.Sprintf("Searching web for: `%s`", escapedQuery)
+}
+
 // FormatCompletionMessage formats the completion message with session info
 func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
 	text := fmt.Sprintf("✅ セッション完了\n"+
