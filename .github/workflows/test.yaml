@@ -50,14 +50,23 @@ jobs:
         working-directory: ./web
         run: pnpm lint
 
+      - name: Build frontend
+        working-directory: ./web
+        run: pnpm build
+
+      - name: Copy frontend dist
+        run: |
+          rm -rf internal/web/dist
+          cp -r web/dist internal/web/
+
       - name: Run go vet
         run: go vet ./...
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
-      - name: Build project
-        run: ./scripts/build
+      - name: Build binary
+        run: go build -v ./cmd/cc-slack
 
       - name: Test binary exists
         run: test -f cc-slack
