@@ -4,12 +4,30 @@ import { formatDateTime } from "../utils/dateFormatter";
 import { getSessionStatusColor } from "../utils/sessionUtils";
 import { buildSlackThreadUrl } from "../utils/slackUtils";
 
+interface Thread {
+  thread_ts: string;
+  channel_id: string;
+  workspace_subdomain?: string;
+}
+
+interface Session {
+  session_id: string;
+  status: "active" | "completed" | "failed" | "unknown";
+  started_at: string;
+  ended_at?: string;
+}
+
+interface ThreadSessionsResponse {
+  thread: Thread;
+  sessions: Session[];
+}
+
 function ThreadSessionsPage() {
-  const { threadId } = useParams();
-  const [thread, setThread] = useState(null);
-  const [sessions, setSessions] = useState([]);
+  const { threadId } = useParams<{ threadId: string }>();
+  const [thread, setThread] = useState<Thread | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchThreadSessions = async () => {
@@ -18,11 +36,11 @@ function ThreadSessionsPage() {
         if (!response.ok) {
           throw new Error("Failed to fetch thread sessions");
         }
-        const data = await response.json();
+        const data: ThreadSessionsResponse = await response.json();
         setThread(data.thread);
         setSessions(data.sessions);
       } catch (err) {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : "An error occurred");
       } finally {
         setLoading(false);
       }
@@ -63,7 +81,7 @@ function ThreadSessionsPage() {
             </div>
           </div>
           <a
-            href={buildSlackThreadUrl(thread)}
+            href={buildSlackThreadUrl(thread) || "#"}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm mt-3"

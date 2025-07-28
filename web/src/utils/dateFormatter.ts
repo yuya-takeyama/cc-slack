@@ -1,4 +1,14 @@
-export const formatDateTime = (dateString, options = {}) => {
+interface FormatOptions {
+  format?: "short" | "medium" | "full";
+  relative?: boolean;
+  includeTime?: boolean;
+  fallback?: string;
+}
+
+export const formatDateTime = (
+  dateString: string | null | undefined,
+  options: FormatOptions = {},
+): string => {
   if (!dateString) return options.fallback || "N/A";
 
   const date = new Date(dateString);
@@ -23,9 +33,9 @@ export const formatDateTime = (dateString, options = {}) => {
   }
 };
 
-const getRelativeTime = (date) => {
+const getRelativeTime = (date: Date): string => {
   const now = new Date();
-  const diffMs = now - date;
+  const diffMs = now.getTime() - date.getTime();
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);
@@ -51,8 +61,8 @@ const getRelativeTime = (date) => {
   }
 };
 
-const formatShort = (date, includeTime) => {
-  const options = {
+const formatShort = (date: Date, includeTime: boolean): string => {
+  const options: Intl.DateTimeFormatOptions = {
     month: "numeric",
     day: "numeric",
   };
@@ -65,8 +75,8 @@ const formatShort = (date, includeTime) => {
   return date.toLocaleString("en-US", options);
 };
 
-const formatMedium = (date, includeTime) => {
-  const options = {
+const formatMedium = (date: Date, includeTime: boolean): string => {
+  const options: Intl.DateTimeFormatOptions = {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -80,8 +90,8 @@ const formatMedium = (date, includeTime) => {
   return date.toLocaleString("en-US", options);
 };
 
-const formatFull = (date, includeTime) => {
-  const options = {
+const formatFull = (date: Date, includeTime: boolean): string => {
+  const options: Intl.DateTimeFormatOptions = {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -97,7 +107,11 @@ const formatFull = (date, includeTime) => {
   return date.toLocaleString("en-US", options);
 };
 
-export const formatDateRange = (startDate, endDate, options = {}) => {
+export const formatDateRange = (
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  options: FormatOptions = {},
+): string => {
   const start = formatDateTime(startDate, options);
 
   if (!endDate) {
@@ -108,13 +122,16 @@ export const formatDateRange = (startDate, endDate, options = {}) => {
   return `${start} - ${end}`;
 };
 
-export const formatDuration = (startDate, endDate) => {
+export const formatDuration = (
+  startDate: string | null | undefined,
+  endDate?: string | null | undefined,
+): string => {
   if (!startDate) return "N/A";
 
   const start = new Date(startDate);
   const end = endDate ? new Date(endDate) : new Date();
 
-  const diffMs = end - start;
+  const diffMs = end.getTime() - start.getTime();
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);

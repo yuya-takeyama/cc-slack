@@ -1,4 +1,12 @@
-export const buildSlackThreadUrl = (thread) => {
+interface Thread {
+  workspace_subdomain?: string;
+  channel_id?: string;
+  thread_ts?: string;
+  channel_name?: string;
+  thread_time?: string;
+}
+
+export const buildSlackThreadUrl = (thread: Thread | null): string | null => {
   if (
     !thread ||
     !thread.workspace_subdomain ||
@@ -12,7 +20,7 @@ export const buildSlackThreadUrl = (thread) => {
   return `https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${threadTsFormatted}`;
 };
 
-export const formatThreadTimestamp = (threadTs) => {
+export const formatThreadTimestamp = (threadTs: unknown): string => {
   if (!threadTs || typeof threadTs !== "string") {
     return "";
   }
@@ -31,7 +39,7 @@ export const formatThreadTimestamp = (threadTs) => {
   return date.toLocaleString();
 };
 
-export const getChannelDisplayName = (thread) => {
+export const getChannelDisplayName = (thread: Thread | null): string => {
   if (!thread) {
     return "";
   }
@@ -39,7 +47,7 @@ export const getChannelDisplayName = (thread) => {
   return thread.channel_name || thread.channel_id || "";
 };
 
-export const getThreadDisplayName = (thread) => {
+export const getThreadDisplayName = (thread: Thread | null): string => {
   if (!thread) {
     return "";
   }

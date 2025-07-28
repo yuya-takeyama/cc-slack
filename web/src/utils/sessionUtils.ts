@@ -1,4 +1,21 @@
-export const getSessionStatusColor = (status, format = "card") => {
+type SessionStatus = "active" | "completed" | "failed" | "unknown";
+type FormatType = "card" | "table";
+
+interface Session {
+  session_id?: string;
+  status?: SessionStatus;
+}
+
+interface SessionSummary {
+  displayId: string;
+  status: SessionStatus;
+  statusColor: string;
+}
+
+export const getSessionStatusColor = (
+  status: SessionStatus,
+  format: FormatType = "card",
+): string => {
   if (format === "card") {
     switch (status) {
       case "active":
@@ -28,7 +45,10 @@ export const getSessionStatusColor = (status, format = "card") => {
   throw new Error(`Unknown format: ${format}`);
 };
 
-export const truncateSessionId = (sessionId, length = 8) => {
+export const truncateSessionId = (
+  sessionId: unknown,
+  length: number = 8,
+): string => {
   if (!sessionId || typeof sessionId !== "string") {
     return "";
   }
@@ -40,7 +60,9 @@ export const truncateSessionId = (sessionId, length = 8) => {
   return `${sessionId.substring(0, length)}...`;
 };
 
-export const getSessionSummary = (session) => {
+export const getSessionSummary = (
+  session: Session | null | undefined,
+): SessionSummary => {
   if (!session) {
     return {
       displayId: "",
@@ -51,7 +73,9 @@ export const getSessionSummary = (session) => {
 
   return {
     displayId: truncateSessionId(session.session_id),
-    status: session.status || "unknown",
-    statusColor: getSessionStatusColor(session.status),
+    status: (session.status || "unknown") as SessionStatus,
+    statusColor: getSessionStatusColor(
+      (session.status || "unknown") as SessionStatus,
+    ),
   };
 };

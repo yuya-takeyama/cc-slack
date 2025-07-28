@@ -5,10 +5,22 @@ import {
   truncateSessionId,
 } from "../utils/sessionUtils";
 
+interface Session {
+  session_id: string;
+  thread_ts: string;
+  status: "active" | "completed" | "failed" | "unknown";
+  started_at: string;
+  ended_at?: string;
+}
+
+interface SessionsResponse {
+  sessions: Session[];
+}
+
 function SessionList() {
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSessions = async () => {
     try {
@@ -16,10 +28,10 @@ function SessionList() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
+      const data: SessionsResponse = await response.json();
       setSessions(data.sessions || []);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
