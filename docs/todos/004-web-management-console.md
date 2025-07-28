@@ -94,27 +94,36 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 ### Phase 5: CI/CD パイプラインの設定（1時間）
 
 #### 5.1 GitHub Actions ワークフローの更新
-- [ ] `.github/workflows/test.yaml` に TypeScript ビルドステップを追加
-- [ ] pnpm セットアップアクションの導入（pnpm/action-setup）
-- [ ] Node.js 環境のセットアップ（actions/setup-node）
-- [ ] キャッシュ戦略の実装（pnpm store と node_modules）
+- [x] `.github/workflows/test.yaml` に TypeScript ビルドステップを追加
+- [x] aqua-installer を使った pnpm セットアップの実装
+- [x] Node.js 環境のセットアップ（actions/setup-node）
+- [x] キャッシュ戦略の実装（pnpm cache）
 
 #### 5.2 ビルドとテストの統合
-- [ ] `web/` ディレクトリでの依存関係インストール（pnpm install）
-- [ ] TypeScript 型チェック（pnpm typecheck）
-- [ ] Biome による lint チェック（pnpm lint）
-- [ ] フロントエンドビルド（pnpm build）
-- [ ] ビルド成果物の存在確認（dist/index.html の存在チェック）
+- [x] `web/` ディレクトリでの依存関係インストール（pnpm install --frozen-lockfile）
+- [x] TypeScript 型チェック（pnpm typecheck）
+- [x] Biome による lint チェック（pnpm lint）
+- [x] フロントエンドビルド（pnpm build）
+- [x] ビルド成果物の存在確認（dist/index.html の存在チェック）
 
 #### 5.3 Go と TypeScript の統合テスト
-- [ ] フロントエンドビルド後に Go のテストを実行
-- [ ] embed.FS が正しく dist ディレクトリを読み込めることを確認
-- [ ] 両方のテストが成功した場合のみ CI をパスさせる
+- [x] フロントエンドビルド後に Go のテストを実行
+- [x] embed.FS が正しく dist ディレクトリを読み込めることを確認（web/dist → internal/web/dist コピー処理追加）
+- [x] 両方のテストが成功した場合のみ CI をパスさせる（CI 通過確認済み）
 
 #### 5.4 最適化と改善
 - [ ] ビルド時間の最適化（並列実行の検討）
 - [ ] エラーメッセージの改善
 - [ ] ビルドアーティファクトの管理
+
+### Phase 5.5: CI/CD エラー修正（実施済み）
+
+#### 追加で実施した内容
+- [x] pnpm-lock.yaml を .gitignore から削除してコミット（CI キャッシュ対応）
+- [x] Biome 設定を v2.1.2 に移行
+- [x] lint エラーと警告を修正（未使用 import、SVG アクセシビリティ、useEffect 依存関係）
+- [x] Biome formatter 設定を更新（double quotes、always semicolons、trailing commas all）
+- [x] CI 通過確認
 
 ## 実装例
 
@@ -288,13 +297,18 @@ cc-slack/
 
 ## 実装完了サマリー
 
-2025-01-28: Web管理コンソールのMVP実装が完了しました。
+2025-01-28: Web管理コンソールのMVP実装と CI/CD パイプライン設定が完了しました。
 
 ### 実装内容
 - ✅ バックエンドAPI（/web/api/threads, /web/api/sessions）
 - ✅ フロントエンド（React + Vite + Tailwind）
 - ✅ embed.FSによる静的ファイル配信
 - ✅ Slackへの直接リンク機能
+- ✅ CI/CD パイプラインの設定と修正
+  - aqua-installer による pnpm セットアップ
+  - TypeScript ビルドとテストの統合
+  - Biome v2.1.2 への移行と lint エラー修正
+  - formatter 設定更新（double quotes、always semicolons、trailing commas all）
 
 ### 既知の問題
 - セッション数が0と表示される（バグ）
