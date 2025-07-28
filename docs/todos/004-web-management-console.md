@@ -20,31 +20,28 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 ## タスクリスト
 
-### Step 1: データベーススキーマ拡張（30分）
+### Step 1: バックエンドAPI実装（2時間）
 
-- [ ] threads テーブルに workspace_subdomain カラムを追加（yuyat.slack.com の yuyat 部分）
-- [ ] migrationファイルの作成と適用
-
-### Step 2: バックエンドAPI実装（2時間）
-
-#### 2.1 基本設定
+#### 1.1 基本設定
 - [ ] `/web/*` パスのルーティング追加
 - [ ] シンプルなJSONレスポンス形式の統一
+- [ ] config.goに SLACK_WORKSPACE_SUBDOMAIN 定数を追加（例: "yuyat"）
+  - [ ] TODO コメント追加：「将来的に複数workspace対応時はDBに移行」
 
-#### 2.2 最小限のAPI
+#### 1.2 最小限のAPI
 - [ ] `GET /web/api/threads` - スレッド一覧（workspace_subdomain、channel_id、thread_ts、最新セッション情報）
 - [ ] `GET /web/api/sessions` - セッション一覧（session_id、thread_ts、status、started_at、ended_at）
 
-### Step 3: フロントエンドUI実装（3時間）
+### Step 2: フロントエンドUI実装（3時間）
 
-#### 3.1 Viteプロジェクトセットアップ
+#### 2.1 Viteプロジェクトセットアップ
 - [ ] webディレクトリ作成とpackage.json初期化
 - [ ] React 19 + Vite 7 + Tailwind 4 のインストール
 - [ ] vite.config.js作成（base: '/web/'設定）
 - [ ] tailwind.config.jsとPostCSS設定
 - [ ] ディレクトリ構造の整備（src/, public/, styles/）
 
-#### 3.2 Reactコンポーネント実装
+#### 2.2 Reactコンポーネント実装
 - [ ] main.jsx（エントリーポイント）
 - [ ] App.jsx（メインコンテナ）
 - [ ] ThreadList コンポーネント（スレッド一覧）
@@ -54,18 +51,29 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
   - [ ] シンプルなテーブル表示
   - [ ] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
 
-#### 3.3 ビルドとGo統合
+#### 2.3 ビルドとGo統合
 - [ ] npm run buildでdist/生成確認
 - [ ] Go側でembed.FSを使った静的ファイル配信実装
 - [ ] /web/パスでSPA、/web/api/でAPIの分離確認
 
-### Step 4: デプロイと動作確認（30分）
+### Step 3: デプロイと動作確認（30分）
 
 - [ ] 開発サーバー（npm run dev）での動作確認
 - [ ] ビルド後のGo統合での動作確認
-- [ ] Slack workspace情報の自動取得（Slack APIから）または環境変数設定
+- [ ] ハードコードされたworkspace_subdomainでSlackリンクが正しく動作することを確認
 
 ## 実装例
+
+### Go定数設定（config.go）
+```go
+// internal/config/config.go
+
+const (
+    // SlackワークスペースのSubdomain
+    // TODO: 将来的に複数workspace対応時はDBに移行
+    SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
+)
+```
 
 ### package.json
 ```json
