@@ -14,12 +14,14 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Slack    SlackConfig    `mapstructure:"slack"`
-	Claude   ClaudeConfig   `mapstructure:"claude"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Session  SessionConfig  `mapstructure:"session"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
+	Server             ServerConfig             `mapstructure:"server"`
+	Slack              SlackConfig              `mapstructure:"slack"`
+	Claude             ClaudeConfig             `mapstructure:"claude"`
+	Database           DatabaseConfig           `mapstructure:"database"`
+	Session            SessionConfig            `mapstructure:"session"`
+	Logging            LoggingConfig            `mapstructure:"logging"`
+	Repositories       []RepositoryConfig       `mapstructure:"repositories"`
+	WorkingDirectories WorkingDirectoriesConfig `mapstructure:"working_directories"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -68,6 +70,29 @@ type LoggingConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
 	Output string `mapstructure:"output"`
+}
+
+// RepositoryConfig contains repository settings
+type RepositoryConfig struct {
+	Name          string               `mapstructure:"name"`
+	Path          string               `mapstructure:"path"`
+	DefaultBranch string               `mapstructure:"default_branch"`
+	Channels      []string             `mapstructure:"channels"`
+	SlackOverride *SlackOverrideConfig `mapstructure:"slack_override"`
+}
+
+// SlackOverrideConfig contains Slack settings override per repository
+type SlackOverrideConfig struct {
+	Username  string `mapstructure:"username"`
+	IconEmoji string `mapstructure:"icon_emoji"`
+	IconURL   string `mapstructure:"icon_url"`
+}
+
+// WorkingDirectoriesConfig contains working directory settings
+type WorkingDirectoriesConfig struct {
+	Default                 string `mapstructure:"default"`
+	WorktreeDirectory       string `mapstructure:"worktree_directory"`
+	WorktreeRetentionPeriod string `mapstructure:"worktree_retention_period"`
 }
 
 // Load loads configuration from file and environment variables
@@ -147,6 +172,10 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "./logs")
+
+	// Working directories defaults
+	v.SetDefault("working_directories.worktree_directory", ".cc-slack-worktrees")
+	v.SetDefault("working_directories.worktree_retention_period", "24h")
 }
 
 // validate validates the configuration
@@ -173,6 +202,24 @@ func (c *Config) validate() error {
 	}
 	if c.Session.ResumeWindow <= 0 {
 		return fmt.Errorf("session.resume_window must be positive")
+	}
+
+	// Validate repositories
+	repoNames := make(map[string]bool)
+	for i, repo := range c.Repositories {
+		if repo.Name == "" {
+			return fmt.Errorf("repositories[%d].name is required", i)
+		}
+		if repo.Path == "" {
+			return fmt.Errorf("repositories[%d].path is required", i)
+		}
+		if !strings.HasPrefix(repo.Path, "/") {
+			return fmt.Errorf("repositories[%d].path must be absolute path: %s", i, repo.Path)
+		}
+		if repoNames[repo.Name] {
+			return fmt.Errorf("duplicate repository name: %s", repo.Name)
+		}
+		repoNames[repo.Name] = true
 	}
 
 	return nil

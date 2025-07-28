@@ -15,6 +15,15 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// ProcessOptions contains options for creating a Claude process
+type ProcessOptions struct {
+	ConfigContent      string
+	WorkingDirectory   string
+	Model              string
+	CustomSystemPrompt string
+	ResumeSessionID    string
+}
+
 // ClaudeProcess represents a running Claude Code process
 type ClaudeProcess struct {
 	cmd        *exec.Cmd

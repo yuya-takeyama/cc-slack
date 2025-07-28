@@ -1,0 +1,70 @@
+# cc-slack configuration example
+
+server:
+  port: 8080
+  base_url: http://localhost:8080
+
+slack:
+  # Required: Set these via environment variables for security
+  # bot_token: ${CC_SLACK_SLACK_BOT_TOKEN}
+  # app_token: ${CC_SLACK_SLACK_APP_TOKEN}
+  # signing_secret: ${CC_SLACK_SLACK_SIGNING_SECRET}
+  
+  assistant:
+    username: Claude Code
+    icon_emoji: ":robot_face:"
+    # icon_url: https://example.com/claude-icon.png
+
+claude:
+  executable: claude
+  # default_options:
+  #   - --model
+  #   - claude-3-opus-latest
+  permission_prompt_tool: mcp__cc-slack__approval_prompt
+
+database:
+  path: ./data/cc-slack.db
+  migrations_path: ./migrations
+
+session:
+  timeout: 30m
+  cleanup_interval: 5m
+  resume_window: 1h
+
+logging:
+  level: info
+  format: json
+  output: ./logs
+
+# Multi-repository configuration
+repositories:
+  - name: frontend
+    path: /home/user/projects/frontend
+    default_branch: main
+    channels:
+      - C1234567890  # #frontend-dev channel
+    slack_override:
+      username: Frontend Claude
+      icon_emoji: ":computer:"
+
+  - name: backend
+    path: /home/user/projects/backend
+    default_branch: develop
+    channels:
+      - C0987654321  # #backend-dev channel
+      - C1234567890  # Also available in #frontend-dev
+    slack_override:
+      username: Backend Claude
+      icon_emoji: ":gear:"
+
+  - name: docs
+    path: /home/user/projects/documentation
+    default_branch: main
+    channels:
+      - C1111111111  # #docs channel
+
+# Working directory configuration
+working_directories:
+  default: /home/user/projects/default
+  worktree_directory: .cc-slack-worktrees
+  worktree_retention_period: 24h

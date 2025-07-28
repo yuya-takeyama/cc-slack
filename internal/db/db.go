@@ -27,17 +27,38 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.countActiveSessionsByThreadStmt, err = db.PrepareContext(ctx, countActiveSessionsByThread); err != nil {
 		return nil, fmt.Errorf("error preparing query CountActiveSessionsByThread: %w", err)
 	}
+	if q.createRepositoryStmt, err = db.PrepareContext(ctx, createRepository); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateRepository: %w", err)
+	}
 	if q.createSessionWithInitialPromptStmt, err = db.PrepareContext(ctx, createSessionWithInitialPrompt); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSessionWithInitialPrompt: %w", err)
 	}
 	if q.createThreadStmt, err = db.PrepareContext(ctx, createThread); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateThread: %w", err)
 	}
+	if q.createWorktreeStmt, err = db.PrepareContext(ctx, createWorktree); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateWorktree: %w", err)
+	}
+	if q.deleteRepositoryStmt, err = db.PrepareContext(ctx, deleteRepository); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteRepository: %w", err)
+	}
+	if q.deleteWorktreeStmt, err = db.PrepareContext(ctx, deleteWorktree); err != nil {
+		return nil, fmt.Errorf("error preparing query DeleteWorktree: %w", err)
+	}
 	if q.getActiveSessionByThreadStmt, err = db.PrepareContext(ctx, getActiveSessionByThread); err != nil {
 		return nil, fmt.Errorf("error preparing query GetActiveSessionByThread: %w", err)
 	}
 	if q.getLatestSessionByThreadStmt, err = db.PrepareContext(ctx, getLatestSessionByThread); err != nil {
 		return nil, fmt.Errorf("error preparing query GetLatestSessionByThread: %w", err)
+	}
+	if q.getRepositoryStmt, err = db.PrepareContext(ctx, getRepository); err != nil {
+		return nil, fmt.Errorf("error preparing query GetRepository: %w", err)
+	}
+	if q.getRepositoryByChannelIDStmt, err = db.PrepareContext(ctx, getRepositoryByChannelID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetRepositoryByChannelID: %w", err)
+	}
+	if q.getRepositoryByNameStmt, err = db.PrepareContext(ctx, getRepositoryByName); err != nil {
+		return nil, fmt.Errorf("error preparing query GetRepositoryByName: %w", err)
 	}
 	if q.getSessionStmt, err = db.PrepareContext(ctx, getSession); err != nil {
 		return nil, fmt.Errorf("error preparing query GetSession: %w", err)
@@ -51,8 +72,26 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getThreadByThreadTsStmt, err = db.PrepareContext(ctx, getThreadByThreadTs); err != nil {
 		return nil, fmt.Errorf("error preparing query GetThreadByThreadTs: %w", err)
 	}
+	if q.getWorktreeStmt, err = db.PrepareContext(ctx, getWorktree); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWorktree: %w", err)
+	}
+	if q.getWorktreeByThreadIDStmt, err = db.PrepareContext(ctx, getWorktreeByThreadID); err != nil {
+		return nil, fmt.Errorf("error preparing query GetWorktreeByThreadID: %w", err)
+	}
 	if q.listActiveSessionsStmt, err = db.PrepareContext(ctx, listActiveSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListActiveSessions: %w", err)
+	}
+	if q.listActiveWorktreesStmt, err = db.PrepareContext(ctx, listActiveWorktrees); err != nil {
+		return nil, fmt.Errorf("error preparing query ListActiveWorktrees: %w", err)
+	}
+	if q.listOldWorktreesStmt, err = db.PrepareContext(ctx, listOldWorktrees); err != nil {
+		return nil, fmt.Errorf("error preparing query ListOldWorktrees: %w", err)
+	}
+	if q.listRepositoriesStmt, err = db.PrepareContext(ctx, listRepositories); err != nil {
+		return nil, fmt.Errorf("error preparing query ListRepositories: %w", err)
+	}
+	if q.listRepositoriesByChannelIDStmt, err = db.PrepareContext(ctx, listRepositoriesByChannelID); err != nil {
+		return nil, fmt.Errorf("error preparing query ListRepositoriesByChannelID: %w", err)
 	}
 	if q.listSessionsStmt, err = db.PrepareContext(ctx, listSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessions: %w", err)
@@ -62,6 +101,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.listThreadsStmt, err = db.PrepareContext(ctx, listThreads); err != nil {
 		return nil, fmt.Errorf("error preparing query ListThreads: %w", err)
+	}
+	if q.listWorktreesByRepositoryStmt, err = db.PrepareContext(ctx, listWorktreesByRepository); err != nil {
+		return nil, fmt.Errorf("error preparing query ListWorktreesByRepository: %w", err)
+	}
+	if q.updateRepositoryStmt, err = db.PrepareContext(ctx, updateRepository); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateRepository: %w", err)
 	}
 	if q.updateSessionEndTimeStmt, err = db.PrepareContext(ctx, updateSessionEndTime); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSessionEndTime: %w", err)
@@ -81,6 +126,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateThreadTimestampStmt, err = db.PrepareContext(ctx, updateThreadTimestamp); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateThreadTimestamp: %w", err)
 	}
+	if q.updateWorktreeBranchStmt, err = db.PrepareContext(ctx, updateWorktreeBranch); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateWorktreeBranch: %w", err)
+	}
+	if q.updateWorktreeStatusStmt, err = db.PrepareContext(ctx, updateWorktreeStatus); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateWorktreeStatus: %w", err)
+	}
 	return &q, nil
 }
 
@@ -89,6 +140,11 @@ func (q *Queries) Close() error {
 	if q.countActiveSessionsByThreadStmt != nil {
 		if cerr := q.countActiveSessionsByThreadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing countActiveSessionsByThreadStmt: %w", cerr)
+		}
+	}
+	if q.createRepositoryStmt != nil {
+		if cerr := q.createRepositoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createRepositoryStmt: %w", cerr)
 		}
 	}
 	if q.createSessionWithInitialPromptStmt != nil {
@@ -101,6 +157,21 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing createThreadStmt: %w", cerr)
 		}
 	}
+	if q.createWorktreeStmt != nil {
+		if cerr := q.createWorktreeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createWorktreeStmt: %w", cerr)
+		}
+	}
+	if q.deleteRepositoryStmt != nil {
+		if cerr := q.deleteRepositoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteRepositoryStmt: %w", cerr)
+		}
+	}
+	if q.deleteWorktreeStmt != nil {
+		if cerr := q.deleteWorktreeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deleteWorktreeStmt: %w", cerr)
+		}
+	}
 	if q.getActiveSessionByThreadStmt != nil {
 		if cerr := q.getActiveSessionByThreadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getActiveSessionByThreadStmt: %w", cerr)
@@ -109,6 +180,21 @@ func (q *Queries) Close() error {
 	if q.getLatestSessionByThreadStmt != nil {
 		if cerr := q.getLatestSessionByThreadStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getLatestSessionByThreadStmt: %w", cerr)
+		}
+	}
+	if q.getRepositoryStmt != nil {
+		if cerr := q.getRepositoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getRepositoryStmt: %w", cerr)
+		}
+	}
+	if q.getRepositoryByChannelIDStmt != nil {
+		if cerr := q.getRepositoryByChannelIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getRepositoryByChannelIDStmt: %w", cerr)
+		}
+	}
+	if q.getRepositoryByNameStmt != nil {
+		if cerr := q.getRepositoryByNameStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getRepositoryByNameStmt: %w", cerr)
 		}
 	}
 	if q.getSessionStmt != nil {
@@ -131,9 +217,39 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getThreadByThreadTsStmt: %w", cerr)
 		}
 	}
+	if q.getWorktreeStmt != nil {
+		if cerr := q.getWorktreeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWorktreeStmt: %w", cerr)
+		}
+	}
+	if q.getWorktreeByThreadIDStmt != nil {
+		if cerr := q.getWorktreeByThreadIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getWorktreeByThreadIDStmt: %w", cerr)
+		}
+	}
 	if q.listActiveSessionsStmt != nil {
 		if cerr := q.listActiveSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listActiveSessionsStmt: %w", cerr)
+		}
+	}
+	if q.listActiveWorktreesStmt != nil {
+		if cerr := q.listActiveWorktreesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listActiveWorktreesStmt: %w", cerr)
+		}
+	}
+	if q.listOldWorktreesStmt != nil {
+		if cerr := q.listOldWorktreesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listOldWorktreesStmt: %w", cerr)
+		}
+	}
+	if q.listRepositoriesStmt != nil {
+		if cerr := q.listRepositoriesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listRepositoriesStmt: %w", cerr)
+		}
+	}
+	if q.listRepositoriesByChannelIDStmt != nil {
+		if cerr := q.listRepositoriesByChannelIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listRepositoriesByChannelIDStmt: %w", cerr)
 		}
 	}
 	if q.listSessionsStmt != nil {
@@ -149,6 +265,16 @@ func (q *Queries) Close() error {
 	if q.listThreadsStmt != nil {
 		if cerr := q.listThreadsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listThreadsStmt: %w", cerr)
+		}
+	}
+	if q.listWorktreesByRepositoryStmt != nil {
+		if cerr := q.listWorktreesByRepositoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listWorktreesByRepositoryStmt: %w", cerr)
+		}
+	}
+	if q.updateRepositoryStmt != nil {
+		if cerr := q.updateRepositoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateRepositoryStmt: %w", cerr)
 		}
 	}
 	if q.updateSessionEndTimeStmt != nil {
@@ -179,6 +305,16 @@ func (q *Queries) Close() error {
 	if q.updateThreadTimestampStmt != nil {
 		if cerr := q.updateThreadTimestampStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateThreadTimestampStmt: %w", cerr)
+		}
+	}
+	if q.updateWorktreeBranchStmt != nil {
+		if cerr := q.updateWorktreeBranchStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateWorktreeBranchStmt: %w", cerr)
+		}
+	}
+	if q.updateWorktreeStatusStmt != nil {
+		if cerr := q.updateWorktreeStatusStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateWorktreeStatusStmt: %w", cerr)
 		}
 	}
 	return err
@@ -221,24 +357,41 @@ type Queries struct {
 	db                                 DBTX
 	tx                                 *sql.Tx
 	countActiveSessionsByThreadStmt    *sql.Stmt
+	createRepositoryStmt               *sql.Stmt
 	createSessionWithInitialPromptStmt *sql.Stmt
 	createThreadStmt                   *sql.Stmt
+	createWorktreeStmt                 *sql.Stmt
+	deleteRepositoryStmt               *sql.Stmt
+	deleteWorktreeStmt                 *sql.Stmt
 	getActiveSessionByThreadStmt       *sql.Stmt
 	getLatestSessionByThreadStmt       *sql.Stmt
+	getRepositoryStmt                  *sql.Stmt
+	getRepositoryByChannelIDStmt       *sql.Stmt
+	getRepositoryByNameStmt            *sql.Stmt
 	getSessionStmt                     *sql.Stmt
 	getThreadStmt                      *sql.Stmt
 	getThreadByIDStmt                  *sql.Stmt
 	getThreadByThreadTsStmt            *sql.Stmt
+	getWorktreeStmt                    *sql.Stmt
+	getWorktreeByThreadIDStmt          *sql.Stmt
 	listActiveSessionsStmt             *sql.Stmt
+	listActiveWorktreesStmt            *sql.Stmt
+	listOldWorktreesStmt               *sql.Stmt
+	listRepositoriesStmt               *sql.Stmt
+	listRepositoriesByChannelIDStmt    *sql.Stmt
 	listSessionsStmt                   *sql.Stmt
 	listSessionsByThreadIDStmt         *sql.Stmt
 	listThreadsStmt                    *sql.Stmt
+	listWorktreesByRepositoryStmt      *sql.Stmt
+	updateRepositoryStmt               *sql.Stmt
 	updateSessionEndTimeStmt           *sql.Stmt
 	updateSessionIDStmt                *sql.Stmt
 	updateSessionModelStmt             *sql.Stmt
 	updateSessionOnCompleteStmt        *sql.Stmt
 	updateSessionStatusStmt            *sql.Stmt
 	updateThreadTimestampStmt          *sql.Stmt
+	updateWorktreeBranchStmt           *sql.Stmt
+	updateWorktreeStatusStmt           *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
@@ -246,23 +399,40 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                                 tx,
 		tx:                                 tx,
 		countActiveSessionsByThreadStmt:    q.countActiveSessionsByThreadStmt,
+		createRepositoryStmt:               q.createRepositoryStmt,
 		createSessionWithInitialPromptStmt: q.createSessionWithInitialPromptStmt,
 		createThreadStmt:                   q.createThreadStmt,
+		createWorktreeStmt:                 q.createWorktreeStmt,
+		deleteRepositoryStmt:               q.deleteRepositoryStmt,
+		deleteWorktreeStmt:                 q.deleteWorktreeStmt,
 		getActiveSessionByThreadStmt:       q.getActiveSessionByThreadStmt,
 		getLatestSessionByThreadStmt:       q.getLatestSessionByThreadStmt,
+		getRepositoryStmt:                  q.getRepositoryStmt,
+		getRepositoryByChannelIDStmt:       q.getRepositoryByChannelIDStmt,
+		getRepositoryByNameStmt:            q.getRepositoryByNameStmt,
 		getSessionStmt:                     q.getSessionStmt,
 		getThreadStmt:                      q.getThreadStmt,
 		getThreadByIDStmt:                  q.getThreadByIDStmt,
 		getThreadByThreadTsStmt:            q.getThreadByThreadTsStmt,
+		getWorktreeStmt:                    q.getWorktreeStmt,
+		getWorktreeByThreadIDStmt:          q.getWorktreeByThreadIDStmt,
 		listActiveSessionsStmt:             q.listActiveSessionsStmt,
+		listActiveWorktreesStmt:            q.listActiveWorktreesStmt,
+		listOldWorktreesStmt:               q.listOldWorktreesStmt,
+		listRepositoriesStmt:               q.listRepositoriesStmt,
+		listRepositoriesByChannelIDStmt:    q.listRepositoriesByChannelIDStmt,
 		listSessionsStmt:                   q.listSessionsStmt,
 		listSessionsByThreadIDStmt:         q.listSessionsByThreadIDStmt,
 		listThreadsStmt:                    q.listThreadsStmt,
+		listWorktreesByRepositoryStmt:      q.listWorktreesByRepositoryStmt,
+		updateRepositoryStmt:               q.updateRepositoryStmt,
 		updateSessionEndTimeStmt:           q.updateSessionEndTimeStmt,
 		updateSessionIDStmt:                q.updateSessionIDStmt,
 		updateSessionModelStmt:             q.updateSessionModelStmt,
 		updateSessionOnCompleteStmt:        q.updateSessionOnCompleteStmt,
 		updateSessionStatusStmt:            q.updateSessionStatusStmt,
 		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
+		updateWorktreeBranchStmt:           q.updateWorktreeBranchStmt,
+		updateWorktreeStatusStmt:           q.updateWorktreeStatusStmt,
 	}
 }

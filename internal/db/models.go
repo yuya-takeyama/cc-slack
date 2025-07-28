@@ -8,6 +8,19 @@ import (
 	"database/sql"
 )
 
+type Repository struct {
+	ID             int64          `json:"id"`
+	Name           string         `json:"name"`
+	Path           string         `json:"path"`
+	DefaultBranch  sql.NullString `json:"default_branch"`
+	SlackChannelID sql.NullString `json:"slack_channel_id"`
+	SlackUsername  sql.NullString `json:"slack_username"`
+	SlackIconEmoji sql.NullString `json:"slack_icon_emoji"`
+	SlackIconUrl   sql.NullString `json:"slack_icon_url"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
+}
+
 type Session struct {
 	ID            int64           `json:"id"`
 	ThreadID      int64           `json:"thread_id"`
@@ -25,10 +38,23 @@ type Session struct {
 }
 
 type Thread struct {
-	ID               int64        `json:"id"`
-	ChannelID        string       `json:"channel_id"`
-	ThreadTs         string       `json:"thread_ts"`
-	WorkingDirectory string       `json:"working_directory"`
-	CreatedAt        sql.NullTime `json:"created_at"`
-	UpdatedAt        sql.NullTime `json:"updated_at"`
+	ID               int64         `json:"id"`
+	ChannelID        string        `json:"channel_id"`
+	ThreadTs         string        `json:"thread_ts"`
+	WorkingDirectory string        `json:"working_directory"`
+	CreatedAt        sql.NullTime  `json:"created_at"`
+	UpdatedAt        sql.NullTime  `json:"updated_at"`
+	RepositoryID     sql.NullInt64 `json:"repository_id"`
+}
+
+type Worktree struct {
+	ID            int64          `json:"id"`
+	RepositoryID  int64          `json:"repository_id"`
+	ThreadID      int64          `json:"thread_id"`
+	Path          string         `json:"path"`
+	BaseBranch    string         `json:"base_branch"`
+	CurrentBranch sql.NullString `json:"current_branch"`
+	Status        string         `json:"status"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	DeletedAt     sql.NullTime   `json:"deleted_at"`
 }

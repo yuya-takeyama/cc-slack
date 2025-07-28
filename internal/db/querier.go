@@ -6,28 +6,46 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
 	CountActiveSessionsByThread(ctx context.Context, threadID int64) (int64, error)
+	CreateRepository(ctx context.Context, arg CreateRepositoryParams) (Repository, error)
 	CreateSessionWithInitialPrompt(ctx context.Context, arg CreateSessionWithInitialPromptParams) (Session, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
+	CreateWorktree(ctx context.Context, arg CreateWorktreeParams) (Worktree, error)
+	DeleteRepository(ctx context.Context, id int64) error
+	DeleteWorktree(ctx context.Context, id int64) error
 	GetActiveSessionByThread(ctx context.Context, threadID int64) (Session, error)
 	GetLatestSessionByThread(ctx context.Context, threadID int64) (Session, error)
+	GetRepository(ctx context.Context, id int64) (Repository, error)
+	GetRepositoryByChannelID(ctx context.Context, slackChannelID sql.NullString) (Repository, error)
+	GetRepositoryByName(ctx context.Context, name string) (Repository, error)
 	GetSession(ctx context.Context, sessionID string) (Session, error)
 	GetThread(ctx context.Context, arg GetThreadParams) (Thread, error)
 	GetThreadByID(ctx context.Context, id int64) (Thread, error)
 	GetThreadByThreadTs(ctx context.Context, threadTs string) (Thread, error)
+	GetWorktree(ctx context.Context, id int64) (Worktree, error)
+	GetWorktreeByThreadID(ctx context.Context, threadID int64) (Worktree, error)
 	ListActiveSessions(ctx context.Context) ([]Session, error)
+	ListActiveWorktrees(ctx context.Context) ([]Worktree, error)
+	ListOldWorktrees(ctx context.Context, datetime interface{}) ([]Worktree, error)
+	ListRepositories(ctx context.Context) ([]Repository, error)
+	ListRepositoriesByChannelID(ctx context.Context, slackChannelID sql.NullString) ([]Repository, error)
 	ListSessions(ctx context.Context) ([]Session, error)
 	ListSessionsByThreadID(ctx context.Context, threadID int64) ([]Session, error)
 	ListThreads(ctx context.Context) ([]Thread, error)
+	ListWorktreesByRepository(ctx context.Context, repositoryID int64) ([]Worktree, error)
+	UpdateRepository(ctx context.Context, arg UpdateRepositoryParams) (Repository, error)
 	UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error
 	UpdateSessionID(ctx context.Context, arg UpdateSessionIDParams) error
 	UpdateSessionModel(ctx context.Context, arg UpdateSessionModelParams) error
 	UpdateSessionOnComplete(ctx context.Context, arg UpdateSessionOnCompleteParams) error
 	UpdateSessionStatus(ctx context.Context, arg UpdateSessionStatusParams) error
 	UpdateThreadTimestamp(ctx context.Context, id int64) error
+	UpdateWorktreeBranch(ctx context.Context, arg UpdateWorktreeBranchParams) error
+	UpdateWorktreeStatus(ctx context.Context, arg UpdateWorktreeStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)
