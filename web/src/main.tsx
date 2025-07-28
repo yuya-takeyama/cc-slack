@@ -2,10 +2,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
+import ManagerPage from "./pages/ManagerPage";
 import SessionsPage from "./pages/SessionsPage";
 import ThreadSessionsPage from "./pages/ThreadSessionsPage";
 import ThreadsPage from "./pages/ThreadsPage";
-import ManagerPage from "./pages/ManagerPage";
 import "../styles/index.css";
 
 const router = createBrowserRouter(

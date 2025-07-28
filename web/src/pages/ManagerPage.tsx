@@ -1,9 +1,26 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+// Format seconds to human-readable string
+function formatUptime(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`;
+  }
+
+  return `${minutes}m ${secs}s`;
+}
 
 interface Status {
   running: boolean;
   pid?: number;
-  uptime?: string;
+  uptime?: number;
   started?: string;
 }
 
@@ -49,8 +66,11 @@ function ManagerPage() {
     return new Promise<boolean>((resolve) => {
       const poll = async () => {
         const currentStatus = await fetchStatus();
-        
-        if (currentStatus && currentStatus.pid && currentStatus.pid !== previousPidRef.current) {
+
+        if (
+          currentStatus?.pid &&
+          currentStatus.pid !== previousPidRef.current
+        ) {
           // PID changed, restart complete
           resolve(true);
           return;
@@ -91,10 +111,10 @@ function ManagerPage() {
       }
 
       setLastRestartTime(new Date());
-      
+
       // Poll for status change
       const restartDetected = await pollStatusUntilChanged();
-      
+
       if (restartDetected) {
         // Force reload the browser
         window.location.reload();
@@ -148,34 +168,38 @@ function ManagerPage() {
 
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4">Status</h3>
-        
+
         {status ? (
           <div className="space-y-2">
             <div className="flex items-center">
               <span className="font-medium w-24">Status:</span>
-              <span className={`px-2 py-1 rounded text-sm ${
-                status.running 
-                  ? "bg-green-100 text-green-800" 
-                  : "bg-red-100 text-red-800"
-              }`}>
+              <span
+                className={`px-2 py-1 rounded text-sm ${
+                  status.running
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
                 {status.running ? "Running" : "Stopped"}
               </span>
             </div>
-            
+
             {status.running && status.pid && (
               <>
                 <div className="flex items-center">
                   <span className="font-medium w-24">PID:</span>
                   <span className="text-gray-700">{status.pid}</span>
                 </div>
-                
-                {status.uptime && (
+
+                {status.uptime !== undefined && (
                   <div className="flex items-center">
                     <span className="font-medium w-24">Uptime:</span>
-                    <span className="text-gray-700">{status.uptime}</span>
+                    <span className="text-gray-700">
+                      {formatUptime(status.uptime)}
+                    </span>
                   </div>
                 )}
-                
+
                 {status.started && (
                   <div className="flex items-center">
                     <span className="font-medium w-24">Started:</span>
@@ -194,9 +218,10 @@ function ManagerPage() {
 
       <div className="bg-white shadow rounded-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Actions</h3>
-        
+
         <div className="space-y-4">
           <button
+            type="button"
             onClick={handleRestart}
             disabled={restarting || !status?.running}
             className={`px-6 py-2 rounded font-medium transition-colors ${
@@ -207,13 +232,13 @@ function ManagerPage() {
           >
             {restarting ? "Restarting..." : "Restart cc-slack"}
           </button>
-          
+
           {lastRestartTime && (
             <div className="text-sm text-gray-600">
               Last restart: {lastRestartTime.toLocaleTimeString()}
             </div>
           )}
-          
+
           {!status?.running && (
             <div className="text-sm text-amber-600">
               cc-slack is not running. Start it manually first.
