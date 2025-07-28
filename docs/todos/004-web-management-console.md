@@ -63,7 +63,7 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 - [ ] 開発サーバー（pnpm dev）での全体動作確認（※Node.js環境が必要）
 - [x] ビルド後のGo統合での全体動作確認
-- [ ] UIの微調整（必要に応じて）→ 005-web-console-improvements.mdで対応予定
+- [ ] UIの微調整（必要に応じて）→ 006-web-console-improvements.mdで対応予定
 
 ### Phase 3.5: ページ分割とルーティング実装（3時間）
 
@@ -315,4 +315,4 @@ cc-slack/
 - thread_tsが読みにくい形式で表示される
 - チャンネルIDがそのまま表示される
 
-これらの問題は 005-web-console-improvements.md で対応予定です。
+これらの問題は 006-web-console-improvements.md で対応予定です。
