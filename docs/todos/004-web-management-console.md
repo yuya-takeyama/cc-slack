@@ -20,47 +20,50 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 ## タスクリスト
 
-### Step 1: バックエンドAPI実装（2時間）
+### Phase 1: スレッド一覧画面の実装（2.5時間）
 
-#### 1.1 基本設定
+#### 1.1 最小限のバックエンド実装
 - [ ] `/web/*` パスのルーティング追加
-- [ ] シンプルなJSONレスポンス形式の統一
 - [ ] config.goに SLACK_WORKSPACE_SUBDOMAIN 定数を追加（例: "yuyat"）
   - [ ] TODO コメント追加：「将来的に複数workspace対応時はDBに移行」
+- [ ] `GET /web/api/threads` APIのみ実装（workspace_subdomain、channel_id、thread_ts、最新セッション情報）
+- [ ] Go側でembed.FSを使った静的ファイル配信実装
 
-#### 1.2 最小限のAPI
-- [ ] `GET /web/api/threads` - スレッド一覧（workspace_subdomain、channel_id、thread_ts、最新セッション情報）
-- [ ] `GET /web/api/sessions` - セッション一覧（session_id、thread_ts、status、started_at、ended_at）
-
-### Step 2: フロントエンドUI実装（3時間）
-
-#### 2.1 Viteプロジェクトセットアップ
+#### 1.2 最小限のフロントエンド実装
 - [ ] webディレクトリ作成とpackage.json初期化
 - [ ] React 19 + Vite 7 + Tailwind 4 のインストール
 - [ ] vite.config.js作成（base: '/web/'設定）
 - [ ] tailwind.config.jsとPostCSS設定
-- [ ] ディレクトリ構造の整備（src/, public/, styles/）
-
-#### 2.2 Reactコンポーネント実装
-- [ ] main.jsx（エントリーポイント）
-- [ ] App.jsx（メインコンテナ）
-- [ ] ThreadList コンポーネント（スレッド一覧）
+- [ ] main.jsx + App.jsx + ThreadList.jsxのみ実装
   - [ ] Slackスレッドへの直接リンク（https://{workspace_subdomain}.slack.com/archives/{channel_id}/p{thread_ts}）
   - [ ] 各スレッドのセッション数と最新ステータス表示
-- [ ] SessionList コンポーネント（セッション一覧）
+
+#### 1.3 スレッド一覧の動作確認
+- [ ] npm run buildでdist/生成
+- [ ] cc-slackを再起動してスレッド一覧が表示されることを確認
+- [ ] Slackへのリンクが正しく動作することを確認
+
+### Phase 2: セッション一覧画面の実装（2時間）
+
+#### 2.1 セッション一覧API実装
+- [ ] `GET /web/api/sessions` API実装（session_id、thread_ts、status、started_at、ended_at）
+- [ ] シンプルなJSONレスポンス形式の統一
+
+#### 2.2 セッション一覧UI実装
+- [ ] SessionList.jsx コンポーネント実装
   - [ ] シンプルなテーブル表示
   - [ ] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
+- [ ] App.jsxにセッション一覧を追加
 
-#### 2.3 ビルドとGo統合
-- [ ] npm run buildでdist/生成確認
-- [ ] Go側でembed.FSを使った静的ファイル配信実装
-- [ ] /web/パスでSPA、/web/api/でAPIの分離確認
+#### 2.3 セッション一覧の動作確認
+- [ ] npm run buildでdist/再生成
+- [ ] cc-slackを再起動してセッション一覧が表示されることを確認
 
-### Step 3: デプロイと動作確認（30分）
+### Phase 3: 最終確認と調整（1時間）
 
-- [ ] 開発サーバー（npm run dev）での動作確認
-- [ ] ビルド後のGo統合での動作確認
-- [ ] ハードコードされたworkspace_subdomainでSlackリンクが正しく動作することを確認
+- [ ] 開発サーバー（npm run dev）での全体動作確認
+- [ ] ビルド後のGo統合での全体動作確認
+- [ ] UIの微調整（必要に応じて）
 
 ## 実装例
 
