@@ -19,10 +19,10 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single",
+      "quoteStyle": "double",
       "jsxQuoteStyle": "double",
-      "semicolons": "asNeeded",
-      "trailingCommas": "es5"
+      "semicolons": "always",
+      "trailingCommas": "all"
     }
   }
 }

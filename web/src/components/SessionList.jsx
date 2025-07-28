@@ -1,55 +1,55 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 
 function SessionList() {
-  const [sessions, setSessions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch('/web/api/sessions')
+      const response = await fetch("/web/api/sessions");
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json()
-      setSessions(data.sessions || [])
+      const data = await response.json();
+      setSessions(data.sessions || []);
     } catch (err) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: fetchSessions should only run on mount
   useEffect(() => {
-    fetchSessions()
-  }, [])
+    fetchSessions();
+  }, []);
 
   const formatDateTime = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    return date.toLocaleString()
-  }
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active':
-        return 'text-green-600 bg-green-100'
-      case 'completed':
-        return 'text-blue-600 bg-blue-100'
-      case 'failed':
-        return 'text-red-600 bg-red-100'
+      case "active":
+        return "text-green-600 bg-green-100";
+      case "completed":
+        return "text-blue-600 bg-blue-100";
+      case "failed":
+        return "text-red-600 bg-red-100";
       default:
-        return 'text-gray-600 bg-gray-100'
+        return "text-gray-600 bg-gray-100";
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="bg-white shadow rounded-lg p-6">
         <p className="text-gray-500">Loading sessions...</p>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -57,7 +57,7 @@ function SessionList() {
       <div className="bg-white shadow rounded-lg p-6">
         <p className="text-red-500">Error: {error}</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -83,10 +83,10 @@ function SessionList() {
                     Thread: {session.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {formatDateTime(session.started_at)} -{' '}
+                    {formatDateTime(session.started_at)} -{" "}
                     {session.ended_at
                       ? formatDateTime(session.ended_at)
-                      : 'Active'}
+                      : "Active"}
                   </p>
                 </div>
                 <span
@@ -100,7 +100,7 @@ function SessionList() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default SessionList
+export default SessionList;

@@ -1,5 +1,5 @@
-import SessionList from './components/SessionList'
-import ThreadList from './components/ThreadList'
+import SessionList from "./components/SessionList";
+import ThreadList from "./components/ThreadList";
 
 function App() {
   return (
@@ -14,7 +14,7 @@ function App() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

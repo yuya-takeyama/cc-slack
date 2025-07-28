@@ -1,41 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 
 function ThreadList() {
-  const [threads, setThreads] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [threads, setThreads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchThreads = async () => {
     try {
-      const response = await fetch('/web/api/threads')
+      const response = await fetch("/web/api/threads");
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json()
-      setThreads(data.threads || [])
+      const data = await response.json();
+      setThreads(data.threads || []);
     } catch (err) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: fetchThreads should only run on mount
   useEffect(() => {
-    fetchThreads()
-  }, [])
+    fetchThreads();
+  }, []);
 
   const buildSlackUrl = (thread) => {
-    const threadTsFormatted = thread.thread_ts.replace('.', '')
-    return `https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${threadTsFormatted}`
-  }
+    const threadTsFormatted = thread.thread_ts.replace(".", "");
+    return `https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${threadTsFormatted}`;
+  };
 
   if (loading) {
     return (
       <div className="bg-white shadow rounded-lg p-6">
         <p className="text-gray-500">Loading threads...</p>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -43,7 +43,7 @@ function ThreadList() {
       <div className="bg-white shadow rounded-lg p-6">
         <p className="text-red-500">Error: {error}</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -69,7 +69,7 @@ function ThreadList() {
                     Channel: {thread.channel_id}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Sessions: {thread.session_count} | Latest:{' '}
+                    Sessions: {thread.session_count} | Latest:{" "}
                     {thread.latest_session_status}
                   </p>
                 </div>
@@ -101,7 +101,7 @@ function ThreadList() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export default ThreadList
+export default ThreadList;
