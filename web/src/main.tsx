@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import App from "./App";
+import ManagerPage from "./pages/ManagerPage";
 import SessionsPage from "./pages/SessionsPage";
 import ThreadSessionsPage from "./pages/ThreadSessionsPage";
 import ThreadsPage from "./pages/ThreadsPage";
@@ -25,11 +26,15 @@ const router = createBrowserRouter(
           path: "threads/:threadId/sessions",
           element: <ThreadSessionsPage />,
         },
+        {
+          path: "manager",
+          element: <ManagerPage />,
+        },
       ],
     },
   ],
   {
-    basename: "/",
+    basename: "/web",
   },
 );
 

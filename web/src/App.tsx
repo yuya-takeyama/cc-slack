@@ -36,6 +36,18 @@ function App() {
                 All Sessions
               </Link>
             </li>
+            <li>
+              <Link
+                to="/manager"
+                className={`text-lg ${
+                  location.pathname === "/web/manager"
+                    ? "text-blue-600 font-semibold"
+                    : "text-gray-600 hover:text-blue-600"
+                }`}
+              >
+                Manager
+              </Link>
+            </li>
           </ul>
         </nav>
 
