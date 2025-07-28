@@ -64,10 +64,10 @@ function ThreadList() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    Thread: {thread.thread_ts}
+                    Thread: {thread.thread_time || thread.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Channel: {thread.channel_id}
+                    Channel: {thread.channel_name || thread.channel_id}
                   </p>
                   <p className="text-sm text-gray-500">
                     Sessions: {thread.session_count} | Latest:{" "}

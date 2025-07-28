@@ -57,6 +57,10 @@ func main() {
 	// Set assistant display options
 	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
 
+	// Create channel cache for web API
+	slackClient := slackHandler.GetClient()
+	channelCache := slack.NewChannelCache(slackClient, 1*time.Hour)
+
 	// Set Slack integration in MCP server
 	mcpServer.SetSlackIntegration(slackHandler, sessionMgr)
 
@@ -85,8 +89,9 @@ func main() {
 		// Ignore error if web/dist doesn't exist yet
 		log.Printf("Web console not available: %v", err)
 	} else {
-		// Set database connection for web package
+		// Set database connection and channel cache for web package
 		web.SetDatabase(sqlDB)
+		web.SetChannelCache(channelCache)
 		router.PathPrefix("/").Handler(webHandler)
 	}
 

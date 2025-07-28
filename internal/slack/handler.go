@@ -94,6 +94,11 @@ func (h *Handler) SetAssistantOptions(username, iconEmoji, iconURL string) {
 	h.assistantIconURL = iconURL
 }
 
+// GetClient returns the Slack client
+func (h *Handler) GetClient() *slack.Client {
+	return h.client
+}
+
 // HandleEvent handles Slack webhook events
 func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)

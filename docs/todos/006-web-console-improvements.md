@@ -1,6 +1,6 @@
 ---
 title: Web Management Console UI/UX Improvements
-status: draft
+status: in_progress
 ---
 
 # Web Management Console UI/UX Improvements
@@ -16,12 +16,12 @@ Initial web console is working but needs several improvements for better usabili
 
 ### High Priority
 
-- [ ] Convert thread_ts to timezone-aware datetime display
+- [x] Convert thread_ts to timezone-aware datetime display ✅ (2025-01-28)
   - Parse Unix timestamp from thread_ts (e.g., 1753663466.387799)
   - Convert to user's local timezone
   - Display in human-readable format (e.g., "2024-12-27 14:24:26 JST")
 
-- [ ] Display channel names instead of IDs
+- [x] Display channel names instead of IDs ✅ (2025-01-28)
   - Add Slack API permission: `channels:read`
   - Implement channel info fetching using Slack API
   - Map channel IDs to names in API response
@@ -33,7 +33,7 @@ Initial web console is working but needs several improvements for better usabili
 
 ### Medium Priority
 
-- [ ] Implement channel name caching
+- [x] Implement channel name caching ✅ (2025-01-28)
   - In-memory cache with TTL (e.g., 1 hour)
   - Reduce API calls to Slack
   - Consider using sync.Map for thread-safe access
