@@ -31,7 +31,7 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 #### 1.2 最小限のフロントエンド実装
 - [ ] webディレクトリ作成とpackage.json初期化
-- [ ] React 19 + Vite 7 + Tailwind 4 のインストール
+- [ ] pnpmで React 19 + Vite 7 + Tailwind 4 + TypeScript + Biome + Vitest のインストール
 - [ ] vite.config.js作成（base: '/web/'設定）
 - [ ] tailwind.config.jsとPostCSS設定
 - [ ] main.jsx + App.jsx + ThreadList.jsxのみ実装
@@ -39,7 +39,7 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
   - [ ] 各スレッドのセッション数と最新ステータス表示
 
 #### 1.3 スレッド一覧の動作確認
-- [ ] npm run buildでdist/生成
+- [ ] pnpm buildでdist/生成
 - [ ] cc-slackを再起動してスレッド一覧が表示されることを確認
 - [ ] Slackへのリンクが正しく動作することを確認
 
@@ -56,14 +56,20 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 - [ ] App.jsxにセッション一覧を追加
 
 #### 2.3 セッション一覧の動作確認
-- [ ] npm run buildでdist/再生成
+- [ ] pnpm buildでdist/再生成
 - [ ] cc-slackを再起動してセッション一覧が表示されることを確認
 
 ### Phase 3: 最終確認と調整（1時間）
 
-- [ ] 開発サーバー（npm run dev）での全体動作確認
+- [ ] 開発サーバー（pnpm dev）での全体動作確認
 - [ ] ビルド後のGo統合での全体動作確認
 - [ ] UIの微調整（必要に応じて）
+
+### Phase 4: テストと品質保証（後日実装）
+
+- [ ] Reactコンポーネントのユニットテスト追加
+- [ ] pnpm all で全てのチェックが通ることを確認
+- [ ] CLAUDE.md に「フロントエンド変更時は pnpm all を必ず実行」ルールを追加
 
 ## 実装例
 
@@ -88,18 +94,32 @@ const (
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --unsafe .",
+    "lint:fix": "biome check --write --unsafe .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "all": "pnpm typecheck && pnpm lint && pnpm format && pnpm test"
   },
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.10.0",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
     "autoprefixer": "^10.4.0",
     "postcss": "^9.1.0",
     "tailwindcss": "^4.1.0",
-    "vite": "^7.0.2"
+    "typescript": "^5.0.0",
+    "vite": "^7.0.2",
+    "vitest": "^2.0.0"
   }
 }
 ```
@@ -177,9 +197,14 @@ export default defineConfig({
 - **バックエンド**: 既存のGo HTTPサーバーを拡張
 - **フロントエンド**: 
   - React 19（最新安定版）
+  - TypeScript 5（型安全性）
   - Vite 7（高速ビルドツール）
   - Tailwind CSS 4（ユーティリティファーストCSS）
   - PostCSS（CSS処理）
+- **開発ツール**:
+  - pnpm（高速パッケージマネージャー）
+  - Biome（高速Linter/Formatter）
+  - Vitest（ユニットテスト）
 - **データ取得**: Fetch API
 - **ビルド・配信**: embed.FSでGoバイナリに静的ファイルを埋め込み
 
@@ -193,6 +218,9 @@ cc-slack/
 │       └── api.go          # REST APIエンドポイント
 └── web/                    # フロントエンドプロジェクト
     ├── package.json
+    ├── pnpm-lock.yaml
+    ├── tsconfig.json
+    ├── biome.json
     ├── vite.config.js
     ├── tailwind.config.js
     ├── index.html
