@@ -22,6 +22,14 @@ This project provides a bridge between Slack and Claude Code, allowing users to 
 
 ### Build
 
+**Prerequisites:**
+```bash
+# Install frontend dependencies first
+cd web
+pnpm install
+cd ..
+```
+
 **Quick build (recommended):**
 ```bash
 ./scripts/build
@@ -36,7 +44,6 @@ This script will:
 ```bash
 # Build frontend
 cd web
-pnpm install
 pnpm build
 cd ..
 

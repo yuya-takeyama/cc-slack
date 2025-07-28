@@ -7,56 +7,19 @@ cd "$(dirname "$0")/.."
 
 echo "🔨 Building cc-slack..."
 
-# Check for CI environment
-if [ "${CI:-false}" = "true" ]; then
-    echo "🤖 Running in CI environment"
-else
-    echo "💻 Running in local environment"
-fi
-
 # Build frontend
 echo "📦 Building frontend..."
-
-# Check if we're in CI or if pnpm is available
-if ! command -v pnpm &> /dev/null; then
-    echo "❌ Error: pnpm is not installed or not in PATH"
-    echo "   In CI: Make sure pnpm is installed via aqua"
-    echo "   Local: Install pnpm globally or via aqua"
-    exit 1
-fi
-
 cd web
-
-# In CI, dependencies should already be installed
-# In local, check if node_modules exists
-if [ "${CI:-false}" != "true" ] && [ ! -d "node_modules" ]; then
-    echo "📥 Installing frontend dependencies..."
-    pnpm install --frozen-lockfile
-elif [ "${CI:-false}" = "true" ]; then
-    echo "📦 Skipping dependency install in CI (should be pre-installed)"
-fi
-
-echo "🏗️  Running pnpm build..."
-pnpm build || {
-    echo "❌ Frontend build failed"
-    exit 1
-}
+pnpm build
 cd ..
 
 # Copy frontend dist to internal/web
 echo "📋 Copying frontend dist..."
 rm -rf internal/web/dist
-mkdir -p internal/web/dist
-cp -r web/dist/* internal/web/dist/ || {
-    echo "❌ Failed to copy frontend dist"
-    exit 1
-}
+cp -r web/dist internal/web/
 
 # Build backend
 echo "🔧 Building backend..."
-go build -o cc-slack ./cmd/cc-slack || {
-    echo "❌ Backend build failed"
-    exit 1
-}
+go build -o cc-slack ./cmd/cc-slack
 
 echo "✅ Build complete! Binary: ./cc-slack"
