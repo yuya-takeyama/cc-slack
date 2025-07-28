@@ -46,3 +46,10 @@ logs/
 
 # Database files
 data/
+
+# Frontend
+web/node_modules/
+web/dist/
+internal/web/dist/
+web/pnpm-lock.yaml
+web/.pnpm-store/
