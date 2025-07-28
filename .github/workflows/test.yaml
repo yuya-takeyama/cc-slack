@@ -31,12 +31,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup pnpm via aqua
-        run: |
-          # Ensure pnpm is available via aqua
-          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-          which pnpm
-          pnpm --version
+      - name: Install pnpm
+        run: npm install -g pnpm@10.13.1
 
       - name: Get dependencies
         run: |
@@ -45,21 +41,15 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./web
-        run: |
-          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run frontend type check
         working-directory: ./web
-        run: |
-          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-          pnpm typecheck
+        run: pnpm typecheck
 
       - name: Run frontend lint
         working-directory: ./web
-        run: |
-          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-          pnpm lint
+        run: pnpm lint
 
       - name: Run go vet
         run: go vet ./...
@@ -68,12 +58,7 @@ jobs:
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Build project
-        run: |
-          # Set up aqua PATH for the script
-          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-          echo "PATH=$PATH"
-          which pnpm || echo "pnpm not found in PATH"
-          ./scripts/build
+        run: ./scripts/build
 
       - name: Test binary exists
         run: test -f cc-slack

@@ -10,9 +10,6 @@ echo "🔨 Building cc-slack..."
 # Check for CI environment
 if [ "${CI:-false}" = "true" ]; then
     echo "🤖 Running in CI environment"
-    # Add aqua path in CI
-    export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
-    echo "📍 Updated PATH for aqua: $PATH"
 else
     echo "💻 Running in local environment"
 fi
