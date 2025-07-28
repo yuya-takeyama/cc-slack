@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -18,11 +19,12 @@ import (
 )
 
 type Manager struct {
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	ctx     context.Context
-	cancel  context.CancelFunc
-	logFile *os.File
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	ctx       context.Context
+	cancel    context.CancelFunc
+	logFile   *os.File
+	startTime time.Time
 }
 
 type StatusResponse struct {
@@ -88,7 +90,31 @@ func (m *Manager) Start() error {
 	m.logFile = logFile
 
 	log.Println("🏗️ Starting cc-slack process...")
-	cmd := exec.CommandContext(m.ctx, "go", "run", "cmd/cc-slack/main.go")
+
+	// Get the directory where the manager is running from
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	// Determine project root directory
+	// If running with 'go run', execPath will be in a temp directory
+	// So we need to use the current working directory
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	// If we're in scripts directory, go up one level
+	if strings.HasSuffix(projectRoot, "/scripts") {
+		projectRoot = filepath.Dir(projectRoot)
+	}
+
+	log.Printf("📁 Project root: %s", projectRoot)
+	log.Printf("📁 Executable path: %s", execPath)
+
+	cmd := exec.CommandContext(m.ctx, "./cc-slack")
+	cmd.Dir = projectRoot // Set working directory to project root
 
 	// Create prefixed writers for console output
 	stdoutConsole := NewPrefixedWriter(os.Stdout, "[cc-slack stdout]")
@@ -110,6 +136,7 @@ func (m *Manager) Start() error {
 	}
 
 	m.cmd = cmd
+	m.startTime = time.Now()
 	log.Printf("✅ Started cc-slack (PID: %d)", cmd.Process.Pid)
 	log.Printf("📁 Output log: %s", logFileName)
 
@@ -173,11 +200,21 @@ func (m *Manager) Stop() error {
 	select {
 	case <-done:
 		log.Println("✅ cc-slack stopped gracefully")
+		m.cmd = nil
+		if m.logFile != nil {
+			m.logFile.Close()
+			m.logFile = nil
+		}
 		return nil
 	case <-time.After(10 * time.Second):
 		log.Println("⚠️ Graceful shutdown timeout, force killing...")
 		if err := m.cmd.Process.Kill(); err != nil {
 			return fmt.Errorf("failed to kill process: %w", err)
+		}
+		m.cmd = nil
+		if m.logFile != nil {
+			m.logFile.Close()
+			m.logFile = nil
 		}
 		return nil
 	}
@@ -226,12 +263,11 @@ func (m *Manager) Status() StatusResponse {
 		return StatusResponse{Running: false}
 	}
 
-	started := time.Now() // This would ideally be tracked when process starts
 	return StatusResponse{
 		Running: true,
 		PID:     m.cmd.Process.Pid,
-		Started: started,
-		Uptime:  time.Since(started).String(),
+		Started: m.startTime,
+		Uptime:  time.Since(m.startTime).String(),
 	}
 }
 
