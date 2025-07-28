@@ -68,22 +68,22 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 ### Phase 3.5: ページ分割とルーティング実装（3時間）
 
 #### 3.5.1 React Routerの導入とルーティング設定
-- [ ] React Router v7をpnpmでインストール
-- [ ] 以下のルーティング構成を実装:
-  - [ ] `/`: ThreadListページ（スレッド一覧）
-  - [ ] `/sessions`: SessionListページ（全セッション一覧）
-  - [ ] `/threads/:thread_id/sessions`: ThreadSessionsページ（特定スレッドのセッション一覧）
+- [x] React Router v7をpnpmでインストール
+- [x] 以下のルーティング構成を実装:
+  - [x] `/`: ThreadListページ（スレッド一覧）
+  - [x] `/sessions`: SessionListページ（全セッション一覧）
+  - [x] `/threads/:thread_id/sessions`: ThreadSessionsページ（特定スレッドのセッション一覧）
 
 #### 3.5.2 APIエンドポイントの追加
-- [ ] `GET /web/api/threads/:thread_id/sessions` エンドポイント実装
-  - [ ] thread_idに紐づくセッションのみを返す
-  - [ ] thread情報も含めて返す
+- [x] `GET /web/api/threads/:thread_id/sessions` エンドポイント実装
+  - [x] thread_idに紐づくセッションのみを返す
+  - [x] thread情報も含めて返す
 
 #### 3.5.3 UIコンポーネントの更新
-- [ ] ナビゲーションメニューコンポーネントの作成
-- [ ] ThreadSessionsコンポーネントの新規作成
-- [ ] ThreadListからThreadSessionsへのリンク追加
-- [ ] SPAのルーティングに対応するためのバックエンド調整（全てのweb/*パスでindex.htmlを返す）
+- [x] ナビゲーションメニューコンポーネントの作成
+- [x] ThreadSessionsコンポーネントの新規作成
+- [x] ThreadListからThreadSessionsへのリンク追加
+- [x] SPAのルーティングに対応するためのバックエンド調整（全てのweb/*パスでindex.htmlを返す）
 
 ### Phase 4: テストと品質保証（後日実装）
 

@@ -26,7 +26,7 @@ Initial web console is working but needs several improvements for better usabili
   - Implement channel info fetching using Slack API
   - Map channel IDs to names in API response
 
-- [ ] Fix session count bug
+- [x] Fix session count bug ✅ (2025-01-28)
   - Debug why sessions are not being counted correctly
   - Current query might be filtering by 'active' status only
   - Should count all sessions for each thread
