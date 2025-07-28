@@ -3,6 +3,7 @@ import { formatDateRange, formatDuration } from "../utils/dateFormatter";
 import {
   getSessionStatusColor,
   truncateSessionId,
+  truncatePrompt,
 } from "../utils/sessionUtils";
 
 interface Session {
@@ -11,6 +12,7 @@ interface Session {
   status: "active" | "completed" | "failed" | "unknown";
   started_at: string;
   ended_at?: string;
+  initial_prompt?: string;
 }
 
 interface SessionsResponse {
@@ -89,6 +91,25 @@ function SessionList() {
                     Duration:{" "}
                     {formatDuration(session.started_at, session.ended_at)}
                   </p>
+                  {(session.initial_prompt || session.initial_prompt === null) && (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-gray-700">
+                        Initial Prompt:
+                      </p>
+                      {session.initial_prompt ? (
+                        <p
+                          className="text-sm text-gray-600 mt-1 cursor-help"
+                          title={session.initial_prompt}
+                        >
+                          {truncatePrompt(session.initial_prompt)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic mt-1">
+                          No prompt available
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <span
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSessionStatusColor(session.status)}`}
