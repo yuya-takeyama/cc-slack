@@ -51,11 +51,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.getThreadBySlackIDsStmt, err = db.PrepareContext(ctx, getThreadBySlackIDs); err != nil {
 		return nil, fmt.Errorf("error preparing query GetThreadBySlackIDs: %w", err)
 	}
+	if q.getThreadByThreadTsStmt, err = db.PrepareContext(ctx, getThreadByThreadTs); err != nil {
+		return nil, fmt.Errorf("error preparing query GetThreadByThreadTs: %w", err)
+	}
 	if q.listActiveSessionsStmt, err = db.PrepareContext(ctx, listActiveSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListActiveSessions: %w", err)
 	}
 	if q.listSessionsStmt, err = db.PrepareContext(ctx, listSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessions: %w", err)
+	}
+	if q.listSessionsByThreadIDStmt, err = db.PrepareContext(ctx, listSessionsByThreadID); err != nil {
+		return nil, fmt.Errorf("error preparing query ListSessionsByThreadID: %w", err)
 	}
 	if q.listThreadsStmt, err = db.PrepareContext(ctx, listThreads); err != nil {
 		return nil, fmt.Errorf("error preparing query ListThreads: %w", err)
@@ -134,6 +140,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing getThreadBySlackIDsStmt: %w", cerr)
 		}
 	}
+	if q.getThreadByThreadTsStmt != nil {
+		if cerr := q.getThreadByThreadTsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getThreadByThreadTsStmt: %w", cerr)
+		}
+	}
 	if q.listActiveSessionsStmt != nil {
 		if cerr := q.listActiveSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listActiveSessionsStmt: %w", cerr)
@@ -142,6 +153,11 @@ func (q *Queries) Close() error {
 	if q.listSessionsStmt != nil {
 		if cerr := q.listSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listSessionsStmt: %w", cerr)
+		}
+	}
+	if q.listSessionsByThreadIDStmt != nil {
+		if cerr := q.listSessionsByThreadIDStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listSessionsByThreadIDStmt: %w", cerr)
 		}
 	}
 	if q.listThreadsStmt != nil {
@@ -237,8 +253,10 @@ type Queries struct {
 	getThreadStmt                   *sql.Stmt
 	getThreadByIDStmt               *sql.Stmt
 	getThreadBySlackIDsStmt         *sql.Stmt
+	getThreadByThreadTsStmt         *sql.Stmt
 	listActiveSessionsStmt          *sql.Stmt
 	listSessionsStmt                *sql.Stmt
+	listSessionsByThreadIDStmt      *sql.Stmt
 	listThreadsStmt                 *sql.Stmt
 	updateSessionEndTimeStmt        *sql.Stmt
 	updateSessionIDStmt             *sql.Stmt
@@ -263,8 +281,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getThreadStmt:                   q.getThreadStmt,
 		getThreadByIDStmt:               q.getThreadByIDStmt,
 		getThreadBySlackIDsStmt:         q.getThreadBySlackIDsStmt,
+		getThreadByThreadTsStmt:         q.getThreadByThreadTsStmt,
 		listActiveSessionsStmt:          q.listActiveSessionsStmt,
 		listSessionsStmt:                q.listSessionsStmt,
+		listSessionsByThreadIDStmt:      q.listSessionsByThreadIDStmt,
 		listThreadsStmt:                 q.listThreadsStmt,
 		updateSessionEndTimeStmt:        q.updateSessionEndTimeStmt,
 		updateSessionIDStmt:             q.updateSessionIDStmt,

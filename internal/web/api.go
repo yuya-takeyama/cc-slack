@@ -65,13 +65,9 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Count all sessions for this thread
-		sessions, err := queries.ListActiveSessions(ctx)
+		sessions, err := queries.ListSessionsByThreadID(ctx, thread.ID)
 		if err == nil {
-			for _, session := range sessions {
-				if session.ThreadID == thread.ID {
-					sessionCount++
-				}
-			}
+			sessionCount = len(sessions)
 		}
 
 		response.Threads = append(response.Threads, ThreadResponse{
@@ -131,6 +127,93 @@ func GetSessions(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		sessionResp := SessionResponse{
+			SessionID: session.SessionID,
+			ThreadTs:  thread.ThreadTs,
+			Status:    session.Status.String,
+			StartedAt: session.StartedAt.Time.Format("2006-01-02T15:04:05Z"),
+		}
+
+		if session.EndedAt.Valid {
+			sessionResp.EndedAt = session.EndedAt.Time.Format("2006-01-02T15:04:05Z")
+		}
+
+		response.Sessions = append(response.Sessions, sessionResp)
+	}
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error().Err(err).Msg("Failed to encode response")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// ThreadSessionsResponse represents the thread sessions API response
+type ThreadSessionsResponse struct {
+	Thread   *ThreadResponse   `json:"thread"`
+	Sessions []SessionResponse `json:"sessions"`
+}
+
+// GetThreadSessions handles GET /web/api/threads/:thread_id/sessions
+func GetThreadSessions(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	// Extract thread_id from URL path
+	// Expected path: /web/api/threads/{thread_id}/sessions
+	threadTs := r.URL.Path[len("/web/api/threads/"):]
+	if idx := len(threadTs) - len("/sessions"); idx > 0 {
+		threadTs = threadTs[:idx]
+	}
+
+	if threadTs == "" {
+		http.Error(w, "Thread ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get thread by thread_ts
+	thread, err := queries.GetThreadByThreadTs(ctx, threadTs)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Thread not found", http.StatusNotFound)
+			return
+		}
+		log.Error().Err(err).Str("thread_ts", threadTs).Msg("Failed to get thread")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Get all sessions for this thread
+	sessions, err := queries.ListSessionsByThreadID(ctx, thread.ID)
+	if err != nil {
+		log.Error().Err(err).Int64("thread_id", thread.ID).Msg("Failed to list sessions")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build thread response
+	threadResp := &ThreadResponse{
+		ThreadTs:            thread.ThreadTs,
+		ChannelID:           thread.ChannelID,
+		WorkspaceSubdomain:  config.SLACK_WORKSPACE_SUBDOMAIN,
+		SessionCount:        len(sessions),
+		LatestSessionStatus: "none",
+	}
+
+	// Get latest session status
+	if len(sessions) > 0 {
+		latestSession := sessions[0] // Assuming sessions are ordered by created_at DESC
+		threadResp.LatestSessionStatus = latestSession.Status.String
+	}
+
+	// Build response
+	response := ThreadSessionsResponse{
+		Thread:   threadResp,
+		Sessions: make([]SessionResponse, 0, len(sessions)),
+	}
+
+	for _, session := range sessions {
 		sessionResp := SessionResponse{
 			SessionID: session.SessionID,
 			ThreadTs:  thread.ThreadTs,

@@ -251,6 +251,48 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 	return items, nil
 }
 
+const listSessionsByThreadID = `-- name: ListSessionsByThreadID :many
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+WHERE thread_id = ?
+ORDER BY started_at DESC
+`
+
+func (q *Queries) ListSessionsByThreadID(ctx context.Context, threadID int64) ([]Session, error) {
+	rows, err := q.query(ctx, q.listSessionsByThreadIDStmt, listSessionsByThreadID, threadID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.ThreadID,
+			&i.SessionID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Status,
+			&i.Model,
+			&i.TotalCostUsd,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.DurationMs,
+			&i.NumTurns,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSessionEndTime = `-- name: UpdateSessionEndTime :exec
 UPDATE sessions
 SET status = ?,

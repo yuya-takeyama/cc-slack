@@ -42,16 +42,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Static files
+	// Try to serve the exact file first
+	file, err := h.staticFS.Open(strings.TrimPrefix(path, "/"))
+	if err == nil {
+		file.Close()
+		log.Debug().
+			Str("component", "web").
+			Str("path", path).
+			Msg("Serving static file")
+		http.FileServer(http.FS(h.staticFS)).ServeHTTP(w, r)
+		return
+	}
+
+	// For SPA routing, serve index.html for any unmatched paths
 	log.Debug().
 		Str("component", "web").
-		Str("path", path).
-		Msg("Serving static file")
+		Str("requested_path", path).
+		Str("served_path", "/index.html").
+		Msg("Serving index.html for SPA route")
 
+	// Create a new request with index.html path
+	r.URL.Path = "/index.html"
 	http.FileServer(http.FS(h.staticFS)).ServeHTTP(w, r)
 }
 
 func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string) {
+	// Handle exact matches first
 	switch path {
 	case "/api/threads":
 		if r.Method == http.MethodGet {
@@ -59,13 +75,27 @@ func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+		return
 	case "/api/sessions":
 		if r.Method == http.MethodGet {
 			GetSessions(w, r)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	default:
-		http.NotFound(w, r)
+		return
 	}
+
+	// Handle pattern matches
+	if strings.HasPrefix(path, "/api/threads/") && strings.HasSuffix(path, "/sessions") {
+		if r.Method == http.MethodGet {
+			// Update request path to include /web prefix for API handler
+			r.URL.Path = "/web" + path
+			GetThreadSessions(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+
+	http.NotFound(w, r)
 }

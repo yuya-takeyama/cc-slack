@@ -83,6 +83,26 @@ func (q *Queries) GetThreadByID(ctx context.Context, id int64) (Thread, error) {
 	return i, err
 }
 
+const getThreadByThreadTs = `-- name: GetThreadByThreadTs :one
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
+WHERE thread_ts = ?
+LIMIT 1
+`
+
+func (q *Queries) GetThreadByThreadTs(ctx context.Context, threadTs string) (Thread, error) {
+	row := q.queryRow(ctx, q.getThreadByThreadTsStmt, getThreadByThreadTs, threadTs)
+	var i Thread
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.ThreadTs,
+		&i.WorkingDirectory,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listThreads = `-- name: ListThreads :many
 SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 ORDER BY updated_at DESC
