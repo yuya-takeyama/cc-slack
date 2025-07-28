@@ -48,7 +48,6 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
-	messageCache       *ProcessedMessageCache
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -78,7 +77,6 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 		client:        slack.New(token),
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
-		messageCache:  NewProcessedMessageCache(),
 	}
 
 	return h
@@ -151,10 +149,6 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.AppMentionEvent:
 			h.handleAppMention(ev)
-		case *slackevents.MessageEvent:
-			if ev.ThreadTimeStamp != "" && ev.ThreadTimeStamp != ev.TimeStamp {
-				h.handleThreadMessage(ev)
-			}
 		}
 	}
 
@@ -163,14 +157,6 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 // handleAppMention handles bot mentions
 func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
-	// Check if this message has already been processed
-	if h.messageCache.IsProcessed(event.Channel, event.TimeStamp) {
-		return // Skip duplicate
-	}
-
-	// Mark as processed
-	h.messageCache.MarkProcessed(event.Channel, event.TimeStamp)
-
 	// Extract message without mention
 	text := h.removeBotMention(event.Text)
 	if text == "" {
@@ -215,38 +201,6 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	if err != nil {
 		fmt.Printf("Failed to post message: %v\n", err)
 		return
-	}
-}
-
-// handleThreadMessage handles messages in existing threads
-func (h *Handler) handleThreadMessage(event *slackevents.MessageEvent) {
-	// Check if this message has already been processed
-	if h.messageCache.IsProcessed(event.Channel, event.TimeStamp) {
-		return // Skip duplicate
-	}
-
-	// Skip bot messages
-	if event.BotID != "" {
-		return
-	}
-
-	// Mark as processed after bot check
-	h.messageCache.MarkProcessed(event.Channel, event.TimeStamp)
-
-	// Find existing session
-	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
-	if err != nil {
-		return // Not our thread
-	}
-
-	// Send message to Claude Code
-	err = h.sessionMgr.SendMessage(session.SessionID, event.Text)
-	if err != nil {
-		h.client.PostMessage(
-			event.Channel,
-			slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
-			slack.MsgOptionTS(event.ThreadTimeStamp),
-		)
 	}
 }
 

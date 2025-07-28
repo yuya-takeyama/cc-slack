@@ -79,12 +79,8 @@ func TestRemoveBotMention(t *testing.T) {
 
 // MockSessionManager implements SessionManager for testing
 type MockSessionManager struct {
-	createSessionCalls       []createSessionCall
-	createSessionWithResume  []createSessionWithResumeCall
-	sendMessageCalls         []sendMessageCall
-	getSessionByThreadCalls  []getSessionByThreadCall
-	getSessionByThreadReturn *Session
-	getSessionByThreadError  error
+	createSessionCalls      []createSessionCall
+	createSessionWithResume []createSessionWithResumeCall
 }
 
 type createSessionCall struct {
@@ -100,22 +96,9 @@ type createSessionWithResumeCall struct {
 	initialPrompt string
 }
 
-type sendMessageCall struct {
-	sessionID string
-	message   string
-}
-
-type getSessionByThreadCall struct {
-	channelID string
-	threadTS  string
-}
-
 func (m *MockSessionManager) GetSessionByThread(channelID, threadTS string) (*Session, error) {
-	m.getSessionByThreadCalls = append(m.getSessionByThreadCalls, getSessionByThreadCall{
-		channelID: channelID,
-		threadTS:  threadTS,
-	})
-	return m.getSessionByThreadReturn, m.getSessionByThreadError
+	// Not used in current tests
+	return nil, nil
 }
 
 func (m *MockSessionManager) CreateSession(channelID, threadTS, workDir string) (*Session, error) {
@@ -148,109 +131,66 @@ func (m *MockSessionManager) CreateSessionWithResume(ctx context.Context, channe
 }
 
 func (m *MockSessionManager) SendMessage(sessionID, message string) error {
-	m.sendMessageCalls = append(m.sendMessageCalls, sendMessageCall{
-		sessionID: sessionID,
-		message:   message,
-	})
+	// Not used in current tests
 	return nil
 }
 
-func TestHandleAppMention_DuplicateDetection(t *testing.T) {
+func TestHandleAppMention_InThread(t *testing.T) {
 	mockSession := &MockSessionManager{}
 	h := NewHandler("test-token", "test-secret", mockSession)
 
-	// First app mention event
-	event1 := &slackevents.AppMentionEvent{
+	// App mention in a thread
+	event := &slackevents.AppMentionEvent{
 		Type:            "app_mention",
 		Channel:         "C123456",
 		TimeStamp:       "1234567890.123456",
-		ThreadTimeStamp: "",
-		Text:            "<@U123456> hello",
+		ThreadTimeStamp: "1234567890.000000", // In a thread
+		Text:            "<@U123456> hello from thread",
 	}
 
-	// Handle first mention
-	h.handleAppMention(event1)
+	// Handle mention
+	h.handleAppMention(event)
 
-	// Verify session was created
+	// Verify session was created with thread_ts
 	if len(mockSession.createSessionWithResume) != 1 {
 		t.Errorf("Expected 1 createSessionWithResume call, got %d", len(mockSession.createSessionWithResume))
 	}
 
-	// Handle duplicate mention with same timestamp
-	h.handleAppMention(event1)
-
-	// Verify session was NOT created again
-	if len(mockSession.createSessionWithResume) != 1 {
-		t.Errorf("Expected still 1 createSessionWithResume call after duplicate, got %d", len(mockSession.createSessionWithResume))
+	call := mockSession.createSessionWithResume[0]
+	if call.threadTS != "1234567890.000000" {
+		t.Errorf("Expected threadTS to be %s, got %s", "1234567890.000000", call.threadTS)
 	}
-
-	// Different timestamp should create new session
-	event2 := &slackevents.AppMentionEvent{
-		Type:            "app_mention",
-		Channel:         "C123456",
-		TimeStamp:       "1234567890.654321",
-		ThreadTimeStamp: "",
-		Text:            "<@U123456> world",
-	}
-
-	h.handleAppMention(event2)
-
-	// Verify new session was created
-	if len(mockSession.createSessionWithResume) != 2 {
-		t.Errorf("Expected 2 createSessionWithResume calls for different timestamp, got %d", len(mockSession.createSessionWithResume))
+	if call.initialPrompt != "hello from thread" {
+		t.Errorf("Expected initialPrompt to be %s, got %s", "hello from thread", call.initialPrompt)
 	}
 }
 
-func TestHandleThreadMessage_DuplicateDetection(t *testing.T) {
-	mockSession := &MockSessionManager{
-		getSessionByThreadReturn: &Session{
-			SessionID: "test-session",
-			ChannelID: "C123456",
-			ThreadTS:  "1234567890.000000",
-		},
-	}
+func TestHandleAppMention_OutsideThread(t *testing.T) {
+	mockSession := &MockSessionManager{}
 	h := NewHandler("test-token", "test-secret", mockSession)
 
-	// First message event
-	event1 := &slackevents.MessageEvent{
-		Type:            "message",
+	// App mention outside a thread
+	event := &slackevents.AppMentionEvent{
+		Type:            "app_mention",
 		Channel:         "C123456",
 		TimeStamp:       "1234567890.123456",
-		ThreadTimeStamp: "1234567890.000000",
-		Text:            "hello",
-		BotID:           "", // Not a bot message
+		ThreadTimeStamp: "", // Not in a thread
+		Text:            "<@U123456> hello from channel",
 	}
 
-	// Handle first message
-	h.handleThreadMessage(event1)
+	// Handle mention
+	h.handleAppMention(event)
 
-	// Verify message was sent
-	if len(mockSession.sendMessageCalls) != 1 {
-		t.Errorf("Expected 1 sendMessage call, got %d", len(mockSession.sendMessageCalls))
+	// Verify session was created with message ts as thread_ts
+	if len(mockSession.createSessionWithResume) != 1 {
+		t.Errorf("Expected 1 createSessionWithResume call, got %d", len(mockSession.createSessionWithResume))
 	}
 
-	// Handle duplicate message with same timestamp
-	h.handleThreadMessage(event1)
-
-	// Verify message was NOT sent again
-	if len(mockSession.sendMessageCalls) != 1 {
-		t.Errorf("Expected still 1 sendMessage call after duplicate, got %d", len(mockSession.sendMessageCalls))
+	call := mockSession.createSessionWithResume[0]
+	if call.threadTS != "1234567890.123456" {
+		t.Errorf("Expected threadTS to be %s, got %s", "1234567890.123456", call.threadTS)
 	}
-
-	// Different timestamp should send new message
-	event2 := &slackevents.MessageEvent{
-		Type:            "message",
-		Channel:         "C123456",
-		TimeStamp:       "1234567890.654321",
-		ThreadTimeStamp: "1234567890.000000",
-		Text:            "world",
-		BotID:           "", // Not a bot message
-	}
-
-	h.handleThreadMessage(event2)
-
-	// Verify new message was sent
-	if len(mockSession.sendMessageCalls) != 2 {
-		t.Errorf("Expected 2 sendMessage calls for different timestamp, got %d", len(mockSession.sendMessageCalls))
+	if call.initialPrompt != "hello from channel" {
+		t.Errorf("Expected initialPrompt to be %s, got %s", "hello from channel", call.initialPrompt)
 	}
 }
