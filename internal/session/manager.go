@@ -180,7 +180,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 // CreateSession creates a new session (compatibility method)
 func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
 	ctx := context.Background()
-	session, _, _, err := m.CreateSessionWithResume(ctx, channelID, threadTS, workDir)
+	session, _, _, err := m.CreateSessionWithResume(ctx, channelID, threadTS, workDir, "")
 	return session, err
 }
 

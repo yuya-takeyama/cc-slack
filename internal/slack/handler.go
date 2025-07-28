@@ -54,7 +54,7 @@ type Handler struct {
 type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
 	CreateSession(channelID, threadTS, workDir string) (*Session, error)
-	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*Session, bool, string, error)
+	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
