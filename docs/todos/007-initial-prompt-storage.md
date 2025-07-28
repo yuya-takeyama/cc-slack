@@ -5,6 +5,43 @@ status: in_progress
 
 # 007: セッション開始時の初期プロンプトを保存し、Web管理コンソールに表示する
 
+## 設計見直し (2025-01-28 追記)
+
+### 現在の実装の問題点
+
+現在の実装では `CreateSessionWithResume` に `initialPrompt` 引数を追加したが、これは設計として不適切：
+
+1. **責務の混在**: `CreateSessionWithResume` はセッション作成とClaude プロセス起動を行うが、実際のメッセージ送信は後の `SendMessage` で行われる
+2. **データの不整合**: initial_prompt を保存するタイミングと実際にメッセージを送信するタイミングがずれている
+3. **インターフェースの不自然さ**: セッション作成時にメッセージを渡すが、そのメッセージは使われない
+
+### 設計オプション
+
+#### Option A: SendMessage で最初のメッセージ送信時に保存 ✅（推奨）
+- Session に `firstMessageSent` フラグを追加
+- `SendMessage` で最初のメッセージかチェックし、初回なら initial_prompt として保存
+- **メリット**: 既存のインターフェース変更が最小限、実装がシンプル
+- **デメリット**: SendMessage 内でのステート管理が必要
+
+#### Option B: 明示的な SetInitialPrompt メソッド
+- セッション作成後、別途 `SetInitialPrompt` を呼ぶ
+- **メリット**: 責務が明確
+- **デメリット**: 呼び出し側で追加処理が必要、呼び忘れのリスク
+
+#### Option C: セッション作成とメッセージ送信の一体化
+- `CreateSessionAndSendInitialMessage` のような新メソッド
+- **メリット**: 一体化されて分かりやすい
+- **デメリット**: 大きなインターフェース変更
+
+### 実装方針
+
+Option A を採用し、以下の手順で実装：
+
+1. CreateSessionWithResume から initialPrompt 引数を削除（元に戻す）
+2. Session 構造体に firstMessageSent フラグを追加
+3. SendMessage で初回メッセージ時に initial_prompt を保存
+4. UpdateSessionInitialPrompt クエリを追加
+
 ## 概要
 
 ### 解決したい問題
@@ -13,27 +50,57 @@ status: in_progress
 
 この問題を解決するため、セッション開始時の最初のプロンプト（ユーザーがClaudeに送った最初のメッセージ）をデータベースに保存し、セッション一覧画面に表示することで、各セッションの目的や内容を一目で把握できるようにする。
 
-## 手順
+## 修正実装手順（Option A に基づく）
+
+### 1. ロールバック作業
+- [ ] CreateSessionWithResume から initialPrompt 引数を削除
+- [ ] SessionManager インターフェースを元に戻す 
+- [ ] handleAppMention の呼び出しを元に戻す
+- [ ] CreateSessionWithInitialPrompt クエリを削除
+- [ ] sqlc generate を再実行
+
+### 2. 新規実装
+- [ ] UpdateSessionInitialPrompt クエリを追加
+- [ ] Session 構造体に firstMessageSent フラグを追加
+- [ ] SendMessage メソッドを修正（初回メッセージ時に initial_prompt を保存）
+- [ ] sqlc generate を実行
+
+### 3. テスト
+- [ ] 新規セッション作成時に初期プロンプトが正しく保存されることを確認
+- [ ] resumeセッション時も初期プロンプトが保存されることを確認
+- [ ] 既存セッション（initial_prompt = NULL）の表示が崩れないことを確認
+
+## 元の手順（参考）
 
 ### 1. データベースのマイグレーション
 
 - [x] 新しいマイグレーションファイルを作成: `000007_add_initial_prompt_to_sessions.up.sql` / `.down.sql`
 - [x] `sessions` テーブルに `initial_prompt TEXT` カラムを追加
-- [x] sqlc のクエリを更新して、initial_prompt を含めたセッション作成・取得処理を追加
+- [x] sqlc のクエリを更新して、initial_prompt を含めたセッション作成・取得処理を追加 → **CreateSessionWithInitialPrompt は不要、UpdateSessionInitialPrompt を追加**
 - [x] `sqlc generate` を実行してコード生成
 
 ### 2. サーバーサイドの変更
 
 #### 2.1 セッション作成時の初期プロンプト保存
 
-- [x] `internal/slack/handler.go` の `handleAppMention` メソッドを修正
-  - [x] `removeBotMention` で取得したテキストを初期プロンプトとして保存
-- [x] `internal/session/manager.go` の `CreateSessionWithResume` メソッドを修正
-  - [x] 初期プロンプトを受け取る引数を追加
-  - [x] データベースへのセッション作成時に初期プロンプトを保存
-- [ ] `internal/process/claude.go` の `NewClaudeProcess` 関数のシグネチャを更新（必要に応じて）
+- [ ] `internal/slack/handler.go` の `handleAppMention` メソッドを修正
+  - [ ] `removeBotMention` で取得したテキストを初期プロンプトとして保存 → **設計変更により不要**
+- [ ] `internal/session/manager.go` の `CreateSessionWithResume` メソッドを修正
+  - [ ] 初期プロンプトを受け取る引数を追加 → **設計変更により不要**
+  - [ ] データベースへのセッション作成時に初期プロンプトを保存 → **SendMessage で実装**
+- [ ] `internal/process/claude.go` の `NewClaudeProcess` 関数のシグネチャを更新（必要に応じて） → **設計変更により不要**
 
-#### 2.2 API エンドポイントの更新
+#### 2.2 SendMessage での初期プロンプト保存（新設計）
+
+- [ ] sqlc クエリに `UpdateSessionInitialPrompt` を追加
+- [ ] Session 構造体に `firstMessageSent` フラグを追加
+- [ ] `SendMessage` メソッドを修正して初回メッセージ時に initial_prompt を保存
+- [ ] 既に実装済みの変更をロールバック
+  - [ ] CreateSessionWithResume から initialPrompt 引数を削除
+  - [ ] SessionManager インターフェースを元に戻す
+  - [ ] handleAppMention の呼び出しを元に戻す
+
+#### 2.3 API エンドポイントの更新
 
 - [x] `/api/sessions` エンドポイントのレスポンスに `initial_prompt` フィールドを追加
 - [x] `/api/threads/:thread_id/sessions` エンドポイントのレスポンスにも同様に追加
