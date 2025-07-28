@@ -20,10 +20,11 @@ jobs:
           go-version-file: "go.mod"
           cache: true
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - name: Install aqua
+        uses: aquaproj/aqua-installer@d1fe50798dbadd4eb5b98957290ca175f6b4870f # v4.0.2
         with:
-          version: 10.13.1
+          aqua_version: v2.43.1
+          working_directory: aqua
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -39,7 +40,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ./web
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run frontend type check
         working-directory: ./web
