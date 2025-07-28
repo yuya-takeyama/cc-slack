@@ -11,6 +11,7 @@ import (
 type Querier interface {
 	CountActiveSessionsByThread(ctx context.Context, threadID int64) (int64, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreateSessionWithInitialPrompt(ctx context.Context, arg CreateSessionWithInitialPromptParams) (Session, error)
 	CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error)
 	GetActiveSessionByThread(ctx context.Context, threadID int64) (Session, error)
 	GetLatestSessionByThread(ctx context.Context, threadID int64) (Session, error)

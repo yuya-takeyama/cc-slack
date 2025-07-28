@@ -59,7 +59,7 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 
 // CreateSessionWithResume creates a new session or resumes an existing one
 // Returns: session, resumed, previousSessionID, error
-func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*ccslack.Session, bool, string, error) {
+func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*ccslack.Session, bool, string, error) {
 	// Check if thread exists and get working directory
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -86,12 +86,12 @@ func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, thread
 		return nil, false, "", fmt.Errorf("already has an active session for this thread")
 	}
 
-	session, resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, shouldResume, previousSessionID)
+	session, resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, initialPrompt, shouldResume, previousSessionID)
 	return session, resumed, previousSessionID, err
 }
 
 // createSessionInternal handles the actual session creation
-func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir string, shouldResume bool, previousSessionID string) (*ccslack.Session, bool, error) {
+func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir, initialPrompt string, shouldResume bool, previousSessionID string) (*ccslack.Session, bool, error) {
 	// Get or create thread ID
 	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS, workDir)
 	if err != nil {
@@ -102,11 +102,20 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	tempSessionID := fmt.Sprintf("temp_%d", time.Now().UnixNano())
 
 	// Create session in database (model will be updated from SystemMessage)
-	_, err = m.queries.CreateSession(ctx, db.CreateSessionParams{
-		ThreadID:  threadID,
-		SessionID: tempSessionID,
-		Model:     sql.NullString{Valid: false}, // Will be set from SystemMessage
-	})
+	if initialPrompt == "" {
+		_, err = m.queries.CreateSession(ctx, db.CreateSessionParams{
+			ThreadID:  threadID,
+			SessionID: tempSessionID,
+			Model:     sql.NullString{Valid: false}, // Will be set from SystemMessage
+		})
+	} else {
+		_, err = m.queries.CreateSessionWithInitialPrompt(ctx, db.CreateSessionWithInitialPromptParams{
+			ThreadID:      threadID,
+			SessionID:     tempSessionID,
+			Model:         sql.NullString{Valid: false}, // Will be set from SystemMessage
+			InitialPrompt: sql.NullString{String: initialPrompt, Valid: true},
+		})
+	}
 
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create session in database: %w", err)

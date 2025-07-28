@@ -1,6 +1,6 @@
 ---
 title: セッション開始時の初期プロンプトを保存し、Web管理コンソールに表示する
-status: draft
+status: in_progress
 ---
 
 # 007: セッション開始時の初期プロンプトを保存し、Web管理コンソールに表示する
@@ -17,27 +17,27 @@ status: draft
 
 ### 1. データベースのマイグレーション
 
-- [ ] 新しいマイグレーションファイルを作成: `000007_add_initial_prompt_to_sessions.up.sql` / `.down.sql`
-- [ ] `sessions` テーブルに `initial_prompt TEXT` カラムを追加
-- [ ] sqlc のクエリを更新して、initial_prompt を含めたセッション作成・取得処理を追加
-- [ ] `sqlc generate` を実行してコード生成
+- [x] 新しいマイグレーションファイルを作成: `000007_add_initial_prompt_to_sessions.up.sql` / `.down.sql`
+- [x] `sessions` テーブルに `initial_prompt TEXT` カラムを追加
+- [x] sqlc のクエリを更新して、initial_prompt を含めたセッション作成・取得処理を追加
+- [x] `sqlc generate` を実行してコード生成
 
 ### 2. サーバーサイドの変更
 
 #### 2.1 セッション作成時の初期プロンプト保存
 
-- [ ] `internal/slack/handler.go` の `handleAppMention` メソッドを修正
-  - [ ] `removeBotMention` で取得したテキストを初期プロンプトとして保存
-- [ ] `internal/session/manager.go` の `CreateSessionWithResume` メソッドを修正
-  - [ ] 初期プロンプトを受け取る引数を追加
-  - [ ] データベースへのセッション作成時に初期プロンプトを保存
+- [x] `internal/slack/handler.go` の `handleAppMention` メソッドを修正
+  - [x] `removeBotMention` で取得したテキストを初期プロンプトとして保存
+- [x] `internal/session/manager.go` の `CreateSessionWithResume` メソッドを修正
+  - [x] 初期プロンプトを受け取る引数を追加
+  - [x] データベースへのセッション作成時に初期プロンプトを保存
 - [ ] `internal/process/claude.go` の `NewClaudeProcess` 関数のシグネチャを更新（必要に応じて）
 
 #### 2.2 API エンドポイントの更新
 
-- [ ] `/api/sessions` エンドポイントのレスポンスに `initial_prompt` フィールドを追加
-- [ ] `/api/threads/:thread_id/sessions` エンドポイントのレスポンスにも同様に追加
-- [ ] セッション取得時のクエリを更新して initial_prompt を含める
+- [x] `/api/sessions` エンドポイントのレスポンスに `initial_prompt` フィールドを追加
+- [x] `/api/threads/:thread_id/sessions` エンドポイントのレスポンスにも同様に追加
+- [x] セッション取得時のクエリを更新して initial_prompt を含める
 
 ### 3. フロントエンドの変更
 
@@ -66,10 +66,11 @@ status: draft
 2. **プライバシー**: 初期プロンプトには機密情報が含まれる可能性があるため、適切なアクセス制御を維持
 3. **パフォーマンス**: 大量のセッションがある場合の一覧表示パフォーマンスに注意
 4. **文字数制限**: 初期プロンプトが非常に長い場合の保存・表示方法を考慮
+5. **セッション再開時の扱い**: resumeセッションも新しいセッションとして扱い、そのセッションを開始したプロンプトを保存する
 
 ## テスト項目
 
 - [ ] 新規セッション作成時に初期プロンプトが正しく保存されることを確認
 - [ ] 既存セッション（initial_prompt = NULL）の表示が崩れないことを確認
 - [ ] 長い初期プロンプトの表示が適切に制御されることを確認
-- [ ] セッション再開時の動作確認（初期プロンプトは最初のセッションのものを保持）
+- [ ] セッション再開時の動作確認（resumeセッションでもそのセッションを開始したプロンプトが保存される）

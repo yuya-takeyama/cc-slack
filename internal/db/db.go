@@ -30,6 +30,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createSessionStmt, err = db.PrepareContext(ctx, createSession); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateSession: %w", err)
 	}
+	if q.createSessionWithInitialPromptStmt, err = db.PrepareContext(ctx, createSessionWithInitialPrompt); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateSessionWithInitialPrompt: %w", err)
+	}
 	if q.createThreadStmt, err = db.PrepareContext(ctx, createThread); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateThread: %w", err)
 	}
@@ -103,6 +106,11 @@ func (q *Queries) Close() error {
 	if q.createSessionStmt != nil {
 		if cerr := q.createSessionStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createSessionStmt: %w", cerr)
+		}
+	}
+	if q.createSessionWithInitialPromptStmt != nil {
+		if cerr := q.createSessionWithInitialPromptStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createSessionWithInitialPromptStmt: %w", cerr)
 		}
 	}
 	if q.createThreadStmt != nil {
@@ -242,57 +250,59 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                              DBTX
-	tx                              *sql.Tx
-	countActiveSessionsByThreadStmt *sql.Stmt
-	createSessionStmt               *sql.Stmt
-	createThreadStmt                *sql.Stmt
-	getActiveSessionByThreadStmt    *sql.Stmt
-	getLatestSessionByThreadStmt    *sql.Stmt
-	getSessionStmt                  *sql.Stmt
-	getThreadStmt                   *sql.Stmt
-	getThreadByIDStmt               *sql.Stmt
-	getThreadBySlackIDsStmt         *sql.Stmt
-	getThreadByThreadTsStmt         *sql.Stmt
-	listActiveSessionsStmt          *sql.Stmt
-	listSessionsStmt                *sql.Stmt
-	listSessionsByThreadIDStmt      *sql.Stmt
-	listThreadsStmt                 *sql.Stmt
-	updateSessionEndTimeStmt        *sql.Stmt
-	updateSessionIDStmt             *sql.Stmt
-	updateSessionModelStmt          *sql.Stmt
-	updateSessionOnCompleteStmt     *sql.Stmt
-	updateSessionOnErrorStmt        *sql.Stmt
-	updateSessionOnTimeoutStmt      *sql.Stmt
-	updateSessionStatusStmt         *sql.Stmt
-	updateThreadTimestampStmt       *sql.Stmt
+	db                                 DBTX
+	tx                                 *sql.Tx
+	countActiveSessionsByThreadStmt    *sql.Stmt
+	createSessionStmt                  *sql.Stmt
+	createSessionWithInitialPromptStmt *sql.Stmt
+	createThreadStmt                   *sql.Stmt
+	getActiveSessionByThreadStmt       *sql.Stmt
+	getLatestSessionByThreadStmt       *sql.Stmt
+	getSessionStmt                     *sql.Stmt
+	getThreadStmt                      *sql.Stmt
+	getThreadByIDStmt                  *sql.Stmt
+	getThreadBySlackIDsStmt            *sql.Stmt
+	getThreadByThreadTsStmt            *sql.Stmt
+	listActiveSessionsStmt             *sql.Stmt
+	listSessionsStmt                   *sql.Stmt
+	listSessionsByThreadIDStmt         *sql.Stmt
+	listThreadsStmt                    *sql.Stmt
+	updateSessionEndTimeStmt           *sql.Stmt
+	updateSessionIDStmt                *sql.Stmt
+	updateSessionModelStmt             *sql.Stmt
+	updateSessionOnCompleteStmt        *sql.Stmt
+	updateSessionOnErrorStmt           *sql.Stmt
+	updateSessionOnTimeoutStmt         *sql.Stmt
+	updateSessionStatusStmt            *sql.Stmt
+	updateThreadTimestampStmt          *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                              tx,
-		tx:                              tx,
-		countActiveSessionsByThreadStmt: q.countActiveSessionsByThreadStmt,
-		createSessionStmt:               q.createSessionStmt,
-		createThreadStmt:                q.createThreadStmt,
-		getActiveSessionByThreadStmt:    q.getActiveSessionByThreadStmt,
-		getLatestSessionByThreadStmt:    q.getLatestSessionByThreadStmt,
-		getSessionStmt:                  q.getSessionStmt,
-		getThreadStmt:                   q.getThreadStmt,
-		getThreadByIDStmt:               q.getThreadByIDStmt,
-		getThreadBySlackIDsStmt:         q.getThreadBySlackIDsStmt,
-		getThreadByThreadTsStmt:         q.getThreadByThreadTsStmt,
-		listActiveSessionsStmt:          q.listActiveSessionsStmt,
-		listSessionsStmt:                q.listSessionsStmt,
-		listSessionsByThreadIDStmt:      q.listSessionsByThreadIDStmt,
-		listThreadsStmt:                 q.listThreadsStmt,
-		updateSessionEndTimeStmt:        q.updateSessionEndTimeStmt,
-		updateSessionIDStmt:             q.updateSessionIDStmt,
-		updateSessionModelStmt:          q.updateSessionModelStmt,
-		updateSessionOnCompleteStmt:     q.updateSessionOnCompleteStmt,
-		updateSessionOnErrorStmt:        q.updateSessionOnErrorStmt,
-		updateSessionOnTimeoutStmt:      q.updateSessionOnTimeoutStmt,
-		updateSessionStatusStmt:         q.updateSessionStatusStmt,
-		updateThreadTimestampStmt:       q.updateThreadTimestampStmt,
+		db:                                 tx,
+		tx:                                 tx,
+		countActiveSessionsByThreadStmt:    q.countActiveSessionsByThreadStmt,
+		createSessionStmt:                  q.createSessionStmt,
+		createSessionWithInitialPromptStmt: q.createSessionWithInitialPromptStmt,
+		createThreadStmt:                   q.createThreadStmt,
+		getActiveSessionByThreadStmt:       q.getActiveSessionByThreadStmt,
+		getLatestSessionByThreadStmt:       q.getLatestSessionByThreadStmt,
+		getSessionStmt:                     q.getSessionStmt,
+		getThreadStmt:                      q.getThreadStmt,
+		getThreadByIDStmt:                  q.getThreadByIDStmt,
+		getThreadBySlackIDsStmt:            q.getThreadBySlackIDsStmt,
+		getThreadByThreadTsStmt:            q.getThreadByThreadTsStmt,
+		listActiveSessionsStmt:             q.listActiveSessionsStmt,
+		listSessionsStmt:                   q.listSessionsStmt,
+		listSessionsByThreadIDStmt:         q.listSessionsByThreadIDStmt,
+		listThreadsStmt:                    q.listThreadsStmt,
+		updateSessionEndTimeStmt:           q.updateSessionEndTimeStmt,
+		updateSessionIDStmt:                q.updateSessionIDStmt,
+		updateSessionModelStmt:             q.updateSessionModelStmt,
+		updateSessionOnCompleteStmt:        q.updateSessionOnCompleteStmt,
+		updateSessionOnErrorStmt:           q.updateSessionOnErrorStmt,
+		updateSessionOnTimeoutStmt:         q.updateSessionOnTimeoutStmt,
+		updateSessionStatusStmt:            q.updateSessionStatusStmt,
+		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
 	}
 }

@@ -179,7 +179,7 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 
 	// Create session with resume check
 	ctx := context.Background()
-	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir)
+	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,

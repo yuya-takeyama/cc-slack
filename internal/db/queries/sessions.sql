@@ -27,6 +27,14 @@ INSERT INTO sessions (
 )
 RETURNING *;
 
+-- name: CreateSessionWithInitialPrompt :one
+INSERT INTO sessions (
+    thread_id, session_id, model, initial_prompt
+) VALUES (
+    ?, ?, ?, ?
+)
+RETURNING *;
+
 -- name: UpdateSessionStatus :exec
 UPDATE sessions
 SET status = ?,

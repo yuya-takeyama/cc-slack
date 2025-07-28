@@ -9,18 +9,19 @@ import (
 )
 
 type Session struct {
-	ID           int64           `json:"id"`
-	ThreadID     int64           `json:"thread_id"`
-	SessionID    string          `json:"session_id"`
-	StartedAt    sql.NullTime    `json:"started_at"`
-	EndedAt      sql.NullTime    `json:"ended_at"`
-	Status       sql.NullString  `json:"status"`
-	Model        sql.NullString  `json:"model"`
-	TotalCostUsd sql.NullFloat64 `json:"total_cost_usd"`
-	InputTokens  sql.NullInt64   `json:"input_tokens"`
-	OutputTokens sql.NullInt64   `json:"output_tokens"`
-	DurationMs   sql.NullInt64   `json:"duration_ms"`
-	NumTurns     sql.NullInt64   `json:"num_turns"`
+	ID            int64           `json:"id"`
+	ThreadID      int64           `json:"thread_id"`
+	SessionID     string          `json:"session_id"`
+	StartedAt     sql.NullTime    `json:"started_at"`
+	EndedAt       sql.NullTime    `json:"ended_at"`
+	Status        sql.NullString  `json:"status"`
+	Model         sql.NullString  `json:"model"`
+	TotalCostUsd  sql.NullFloat64 `json:"total_cost_usd"`
+	InputTokens   sql.NullInt64   `json:"input_tokens"`
+	OutputTokens  sql.NullInt64   `json:"output_tokens"`
+	DurationMs    sql.NullInt64   `json:"duration_ms"`
+	NumTurns      sql.NullInt64   `json:"num_turns"`
+	InitialPrompt sql.NullString  `json:"initial_prompt"`
 }
 
 type Thread struct {
