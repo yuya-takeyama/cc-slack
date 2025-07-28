@@ -30,7 +30,7 @@ type Manager struct {
 type StatusResponse struct {
 	Running bool      `json:"running"`
 	PID     int       `json:"pid,omitempty"`
-	Uptime  string    `json:"uptime,omitempty"`
+	Uptime  int64     `json:"uptime,omitempty"`
 	Started time.Time `json:"started,omitempty"`
 }
 
@@ -267,7 +267,7 @@ func (m *Manager) Status() StatusResponse {
 		Running: true,
 		PID:     m.cmd.Process.Pid,
 		Started: m.startTime,
-		Uptime:  time.Since(m.startTime).String(),
+		Uptime:  int64(time.Since(m.startTime).Seconds()),
 	}
 }
 
