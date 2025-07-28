@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 function ThreadList() {
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    fetchThreads()
-  }, [])
 
   const fetchThreads = async () => {
     try {
@@ -23,6 +19,11 @@ function ThreadList() {
       setLoading(false)
     }
   }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchThreads should only run on mount
+  useEffect(() => {
+    fetchThreads()
+  }, [])
 
   const buildSlackUrl = (thread) => {
     const threadTsFormatted = thread.thread_ts.replace('.', '')
@@ -55,7 +56,10 @@ function ThreadList() {
           </div>
         ) : (
           threads.map((thread) => (
-            <div key={thread.thread_ts} className="bg-white shadow rounded-lg p-6">
+            <div
+              key={thread.thread_ts}
+              className="bg-white shadow rounded-lg p-6"
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
@@ -65,7 +69,8 @@ function ThreadList() {
                     Channel: {thread.channel_id}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Sessions: {thread.session_count} | Latest: {thread.latest_session_status}
+                    Sessions: {thread.session_count} | Latest:{' '}
+                    {thread.latest_session_status}
                   </p>
                 </div>
                 <a
@@ -75,8 +80,19 @@ function ThreadList() {
                   className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Open in Slack
-                  <svg className="ml-2 -mr-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <svg
+                    className="ml-2 -mr-0.5 h-4 w-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    role="img"
+                    aria-label="External link arrow"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </a>
               </div>

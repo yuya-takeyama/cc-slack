@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 function SessionList() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
-  useEffect(() => {
-    fetchSessions()
-  }, [])
 
   const fetchSessions = async () => {
     try {
@@ -23,6 +19,11 @@ function SessionList() {
       setLoading(false)
     }
   }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchSessions should only run on mount
+  useEffect(() => {
+    fetchSessions()
+  }, [])
 
   const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A'
@@ -69,7 +70,10 @@ function SessionList() {
           </div>
         ) : (
           sessions.map((session) => (
-            <div key={session.session_id} className="bg-white shadow rounded-lg p-6">
+            <div
+              key={session.session_id}
+              className="bg-white shadow rounded-lg p-6"
+            >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
@@ -79,10 +83,15 @@ function SessionList() {
                     Thread: {session.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {formatDateTime(session.started_at)} - {session.ended_at ? formatDateTime(session.ended_at) : 'Active'}
+                    {formatDateTime(session.started_at)} -{' '}
+                    {session.ended_at
+                      ? formatDateTime(session.ended_at)
+                      : 'Active'}
                   </p>
                 </div>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}
+                >
                   {session.status}
                 </span>
               </div>
