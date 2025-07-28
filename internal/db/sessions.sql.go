@@ -23,23 +23,29 @@ func (q *Queries) CountActiveSessionsByThread(ctx context.Context, threadID int6
 	return count, err
 }
 
-const createSession = `-- name: CreateSession :one
+const createSessionWithInitialPrompt = `-- name: CreateSessionWithInitialPrompt :one
 INSERT INTO sessions (
-    thread_id, session_id, model
+    thread_id, session_id, model, initial_prompt
 ) VALUES (
-    ?, ?, ?
+    ?, ?, ?, ?
 )
-RETURNING id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns
+RETURNING id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt
 `
 
-type CreateSessionParams struct {
-	ThreadID  int64          `json:"thread_id"`
-	SessionID string         `json:"session_id"`
-	Model     sql.NullString `json:"model"`
+type CreateSessionWithInitialPromptParams struct {
+	ThreadID      int64          `json:"thread_id"`
+	SessionID     string         `json:"session_id"`
+	Model         sql.NullString `json:"model"`
+	InitialPrompt sql.NullString `json:"initial_prompt"`
 }
 
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
-	row := q.queryRow(ctx, q.createSessionStmt, createSession, arg.ThreadID, arg.SessionID, arg.Model)
+func (q *Queries) CreateSessionWithInitialPrompt(ctx context.Context, arg CreateSessionWithInitialPromptParams) (Session, error) {
+	row := q.queryRow(ctx, q.createSessionWithInitialPromptStmt, createSessionWithInitialPrompt,
+		arg.ThreadID,
+		arg.SessionID,
+		arg.Model,
+		arg.InitialPrompt,
+	)
 	var i Session
 	err := row.Scan(
 		&i.ID,
@@ -54,12 +60,13 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.OutputTokens,
 		&i.DurationMs,
 		&i.NumTurns,
+		&i.InitialPrompt,
 	)
 	return i, err
 }
 
 const getActiveSessionByThread = `-- name: GetActiveSessionByThread :one
-SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
+SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns, s.initial_prompt
 FROM sessions s
 WHERE s.thread_id = ?
   AND s.status = 'active'
@@ -83,12 +90,13 @@ func (q *Queries) GetActiveSessionByThread(ctx context.Context, threadID int64) 
 		&i.OutputTokens,
 		&i.DurationMs,
 		&i.NumTurns,
+		&i.InitialPrompt,
 	)
 	return i, err
 }
 
 const getLatestSessionByThread = `-- name: GetLatestSessionByThread :one
-SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns
+SELECT s.id, s.thread_id, s.session_id, s.started_at, s.ended_at, s.status, s.model, s.total_cost_usd, s.input_tokens, s.output_tokens, s.duration_ms, s.num_turns, s.initial_prompt
 FROM sessions s
 WHERE s.thread_id = ?
   AND s.status = 'completed'
@@ -112,12 +120,13 @@ func (q *Queries) GetLatestSessionByThread(ctx context.Context, threadID int64) 
 		&i.OutputTokens,
 		&i.DurationMs,
 		&i.NumTurns,
+		&i.InitialPrompt,
 	)
 	return i, err
 }
 
 const getSession = `-- name: GetSession :one
-SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 WHERE session_id = ?
 LIMIT 1
 `
@@ -138,38 +147,13 @@ func (q *Queries) GetSession(ctx context.Context, sessionID string) (Session, er
 		&i.OutputTokens,
 		&i.DurationMs,
 		&i.NumTurns,
-	)
-	return i, err
-}
-
-const getThreadBySlackIDs = `-- name: GetThreadBySlackIDs :one
-SELECT t.id, t.channel_id, t.thread_ts, t.working_directory, t.created_at, t.updated_at
-FROM threads t
-WHERE t.channel_id = ? AND t.thread_ts = ?
-LIMIT 1
-`
-
-type GetThreadBySlackIDsParams struct {
-	ChannelID string `json:"channel_id"`
-	ThreadTs  string `json:"thread_ts"`
-}
-
-func (q *Queries) GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackIDsParams) (Thread, error) {
-	row := q.queryRow(ctx, q.getThreadBySlackIDsStmt, getThreadBySlackIDs, arg.ChannelID, arg.ThreadTs)
-	var i Thread
-	err := row.Scan(
-		&i.ID,
-		&i.ChannelID,
-		&i.ThreadTs,
-		&i.WorkingDirectory,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.InitialPrompt,
 	)
 	return i, err
 }
 
 const listActiveSessions = `-- name: ListActiveSessions :many
-SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 WHERE status = 'active'
 ORDER BY started_at DESC
 `
@@ -196,6 +180,7 @@ func (q *Queries) ListActiveSessions(ctx context.Context) ([]Session, error) {
 			&i.OutputTokens,
 			&i.DurationMs,
 			&i.NumTurns,
+			&i.InitialPrompt,
 		); err != nil {
 			return nil, err
 		}
@@ -211,7 +196,7 @@ func (q *Queries) ListActiveSessions(ctx context.Context) ([]Session, error) {
 }
 
 const listSessions = `-- name: ListSessions :many
-SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 ORDER BY started_at DESC
 `
 
@@ -237,6 +222,7 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 			&i.OutputTokens,
 			&i.DurationMs,
 			&i.NumTurns,
+			&i.InitialPrompt,
 		); err != nil {
 			return nil, err
 		}
@@ -252,7 +238,7 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 }
 
 const listSessionsByThreadID = `-- name: ListSessionsByThreadID :many
-SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns FROM sessions
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 WHERE thread_id = ?
 ORDER BY started_at DESC
 `
@@ -279,6 +265,7 @@ func (q *Queries) ListSessionsByThreadID(ctx context.Context, threadID int64) ([
 			&i.OutputTokens,
 			&i.DurationMs,
 			&i.NumTurns,
+			&i.InitialPrompt,
 		); err != nil {
 			return nil, err
 		}
@@ -376,40 +363,6 @@ func (q *Queries) UpdateSessionOnComplete(ctx context.Context, arg UpdateSession
 		arg.Model,
 		arg.SessionID,
 	)
-	return err
-}
-
-const updateSessionOnError = `-- name: UpdateSessionOnError :exec
-UPDATE sessions
-SET status = ?,
-    ended_at = CURRENT_TIMESTAMP
-WHERE session_id = ?
-`
-
-type UpdateSessionOnErrorParams struct {
-	Status    sql.NullString `json:"status"`
-	SessionID string         `json:"session_id"`
-}
-
-func (q *Queries) UpdateSessionOnError(ctx context.Context, arg UpdateSessionOnErrorParams) error {
-	_, err := q.exec(ctx, q.updateSessionOnErrorStmt, updateSessionOnError, arg.Status, arg.SessionID)
-	return err
-}
-
-const updateSessionOnTimeout = `-- name: UpdateSessionOnTimeout :exec
-UPDATE sessions
-SET status = ?,
-    ended_at = CURRENT_TIMESTAMP
-WHERE session_id = ?
-`
-
-type UpdateSessionOnTimeoutParams struct {
-	Status    sql.NullString `json:"status"`
-	SessionID string         `json:"session_id"`
-}
-
-func (q *Queries) UpdateSessionOnTimeout(ctx context.Context, arg UpdateSessionOnTimeoutParams) error {
-	_, err := q.exec(ctx, q.updateSessionOnTimeoutStmt, updateSessionOnTimeout, arg.Status, arg.SessionID)
 	return err
 }
 

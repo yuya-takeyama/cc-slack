@@ -19,11 +19,11 @@ WHERE s.thread_id = ?
 ORDER BY s.started_at DESC
 LIMIT 1;
 
--- name: CreateSession :one
+-- name: CreateSessionWithInitialPrompt :one
 INSERT INTO sessions (
-    thread_id, session_id, model
+    thread_id, session_id, model, initial_prompt
 ) VALUES (
-    ?, ?, ?
+    ?, ?, ?, ?
 )
 RETURNING *;
 
@@ -59,18 +59,6 @@ UPDATE sessions
 SET session_id = ?
 WHERE session_id = ?;
 
--- name: UpdateSessionOnTimeout :exec
-UPDATE sessions
-SET status = ?,
-    ended_at = CURRENT_TIMESTAMP
-WHERE session_id = ?;
-
--- name: UpdateSessionOnError :exec
-UPDATE sessions
-SET status = ?,
-    ended_at = CURRENT_TIMESTAMP
-WHERE session_id = ?;
-
 -- name: UpdateSessionOnComplete :exec
 UPDATE sessions
 SET status = ?,
@@ -81,12 +69,6 @@ SET status = ?,
     num_turns = ?,
     model = ?
 WHERE session_id = ?;
-
--- name: GetThreadBySlackIDs :one
-SELECT t.*
-FROM threads t
-WHERE t.channel_id = ? AND t.thread_ts = ?
-LIMIT 1;
 
 -- name: UpdateSessionModel :exec
 UPDATE sessions

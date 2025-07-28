@@ -54,7 +54,7 @@ type Handler struct {
 type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
 	CreateSession(channelID, threadTS, workDir string) (*Session, error)
-	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir string) (*Session, bool, string, error)
+	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -179,7 +179,7 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 
 	// Create session with resume check
 	ctx := context.Background()
-	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir)
+	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
@@ -197,24 +197,13 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 		initialMessage = "Claude Code セッションを開始しています..."
 	}
 
-	_, resp, err := h.client.PostMessage(
+	_, _, err = h.client.PostMessage(
 		event.Channel,
 		slack.MsgOptionText(initialMessage, false),
 		slack.MsgOptionTS(threadTS),
 	)
 	if err != nil {
 		fmt.Printf("Failed to post message: %v\n", err)
-		return
-	}
-
-	// Send initial message to Claude Code
-	err = h.sessionMgr.SendMessage(session.SessionID, text)
-	if err != nil {
-		h.client.PostMessage(
-			event.Channel,
-			slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
-			slack.MsgOptionTS(resp),
-		)
 		return
 	}
 }

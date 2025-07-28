@@ -116,11 +116,12 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 
 // SessionResponse represents a session in the API response
 type SessionResponse struct {
-	SessionID string `json:"session_id"`
-	ThreadTs  string `json:"thread_ts"`
-	Status    string `json:"status"`
-	StartedAt string `json:"started_at"`
-	EndedAt   string `json:"ended_at,omitempty"`
+	SessionID     string `json:"session_id"`
+	ThreadTs      string `json:"thread_ts"`
+	Status        string `json:"status"`
+	StartedAt     string `json:"started_at"`
+	EndedAt       string `json:"ended_at,omitempty"`
+	InitialPrompt string `json:"initial_prompt,omitempty"`
 }
 
 // SessionsResponse represents the sessions API response
@@ -162,6 +163,10 @@ func GetSessions(w http.ResponseWriter, r *http.Request) {
 
 		if session.EndedAt.Valid {
 			sessionResp.EndedAt = session.EndedAt.Time.Format("2006-01-02T15:04:05Z")
+		}
+
+		if session.InitialPrompt.Valid {
+			sessionResp.InitialPrompt = session.InitialPrompt.String
 		}
 
 		response.Sessions = append(response.Sessions, sessionResp)
@@ -265,6 +270,10 @@ func GetThreadSessions(w http.ResponseWriter, r *http.Request) {
 
 		if session.EndedAt.Valid {
 			sessionResp.EndedAt = session.EndedAt.Time.Format("2006-01-02T15:04:05Z")
+		}
+
+		if session.InitialPrompt.Valid {
+			sessionResp.InitialPrompt = session.InitialPrompt.String
 		}
 
 		response.Sessions = append(response.Sessions, sessionResp)
