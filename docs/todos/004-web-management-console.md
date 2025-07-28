@@ -37,19 +37,20 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 ### Step 3: フロントエンドUI実装（2時間）
 
-#### 3.1 基本HTML
+#### 3.1 React.jsセットアップ
 - [ ] 静的HTMLファイルの配信設定
-- [ ] 1ファイルのシンプルなHTML（index.html）
+- [ ] React + ReactDOM（CDN版）の導入
+- [ ] Babel standalone（CDN版）でJSX変換
 - [ ] Tailwind CSS（CDN版）の導入
 
-#### 3.2 スレッド一覧画面
-- [ ] スレッド一覧の表示
-- [ ] Slackスレッドへの直接リンク（https://{workspace_subdomain}.slack.com/archives/{channel_id}/p{thread_ts}）
-- [ ] 各スレッドのセッション数と最新ステータス表示
-
-#### 3.3 セッション一覧画面
-- [ ] セッション一覧の表示（シンプルなテーブル）
-- [ ] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
+#### 3.2 Reactコンポーネント実装
+- [ ] ThreadList コンポーネント（スレッド一覧）
+  - [ ] Slackスレッドへの直接リンク（https://{workspace_subdomain}.slack.com/archives/{channel_id}/p{thread_ts}）
+  - [ ] 各スレッドのセッション数と最新ステータス表示
+- [ ] SessionList コンポーネント（セッション一覧）
+  - [ ] シンプルなテーブル表示
+  - [ ] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
+- [ ] App コンポーネント（メインコンテナ）
 
 ### Step 4: デプロイと動作確認（30分）
 
@@ -115,8 +116,9 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 - **バックエンド**: 既存のGo HTTPサーバーを拡張
 - **フロントエンド**: 
-  - Vanilla JavaScript（シンプルさ重視）
+  - React.js（CDN版、コンポーネント化でシンプルに）
   - Tailwind CSS（CDN版）
+  - Babel standalone（JSX変換）
 - **データ取得**: Fetch API
 
 ## ディレクトリ構造
