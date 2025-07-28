@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 function ThreadList() {
   const [threads, setThreads] = useState([]);
@@ -25,11 +26,6 @@ function ThreadList() {
   useEffect(() => {
     fetchThreads();
   }, []);
-
-  const buildSlackUrl = (thread) => {
-    const threadTsFormatted = thread.thread_ts.replace(".", "");
-    return `https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${threadTsFormatted}`;
-  };
 
   if (loading) {
     return (
@@ -82,7 +78,7 @@ function ThreadList() {
                     View Sessions
                   </Link>
                   <a
-                    href={buildSlackUrl(thread)}
+                    href={buildSlackThreadUrl(thread)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"

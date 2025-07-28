@@ -38,7 +38,7 @@ Initial web console is working but needs several improvements for better usabili
   - Reduce API calls to Slack
   - Consider using sync.Map for thread-safe access
 
-- [ ] Improve frontend datetime formatting
+- [x] Improve frontend datetime formatting ✅ (2025-01-28)
   - Use consistent date format across the app
   - Add relative time display (e.g., "2 hours ago")
   - Consider using a library like date-fns or dayjs

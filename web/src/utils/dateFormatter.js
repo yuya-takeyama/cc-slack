@@ -1,28 +1,23 @@
 export const formatDateTime = (dateString, options = {}) => {
   if (!dateString) return options.fallback || "N/A";
-  
+
   const date = new Date(dateString);
-  
-  if (isNaN(date.getTime())) {
+
+  if (Number.isNaN(date.getTime())) {
     return options.fallback || "Invalid date";
   }
-  
-  const {
-    format = "full",
-    relative = false,
-    includeTime = true,
-  } = options;
-  
+
+  const { format = "full", relative = false, includeTime = true } = options;
+
   if (relative) {
     return getRelativeTime(date);
   }
-  
+
   switch (format) {
     case "short":
       return formatShort(date, includeTime);
     case "medium":
       return formatMedium(date, includeTime);
-    case "full":
     default:
       return formatFull(date, includeTime);
   }
@@ -35,7 +30,7 @@ const getRelativeTime = (date) => {
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
-  
+
   if (diffSecs < 60) {
     return "just now";
   } else if (diffMins < 60) {
@@ -61,12 +56,12 @@ const formatShort = (date, includeTime) => {
     month: "numeric",
     day: "numeric",
   };
-  
+
   if (includeTime) {
     options.hour = "2-digit";
     options.minute = "2-digit";
   }
-  
+
   return date.toLocaleString("en-US", options);
 };
 
@@ -76,12 +71,12 @@ const formatMedium = (date, includeTime) => {
     day: "numeric",
     year: "numeric",
   };
-  
+
   if (includeTime) {
     options.hour = "2-digit";
     options.minute = "2-digit";
   }
-  
+
   return date.toLocaleString("en-US", options);
 };
 
@@ -92,38 +87,38 @@ const formatFull = (date, includeTime) => {
     month: "short",
     day: "numeric",
   };
-  
+
   if (includeTime) {
     options.hour = "2-digit";
     options.minute = "2-digit";
     options.second = "2-digit";
   }
-  
+
   return date.toLocaleString("en-US", options);
 };
 
 export const formatDateRange = (startDate, endDate, options = {}) => {
   const start = formatDateTime(startDate, options);
-  
+
   if (!endDate) {
     return `${start} - Present`;
   }
-  
+
   const end = formatDateTime(endDate, options);
   return `${start} - ${end}`;
 };
 
 export const formatDuration = (startDate, endDate) => {
   if (!startDate) return "N/A";
-  
+
   const start = new Date(startDate);
   const end = endDate ? new Date(endDate) : new Date();
-  
+
   const diffMs = end - start;
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);
-  
+
   if (diffMins < 1) {
     return `${diffSecs}s`;
   } else if (diffHours < 1) {

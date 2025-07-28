@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { formatDateTime, formatDateRange, formatDuration } from "../utils/dateFormatter";
+import { formatDateRange, formatDuration } from "../utils/dateFormatter";
+import {
+  getSessionStatusColor,
+  truncateSessionId,
+} from "../utils/sessionUtils";
 
 function SessionList() {
   const [sessions, setSessions] = useState([]);
@@ -25,20 +29,6 @@ function SessionList() {
   useEffect(() => {
     fetchSessions();
   }, []);
-
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "text-green-600 bg-green-100";
-      case "completed":
-        return "text-blue-600 bg-blue-100";
-      case "failed":
-        return "text-red-600 bg-red-100";
-      default:
-        return "text-gray-600 bg-gray-100";
-    }
-  };
 
   if (loading) {
     return (
@@ -73,20 +63,23 @@ function SessionList() {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">
-                    ID: {session.session_id.substring(0, 8)}...
+                    ID: {truncateSessionId(session.session_id)}
                   </p>
                   <p className="text-sm text-gray-500">
                     Thread: {session.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    {formatDateRange(session.started_at, session.ended_at, { format: "medium" })}
+                    {formatDateRange(session.started_at, session.ended_at, {
+                      format: "medium",
+                    })}
                   </p>
                   <p className="text-sm text-gray-400">
-                    Duration: {formatDuration(session.started_at, session.ended_at)}
+                    Duration:{" "}
+                    {formatDuration(session.started_at, session.ended_at)}
                   </p>
                 </div>
                 <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(session.status)}`}
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSessionStatusColor(session.status)}`}
                 >
                   {session.status}
                 </span>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatDateTime } from "../utils/dateFormatter";
+import { getSessionStatusColor } from "../utils/sessionUtils";
+import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 function ThreadSessionsPage() {
   const { threadId } = useParams();
@@ -28,20 +30,6 @@ function ThreadSessionsPage() {
 
     fetchThreadSessions();
   }, [threadId]);
-
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "completed":
-        return "bg-blue-100 text-blue-800";
-      case "failed":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -75,7 +63,7 @@ function ThreadSessionsPage() {
             </div>
           </div>
           <a
-            href={`https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${thread.thread_ts.replace(".", "")}`}
+            href={buildSlackThreadUrl(thread)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm mt-3"
@@ -117,18 +105,26 @@ function ThreadSessionsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`inline-flex px-2 text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                      className={`inline-flex px-2 text-xs leading-5 font-semibold rounded-full ${getSessionStatusColor(
                         session.status,
+                        "table",
                       )}`}
                     >
                       {session.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDateTime(session.started_at, { format: "medium", relative: true })}
+                    {formatDateTime(session.started_at, {
+                      format: "medium",
+                      relative: true,
+                    })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDateTime(session.ended_at, { format: "medium", relative: true, fallback: "-" })}
+                    {formatDateTime(session.ended_at, {
+                      format: "medium",
+                      relative: true,
+                      fallback: "-",
+                    })}
                   </td>
                 </tr>
               ))}
