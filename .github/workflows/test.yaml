@@ -53,14 +53,14 @@ jobs:
         working-directory: ./web
         run: pnpm lint
 
+      - name: Build project
+        run: ./scripts/build
+
       - name: Run go vet
         run: go vet ./...
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-
-      - name: Build project
-        run: ./scripts/build
 
       - name: Test binary exists
         run: test -f cc-slack
