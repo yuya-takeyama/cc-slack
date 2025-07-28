@@ -11,7 +11,7 @@ function ThreadSessionsPage() {
   useEffect(() => {
     const fetchThreadSessions = async () => {
       try {
-        const response = await fetch(`/web/api/threads/${threadId}/sessions`);
+        const response = await fetch(`/api/threads/${threadId}/sessions`);
         if (!response.ok) {
           throw new Error("Failed to fetch thread sessions");
         }

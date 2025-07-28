@@ -36,7 +36,7 @@ type ThreadsResponse struct {
 	Threads []ThreadResponse `json:"threads"`
 }
 
-// GetThreads handles GET /web/api/threads
+// GetThreads handles GET /api/threads
 func GetThreads(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -102,7 +102,7 @@ type SessionsResponse struct {
 	Sessions []SessionResponse `json:"sessions"`
 }
 
-// GetSessions handles GET /web/api/sessions
+// GetSessions handles GET /api/sessions
 func GetSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -156,13 +156,13 @@ type ThreadSessionsResponse struct {
 	Sessions []SessionResponse `json:"sessions"`
 }
 
-// GetThreadSessions handles GET /web/api/threads/:thread_id/sessions
+// GetThreadSessions handles GET /api/threads/:thread_id/sessions
 func GetThreadSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
 	// Extract thread_id from URL path
-	// Expected path: /web/api/threads/{thread_id}/sessions
-	threadTs := r.URL.Path[len("/web/api/threads/"):]
+	// Expected path: /api/threads/{thread_id}/sessions
+	threadTs := r.URL.Path[len("/api/threads/"):]
 	if idx := len(threadTs) - len("/sessions"); idx > 0 {
 		threadTs = threadTs[:idx]
 	}

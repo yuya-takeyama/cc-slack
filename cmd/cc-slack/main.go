@@ -79,7 +79,7 @@ func main() {
 		fmt.Fprint(w, "OK")
 	}).Methods(http.MethodGet)
 
-	// Web console endpoints
+	// Web console endpoints (must be last due to catch-all route)
 	webHandler, err := web.NewHandler()
 	if err != nil {
 		// Ignore error if web/dist doesn't exist yet
@@ -87,7 +87,7 @@ func main() {
 	} else {
 		// Set database connection for web package
 		web.SetDatabase(sqlDB)
-		router.PathPrefix("/web/").Handler(http.StripPrefix("/web", webHandler))
+		router.PathPrefix("/").Handler(webHandler)
 	}
 
 	// Create HTTP server

@@ -8,7 +8,7 @@ function ThreadList() {
 
   const fetchThreads = async () => {
     try {
-      const response = await fetch("/web/api/threads");
+      const response = await fetch("/api/threads");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

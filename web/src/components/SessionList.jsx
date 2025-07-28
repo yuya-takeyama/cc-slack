@@ -7,7 +7,7 @@ function SessionList() {
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch("/web/api/sessions");
+      const response = await fetch("/api/sessions");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
