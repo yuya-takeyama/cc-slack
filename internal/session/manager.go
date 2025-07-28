@@ -102,20 +102,12 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	tempSessionID := fmt.Sprintf("temp_%d", time.Now().UnixNano())
 
 	// Create session in database (model will be updated from SystemMessage)
-	if initialPrompt == "" {
-		_, err = m.queries.CreateSession(ctx, db.CreateSessionParams{
-			ThreadID:  threadID,
-			SessionID: tempSessionID,
-			Model:     sql.NullString{Valid: false}, // Will be set from SystemMessage
-		})
-	} else {
-		_, err = m.queries.CreateSessionWithInitialPrompt(ctx, db.CreateSessionWithInitialPromptParams{
-			ThreadID:      threadID,
-			SessionID:     tempSessionID,
-			Model:         sql.NullString{Valid: false}, // Will be set from SystemMessage
-			InitialPrompt: sql.NullString{String: initialPrompt, Valid: true},
-		})
-	}
+	_, err = m.queries.CreateSessionWithInitialPrompt(ctx, db.CreateSessionWithInitialPromptParams{
+		ThreadID:      threadID,
+		SessionID:     tempSessionID,
+		Model:         sql.NullString{Valid: false}, // Will be set from SystemMessage
+		InitialPrompt: sql.NullString{String: initialPrompt, Valid: initialPrompt != ""},
+	})
 
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create session in database: %w", err)
