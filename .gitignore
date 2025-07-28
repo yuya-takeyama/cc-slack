@@ -52,3 +52,4 @@ web/node_modules/
 web/dist/
 internal/web/dist/
 web/.pnpm-store/
+web/coverage/

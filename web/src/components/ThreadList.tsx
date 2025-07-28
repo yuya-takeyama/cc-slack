@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { buildSlackThreadUrl } from "../utils/slackUtils";
+
+interface Thread {
+  thread_ts: string;
+  thread_time?: string;
+  channel_id: string;
+  channel_name?: string;
+  workspace_subdomain?: string;
+  session_count: number;
+  latest_session_status: string;
+}
+
+interface ThreadsResponse {
+  threads: Thread[];
+}
 
 function ThreadList() {
-  const [threads, setThreads] = useState([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchThreads = async () => {
     try {
@@ -12,10 +27,10 @@ function ThreadList() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
+      const data: ThreadsResponse = await response.json();
       setThreads(data.threads || []);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -25,11 +40,6 @@ function ThreadList() {
   useEffect(() => {
     fetchThreads();
   }, []);
-
-  const buildSlackUrl = (thread) => {
-    const threadTsFormatted = thread.thread_ts.replace(".", "");
-    return `https://${thread.workspace_subdomain}.slack.com/archives/${thread.channel_id}/p${threadTsFormatted}`;
-  };
 
   if (loading) {
     return (
@@ -64,10 +74,10 @@ function ThreadList() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    Thread: {thread.thread_ts}
+                    Thread: {thread.thread_time || thread.thread_ts}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Channel: {thread.channel_id}
+                    Channel: {thread.channel_name || thread.channel_id}
                   </p>
                   <p className="text-sm text-gray-500">
                     Sessions: {thread.session_count} | Latest:{" "}
@@ -82,7 +92,7 @@ function ThreadList() {
                     View Sessions
                   </Link>
                   <a
-                    href={buildSlackUrl(thread)}
+                    href={buildSlackThreadUrl(thread) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"

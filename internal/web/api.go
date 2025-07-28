@@ -5,15 +5,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
+	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 var (
-	database *sql.DB
-	queries  *db.Queries
+	database     *sql.DB
+	queries      *db.Queries
+	channelCache *slack.ChannelCache
 )
 
 // SetDatabase sets the database connection for the web package
@@ -22,10 +25,17 @@ func SetDatabase(dbConn *sql.DB) {
 	queries = db.New(dbConn)
 }
 
+// SetChannelCache sets the channel cache for the web package
+func SetChannelCache(cache *slack.ChannelCache) {
+	channelCache = cache
+}
+
 // ThreadResponse represents a thread in the API response
 type ThreadResponse struct {
 	ThreadTs            string `json:"thread_ts"`
+	ThreadTime          string `json:"thread_time"`
 	ChannelID           string `json:"channel_id"`
+	ChannelName         string `json:"channel_name"`
 	WorkspaceSubdomain  string `json:"workspace_subdomain"`
 	SessionCount        int    `json:"session_count"`
 	LatestSessionStatus string `json:"latest_session_status"`
@@ -70,9 +80,25 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 			sessionCount = len(sessions)
 		}
 
+		// Convert thread timestamp to human-readable format
+		threadTime, err := ConvertThreadTsToTime(thread.ThreadTs)
+		if err != nil {
+			log.Error().Err(err).Str("thread_ts", thread.ThreadTs).Msg("Failed to convert thread timestamp")
+			// Use original timestamp as fallback
+			threadTime = time.Now()
+		}
+
+		// Get channel name
+		channelName := thread.ChannelID
+		if channelCache != nil {
+			channelName = channelCache.GetChannelName(ctx, thread.ChannelID)
+		}
+
 		response.Threads = append(response.Threads, ThreadResponse{
 			ThreadTs:            thread.ThreadTs,
+			ThreadTime:          FormatThreadTime(threadTime),
 			ChannelID:           thread.ChannelID,
+			ChannelName:         channelName,
 			WorkspaceSubdomain:  config.SLACK_WORKSPACE_SUBDOMAIN,
 			SessionCount:        sessionCount,
 			LatestSessionStatus: latestStatus,
@@ -192,10 +218,26 @@ func GetThreadSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert thread timestamp to human-readable format
+	threadTime, err := ConvertThreadTsToTime(thread.ThreadTs)
+	if err != nil {
+		log.Error().Err(err).Str("thread_ts", thread.ThreadTs).Msg("Failed to convert thread timestamp")
+		// Use original timestamp as fallback
+		threadTime = time.Now()
+	}
+
+	// Get channel name
+	channelName := thread.ChannelID
+	if channelCache != nil {
+		channelName = channelCache.GetChannelName(ctx, thread.ChannelID)
+	}
+
 	// Build thread response
 	threadResp := &ThreadResponse{
 		ThreadTs:            thread.ThreadTs,
+		ThreadTime:          FormatThreadTime(threadTime),
 		ChannelID:           thread.ChannelID,
+		ChannelName:         channelName,
 		WorkspaceSubdomain:  config.SLACK_WORKSPACE_SUBDOMAIN,
 		SessionCount:        len(sessions),
 		LatestSessionStatus: "none",
