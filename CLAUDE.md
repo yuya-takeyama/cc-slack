@@ -22,9 +22,38 @@ This project provides a bridge between Slack and Claude Code, allowing users to 
 
 ### Build
 
+**Quick build (recommended):**
 ```bash
+./scripts/build
+```
+
+This script will:
+1. Build the frontend (React/Vite)
+2. Copy the frontend dist to internal/web/dist
+3. Build the Go binary with embedded frontend
+
+**Manual build:**
+```bash
+# Build frontend
+cd web
+pnpm install
+pnpm build
+cd ..
+
+# Copy frontend dist
+rm -rf internal/web/dist
+cp -r web/dist internal/web/
+
+# Build Go binary
 go build -o cc-slack ./cmd/cc-slack
 ```
+
+**Development mode:**
+```bash
+./scripts/dev
+```
+
+This will watch for frontend changes and rebuild automatically (requires fswatch).
 
 ### Run
 

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Change to project root
+cd "$(dirname "$0")/.."
+
+echo "🔨 Building cc-slack..."
+
+# Build frontend
+echo "📦 Building frontend..."
+cd web
+
+# Check if node_modules exists, if not install dependencies
+if [ ! -d "node_modules" ]; then
+    echo "📥 Installing frontend dependencies..."
+    pnpm install --frozen-lockfile
+fi
+
+pnpm build
+cd ..
+
+# Copy frontend dist to internal/web
+echo "📋 Copying frontend dist..."
+rm -rf internal/web/dist
+cp -r web/dist internal/web/
+
+# Build backend
+echo "🔧 Building backend..."
+go build -o cc-slack ./cmd/cc-slack
+
+echo "✅ Build complete! Binary: ./cc-slack"

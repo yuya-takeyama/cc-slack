@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Change to project root
+cd "$(dirname "$0")/.."
+
+echo "🚀 Starting development mode..."
+
+# Function to build and copy frontend
+build_frontend() {
+    echo "📦 Building frontend..."
+    cd web
+    pnpm build
+    cd ..
+    
+    echo "📋 Copying frontend dist..."
+    rm -rf internal/web/dist
+    cp -r web/dist internal/web/
+    
+    echo "✅ Frontend build complete!"
+}
+
+# Initial build
+build_frontend
+
+# Build Go binary
+echo "🔧 Building backend..."
+go build -o cc-slack ./cmd/cc-slack
+
+# Watch for frontend changes
+echo "👀 Watching for frontend changes..."
+echo "   Press Ctrl+C to stop"
+
+# Use fswatch if available, otherwise fall back to a simple loop
+if command -v fswatch >/dev/null 2>&1; then
+    fswatch -o web/src web/styles web/index.html | while read; do
+        echo "🔄 Frontend changes detected, rebuilding..."
+        build_frontend
+    done
+else
+    echo "⚠️  fswatch not found. Install it for better file watching:"
+    echo "   brew install fswatch"
+    echo ""
+    echo "📝 Using basic watch mode. Run './scripts/build' manually after changes."
+    
+    # Keep script running
+    while true; do
+        sleep 60
+    done
+fi
