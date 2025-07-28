@@ -58,6 +58,8 @@ jobs:
 
       - name: Build project
         run: |
+          # Set up aqua PATH for the script
+          export PATH="${AQUA_ROOT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua}/bin:$PATH"
           echo "PATH=$PATH"
           which pnpm || echo "pnpm not found in PATH"
           ./scripts/build
