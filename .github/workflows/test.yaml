@@ -18,16 +18,19 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: "go.mod"
+          cache: true
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Get dependencies
         run: |
@@ -52,6 +55,11 @@ jobs:
 
       - name: Verify frontend build
         run: test -f web/dist/index.html
+
+      - name: Copy frontend build to internal/web
+        run: |
+          mkdir -p internal/web/dist
+          cp -r web/dist/* internal/web/dist/
 
       - name: Run go vet
         run: go vet ./...
