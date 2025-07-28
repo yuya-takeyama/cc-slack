@@ -35,29 +35,78 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 - [ ] `GET /web/api/threads` - スレッド一覧（workspace_subdomain、channel_id、thread_ts、最新セッション情報）
 - [ ] `GET /web/api/sessions` - セッション一覧（session_id、thread_ts、status、started_at、ended_at）
 
-### Step 3: フロントエンドUI実装（2時間）
+### Step 3: フロントエンドUI実装（3時間）
 
-#### 3.1 React.jsセットアップ
-- [ ] 静的HTMLファイルの配信設定
-- [ ] React + ReactDOM（CDN版）の導入
-- [ ] Babel standalone（CDN版）でJSX変換
-- [ ] Tailwind CSS（CDN版）の導入
+#### 3.1 Viteプロジェクトセットアップ
+- [ ] webディレクトリ作成とpackage.json初期化
+- [ ] React 19 + Vite 7 + Tailwind 4 のインストール
+- [ ] vite.config.js作成（base: '/web/'設定）
+- [ ] tailwind.config.jsとPostCSS設定
+- [ ] ディレクトリ構造の整備（src/, public/, styles/）
 
 #### 3.2 Reactコンポーネント実装
+- [ ] main.jsx（エントリーポイント）
+- [ ] App.jsx（メインコンテナ）
 - [ ] ThreadList コンポーネント（スレッド一覧）
   - [ ] Slackスレッドへの直接リンク（https://{workspace_subdomain}.slack.com/archives/{channel_id}/p{thread_ts}）
   - [ ] 各スレッドのセッション数と最新ステータス表示
 - [ ] SessionList コンポーネント（セッション一覧）
   - [ ] シンプルなテーブル表示
   - [ ] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
-- [ ] App コンポーネント（メインコンテナ）
+
+#### 3.3 ビルドとGo統合
+- [ ] npm run buildでdist/生成確認
+- [ ] Go側でembed.FSを使った静的ファイル配信実装
+- [ ] /web/パスでSPA、/web/api/でAPIの分離確認
 
 ### Step 4: デプロイと動作確認（30分）
 
-- [ ] ローカルでの動作確認
+- [ ] 開発サーバー（npm run dev）での動作確認
+- [ ] ビルド後のGo統合での動作確認
 - [ ] Slack workspace情報の自動取得（Slack APIから）または環境変数設定
 
 ## 実装例
+
+### package.json
+```json
+{
+  "name": "cc-slack-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^9.1.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^7.0.2"
+  }
+}
+```
+
+### vite.config.js
+```javascript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  base: '/web/',
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true
+  }
+})
+```
 
 ### APIレスポンス例
 ```json
@@ -116,20 +165,35 @@ cc-slack のスレッドとセッション情報を一覧表示し、Slackの元
 
 - **バックエンド**: 既存のGo HTTPサーバーを拡張
 - **フロントエンド**: 
-  - React.js（CDN版、コンポーネント化でシンプルに）
-  - Tailwind CSS（CDN版）
-  - Babel standalone（JSX変換）
+  - React 19（最新安定版）
+  - Vite 7（高速ビルドツール）
+  - Tailwind CSS 4（ユーティリティファーストCSS）
+  - PostCSS（CSS処理）
 - **データ取得**: Fetch API
+- **ビルド・配信**: embed.FSでGoバイナリに静的ファイルを埋め込み
 
 ## ディレクトリ構造
 
 ```
-internal/
-  web/
-    handler.go      # HTTPハンドラー
-    api.go          # REST APIエンドポイント
-    static/         # 静的ファイル（HTML/CSS/JS）
-      index.html    # メインページ
+cc-slack/
+├── internal/
+│   └── web/
+│       ├── handler.go      # HTTPハンドラー（embed.FS使用）
+│       └── api.go          # REST APIエンドポイント
+└── web/                    # フロントエンドプロジェクト
+    ├── package.json
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── index.html
+    ├── src/
+    │   ├── main.jsx
+    │   ├── App.jsx
+    │   └── components/
+    │       ├── ThreadList.jsx
+    │       └── SessionList.jsx
+    ├── styles/
+    │   └── index.css
+    └── dist/               # ビルド成果物（gitignore）
 ```
 
 ## 期待される成果
