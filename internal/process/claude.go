@@ -116,6 +116,7 @@ type Options struct {
 	// Must follow pattern: mcp__<serverName>__<toolName>
 	ResumeSessionID string // Session ID to resume from (optional)
 	ExecutablePath  string // Path to Claude executable (default: claude)
+	InitialPrompt   string // Initial prompt to send after process starts (optional)
 	Handlers        MessageHandlers
 }
 
@@ -233,6 +234,17 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	// Start reading stdout and stderr
 	go p.readStdout()
 	go p.readStderr()
+
+	// Send initial prompt if provided
+	if opts.InitialPrompt != "" {
+		// Wait a short time for process to initialize
+		time.Sleep(100 * time.Millisecond)
+
+		if err := p.SendMessage(opts.InitialPrompt); err != nil {
+			p.Close()
+			return nil, fmt.Errorf("failed to send initial prompt: %w", err)
+		}
+	}
 
 	return p, nil
 }

@@ -59,27 +59,30 @@ Option D を採用し、以下の手順で実装：
 
 ## 修正実装手順（Option D に基づく）
 
+**サーバーサイド実装: 完了 ✅**
+
 ### 1. ロールバック作業
-- [ ] CreateSessionWithResume から initialPrompt 引数を削除
-- [ ] SessionManager インターフェースを元に戻す 
-- [ ] handleAppMention の呼び出しを元に戻す（ただし SendMessage 呼び出しは削除）
+- [x] CreateSessionWithResume から initialPrompt 引数を削除
+- [x] SessionManager インターフェースを元に戻す 
+- [x] handleAppMention の呼び出しを元に戻す（ただし SendMessage 呼び出しは削除）
 
 ### 2. 新規実装
-- [ ] `process.Options` に `InitialPrompt` フィールドを追加
-- [ ] `NewClaudeProcess` を修正:
-  - [ ] 初期プロンプトがある場合、プロセス起動後に自動送信
-  - [ ] 空の場合はスキップ（互換性のため）
-- [ ] `CreateSessionWithResume` で initial_prompt を受け取ってDBに保存:
-  - [ ] Options に渡して NewClaudeProcess で使用
-  - [ ] CreateSessionWithInitialPrompt でDBに保存（そのまま使用）
-- [ ] `handleAppMention` を修正:
-  - [ ] text を CreateSessionWithResume に渡す
-  - [ ] SendMessage 呼び出しを削除
+- [x] `process.Options` に `InitialPrompt` フィールドを追加
+- [x] `NewClaudeProcess` を修正:
+  - [x] 初期プロンプトがある場合、プロセス起動後に自動送信
+  - [x] 空の場合はスキップ（互換性のため）
+- [x] `CreateSessionWithResume` で initial_prompt を受け取ってDBに保存:
+  - [x] Options に渡して NewClaudeProcess で使用
+  - [x] CreateSessionWithInitialPrompt でDBに保存（そのまま使用）
+- [x] `handleAppMention` を修正:
+  - [x] text を CreateSessionWithResume に渡す
+  - [x] SendMessage 呼び出しを削除
 
 ### 3. テスト
-- [ ] 新規セッション作成時に初期プロンプトが正しく保存されることを確認
-- [ ] resumeセッション時も初期プロンプトが保存されることを確認
-- [ ] 既存セッション（initial_prompt = NULL）の表示が崩れないことを確認
+- [x] ビルドとユニットテストの実行確認
+- [ ] 新規セッション作成時に初期プロンプトが正しく保存されることを確認（手動テスト）
+- [ ] resumeセッション時も初期プロンプトが保存されることを確認（手動テスト）
+- [ ] 既存セッション（initial_prompt = NULL）の表示が崩れないことを確認（手動テスト）
 
 ## 元の手順（参考）
 

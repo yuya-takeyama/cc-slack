@@ -132,6 +132,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 		MCPBaseURL:           m.mcpBaseURL,
 		ExecutablePath:       m.config.Claude.Executable,
 		PermissionPromptTool: m.config.Claude.PermissionPromptTool,
+		InitialPrompt:        initialPrompt,
 		Handlers: process.MessageHandlers{
 			OnSystem:    m.createSystemHandler(channelID, threadTS, tempSessionID),
 			OnAssistant: m.createAssistantHandler(channelID, threadTS),
