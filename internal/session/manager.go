@@ -484,6 +484,15 @@ func (m *Manager) createAssistantHandler(channelID, threadTS string) func(proces
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolWebFetch); err != nil {
 						fmt.Printf("Failed to post WebFetch tool to Slack: %v\n", err)
 					}
+				} else if content.Name == "WebSearch" && content.Input != nil {
+					// Handle WebSearch tool
+					query, _ := content.Input["query"].(string)
+
+					message := messages.FormatWebSearchToolMessage(query)
+					// Post using tool-specific icon and username
+					if err := m.slackHandler.PostToolMessage(channelID, threadTS, message, ccslack.ToolWebSearch); err != nil {
+						fmt.Printf("Failed to post WebSearch tool to Slack: %v\n", err)
+					}
 				} else {
 					// Other tools - use tool-specific display or fallback
 					if err := m.slackHandler.PostToolMessage(channelID, threadTS, content.Name, content.Name); err != nil {
