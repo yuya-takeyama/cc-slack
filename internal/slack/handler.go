@@ -48,6 +48,7 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
+	messageCache       *ProcessedMessageCache
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -77,6 +78,7 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 		client:        slack.New(token),
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
+		messageCache:  NewProcessedMessageCache(),
 	}
 
 	return h
@@ -161,6 +163,14 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 // handleAppMention handles bot mentions
 func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
+	// Check if this message has already been processed
+	if h.messageCache.IsProcessed(event.Channel, event.TimeStamp) {
+		return // Skip duplicate
+	}
+
+	// Mark as processed
+	h.messageCache.MarkProcessed(event.Channel, event.TimeStamp)
+
 	// Extract message without mention
 	text := h.removeBotMention(event.Text)
 	if text == "" {
@@ -210,10 +220,18 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 
 // handleThreadMessage handles messages in existing threads
 func (h *Handler) handleThreadMessage(event *slackevents.MessageEvent) {
+	// Check if this message has already been processed
+	if h.messageCache.IsProcessed(event.Channel, event.TimeStamp) {
+		return // Skip duplicate
+	}
+
 	// Skip bot messages
 	if event.BotID != "" {
 		return
 	}
+
+	// Mark as processed after bot check
+	h.messageCache.MarkProcessed(event.Channel, event.TimeStamp)
 
 	// Find existing session
 	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
