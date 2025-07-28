@@ -1,5 +1,6 @@
 import React from 'react'
 import ThreadList from './components/ThreadList'
+import SessionList from './components/SessionList'
 
 function App() {
   return (
@@ -8,6 +9,7 @@ function App() {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">cc-slack Sessions</h1>
         <div className="space-y-8">
           <ThreadList />
+          <SessionList />
         </div>
       </div>
     </div>

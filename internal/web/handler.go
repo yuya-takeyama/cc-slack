@@ -59,6 +59,12 @@ func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string)
 		} else {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	case "/api/sessions":
+		if r.Method == http.MethodGet {
+			GetSessions(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	default:
 		http.NotFound(w, r)
 	}

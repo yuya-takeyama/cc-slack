@@ -19,6 +19,7 @@ type Querier interface {
 	GetThreadByID(ctx context.Context, id int64) (Thread, error)
 	GetThreadBySlackIDs(ctx context.Context, arg GetThreadBySlackIDsParams) (Thread, error)
 	ListActiveSessions(ctx context.Context) ([]Session, error)
+	ListSessions(ctx context.Context) ([]Session, error)
 	ListThreads(ctx context.Context) ([]Thread, error)
 	UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error
 	UpdateSessionID(ctx context.Context, arg UpdateSessionIDParams) error

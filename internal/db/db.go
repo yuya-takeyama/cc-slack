@@ -54,6 +54,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listActiveSessionsStmt, err = db.PrepareContext(ctx, listActiveSessions); err != nil {
 		return nil, fmt.Errorf("error preparing query ListActiveSessions: %w", err)
 	}
+	if q.listSessionsStmt, err = db.PrepareContext(ctx, listSessions); err != nil {
+		return nil, fmt.Errorf("error preparing query ListSessions: %w", err)
+	}
 	if q.listThreadsStmt, err = db.PrepareContext(ctx, listThreads); err != nil {
 		return nil, fmt.Errorf("error preparing query ListThreads: %w", err)
 	}
@@ -134,6 +137,11 @@ func (q *Queries) Close() error {
 	if q.listActiveSessionsStmt != nil {
 		if cerr := q.listActiveSessionsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listActiveSessionsStmt: %w", cerr)
+		}
+	}
+	if q.listSessionsStmt != nil {
+		if cerr := q.listSessionsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listSessionsStmt: %w", cerr)
 		}
 	}
 	if q.listThreadsStmt != nil {
@@ -230,6 +238,7 @@ type Queries struct {
 	getThreadByIDStmt               *sql.Stmt
 	getThreadBySlackIDsStmt         *sql.Stmt
 	listActiveSessionsStmt          *sql.Stmt
+	listSessionsStmt                *sql.Stmt
 	listThreadsStmt                 *sql.Stmt
 	updateSessionEndTimeStmt        *sql.Stmt
 	updateSessionIDStmt             *sql.Stmt
@@ -255,6 +264,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getThreadByIDStmt:               q.getThreadByIDStmt,
 		getThreadBySlackIDsStmt:         q.getThreadBySlackIDsStmt,
 		listActiveSessionsStmt:          q.listActiveSessionsStmt,
+		listSessionsStmt:                q.listSessionsStmt,
 		listThreadsStmt:                 q.listThreadsStmt,
 		updateSessionEndTimeStmt:        q.updateSessionEndTimeStmt,
 		updateSessionIDStmt:             q.updateSessionIDStmt,

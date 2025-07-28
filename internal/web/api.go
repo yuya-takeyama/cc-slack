@@ -91,3 +91,65 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+// SessionResponse represents a session in the API response
+type SessionResponse struct {
+	SessionID string `json:"session_id"`
+	ThreadTs  string `json:"thread_ts"`
+	Status    string `json:"status"`
+	StartedAt string `json:"started_at"`
+	EndedAt   string `json:"ended_at,omitempty"`
+}
+
+// SessionsResponse represents the sessions API response
+type SessionsResponse struct {
+	Sessions []SessionResponse `json:"sessions"`
+}
+
+// GetSessions handles GET /web/api/sessions
+func GetSessions(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	// Get all sessions
+	sessions, err := queries.ListSessions(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list sessions")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build response
+	response := SessionsResponse{
+		Sessions: make([]SessionResponse, 0, len(sessions)),
+	}
+
+	for _, session := range sessions {
+		// Get thread info
+		thread, err := queries.GetThreadByID(ctx, session.ThreadID)
+		if err != nil {
+			log.Error().Err(err).Int64("thread_id", session.ThreadID).Msg("Failed to get thread")
+			continue
+		}
+
+		sessionResp := SessionResponse{
+			SessionID: session.SessionID,
+			ThreadTs:  thread.ThreadTs,
+			Status:    session.Status.String,
+			StartedAt: session.StartedAt.Time.Format("2006-01-02T15:04:05Z"),
+		}
+
+		if session.EndedAt.Valid {
+			sessionResp.EndedAt = session.EndedAt.Time.Format("2006-01-02T15:04:05Z")
+		}
+
+		response.Sessions = append(response.Sessions, sessionResp)
+	}
+
+	// Return JSON response
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Error().Err(err).Msg("Failed to encode response")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
