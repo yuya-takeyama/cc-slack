@@ -92,3 +92,12 @@ LIMIT 1;
 UPDATE sessions
 SET model = ?
 WHERE session_id = ?;
+
+-- name: ListSessions :many
+SELECT * FROM sessions
+ORDER BY started_at DESC;
+
+-- name: ListSessionsByThreadID :many
+SELECT * FROM sessions
+WHERE thread_id = ?
+ORDER BY started_at DESC;

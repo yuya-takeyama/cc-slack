@@ -20,3 +20,12 @@ WHERE id = ?;
 SELECT * FROM threads
 WHERE id = ?
 LIMIT 1;
+
+-- name: ListThreads :many
+SELECT * FROM threads
+ORDER BY updated_at DESC;
+
+-- name: GetThreadByThreadTs :one
+SELECT * FROM threads
+WHERE thread_ts = ?
+LIMIT 1;

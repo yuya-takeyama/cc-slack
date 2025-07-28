@@ -83,6 +83,61 @@ func (q *Queries) GetThreadByID(ctx context.Context, id int64) (Thread, error) {
 	return i, err
 }
 
+const getThreadByThreadTs = `-- name: GetThreadByThreadTs :one
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
+WHERE thread_ts = ?
+LIMIT 1
+`
+
+func (q *Queries) GetThreadByThreadTs(ctx context.Context, threadTs string) (Thread, error) {
+	row := q.queryRow(ctx, q.getThreadByThreadTsStmt, getThreadByThreadTs, threadTs)
+	var i Thread
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.ThreadTs,
+		&i.WorkingDirectory,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listThreads = `-- name: ListThreads :many
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
+ORDER BY updated_at DESC
+`
+
+func (q *Queries) ListThreads(ctx context.Context) ([]Thread, error) {
+	rows, err := q.query(ctx, q.listThreadsStmt, listThreads)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Thread
+	for rows.Next() {
+		var i Thread
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.ThreadTs,
+			&i.WorkingDirectory,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateThreadTimestamp = `-- name: UpdateThreadTimestamp :exec
 UPDATE threads
 SET updated_at = CURRENT_TIMESTAMP

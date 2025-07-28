@@ -18,20 +18,44 @@ jobs:
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: "go.mod"
+          cache: true
+
+      - name: Install aqua
+        uses: aquaproj/aqua-installer@d1fe50798dbadd4eb5b98957290ca175f6b4870f # v4.0.2
+        with:
+          aqua_version: v2.43.1
+          working_directory: aqua
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
 
       - name: Get dependencies
         run: |
           go mod download
           go mod verify
 
+      - name: Install frontend dependencies
+        working-directory: ./web
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend type check
+        working-directory: ./web
+        run: pnpm typecheck
+
+      - name: Run frontend lint
+        working-directory: ./web
+        run: pnpm lint
+
+      - name: Build project
+        run: ./scripts/build
+
       - name: Run go vet
         run: go vet ./...
 
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-
-      - name: Build
-        run: go build -v ./cmd/cc-slack
 
       - name: Test binary exists
         run: test -f cc-slack

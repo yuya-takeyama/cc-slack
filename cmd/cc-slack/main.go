@@ -16,6 +16,7 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
+	"github.com/yuya-takeyama/cc-slack/internal/web"
 )
 
 func main() {
@@ -77,6 +78,17 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "OK")
 	}).Methods(http.MethodGet)
+
+	// Web console endpoints (must be last due to catch-all route)
+	webHandler, err := web.NewHandler()
+	if err != nil {
+		// Ignore error if web/dist doesn't exist yet
+		log.Printf("Web console not available: %v", err)
+	} else {
+		// Set database connection for web package
+		web.SetDatabase(sqlDB)
+		router.PathPrefix("/").Handler(webHandler)
+	}
 
 	// Create HTTP server
 	srv := &http.Server{

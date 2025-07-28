@@ -1,18 +1,17 @@
 ---
-title: Webマネジメントコンソールの実装
-status: draft
+title: Webマネジメントコンソール MVP - スレッド・セッション一覧
+status: done
 ---
 
-# Webマネジメントコンソールの実装
+# Webマネジメントコンソール MVP - スレッド・セッション一覧
 
-cc-slack のセッション情報を可視化し、管理するためのWeb UIを実装する。
+cc-slack のスレッドとセッション情報を一覧表示し、Slackの元スレッドにアクセスできるシンプルなWeb UIを実装する。
 
 ## 目的
 
-- セッション履歴を一覧で確認
-- コスト情報や統計データの可視化
-- 実行中のセッションのリアルタイムモニタリング
-- モバイルからでもアクセス可能な管理画面
+- スレッド一覧から Slack の元スレッドを開けるようにする
+- セッション一覧を確認できるようにする
+- 最短距離で価値を届ける
 
 ## 前提条件
 
@@ -21,158 +20,229 @@ cc-slack のセッション情報を可視化し、管理するためのWeb UI�
 
 ## タスクリスト
 
-### Phase 1: バックエンドAPI（2日）
+### Phase 1: スレッド一覧画面の実装（2.5時間）
 
-#### 1.1 基本的なWebサーバー設定
-- [ ] `/web/*` パスのルーティング追加
-- [ ] gorilla/mux でのサブルーター設定
-- [ ] CORS設定（開発時はlocalhost:3000を許可）
+#### 1.1 最小限のバックエンド実装
+- [x] `/web/*` パスのルーティング追加
+- [x] config.goに SLACK_WORKSPACE_SUBDOMAIN 定数を追加（例: "yuyat"）
+  - [x] TODO コメント追加：「将来的に複数workspace対応時はDBに移行」
+- [x] `GET /web/api/threads` APIのみ実装（workspace_subdomain、channel_id、thread_ts、最新セッション情報）
+- [x] Go側でembed.FSを使った静的ファイル配信実装
 
-#### 1.2 RESTful API実装
-- [ ] `GET /web/api/threads` - スレッド一覧
-- [ ] `GET /web/api/threads/:id` - スレッド詳細
-- [ ] `GET /web/api/sessions` - セッション一覧（ページネーション付き）
-- [ ] `GET /web/api/sessions/:id` - セッション詳細
-- [ ] `GET /web/api/stats` - 統計情報（総コスト、セッション数、平均実行時間）
-- [ ] エラーハンドリングとレスポンスフォーマット統一
+#### 1.2 最小限のフロントエンド実装
+- [x] webディレクトリ作成とpackage.json初期化
+- [x] pnpmで React 18 + Vite 6 + Tailwind 3 + TypeScript + Biome + Vitest のインストール（最新安定版を使用）
+- [x] vite.config.js作成（base: '/web/'設定）
+- [x] tailwind.config.jsとPostCSS設定
+- [x] main.jsx + App.jsx + ThreadList.jsxのみ実装
+  - [x] Slackスレッドへの直接リンク（https://{workspace_subdomain}.slack.com/archives/{channel_id}/p{thread_ts}）
+  - [x] 各スレッドのセッション数と最新ステータス表示（セッション数にバグあり）
 
-#### 1.3 リアルタイム更新
-- [ ] `GET /web/api/sessions/:id/stream` - Server-Sent Events実装
-- [ ] アクティブセッションの状態変更をプッシュ
-- [ ] 接続管理とクリーンアップ
+#### 1.3 スレッド一覧の動作確認
+- [x] pnpm buildでdist/生成（※Goビルドで対応）
+- [x] cc-slackを再起動してスレッド一覧が表示されることを確認
+- [x] Slackへのリンクが正しく動作することを確認
 
-### Phase 2: フロントエンドUI（3日）
+### Phase 2: セッション一覧画面の実装（2時間）
 
-#### 2.1 基本レイアウト
-- [ ] 静的HTMLファイルの配信設定
-- [ ] Tailwind CSS（CDN版）の導入
-- [ ] レスポンシブデザイン（モバイル・デスクトップ）
-- [ ] ナビゲーションバー
+#### 2.1 セッション一覧API実装
+- [x] `GET /web/api/sessions` API実装（session_id、thread_ts、status、started_at、ended_at）
+- [x] シンプルなJSONレスポンス形式の統一
 
-#### 2.2 ページ実装
-- [ ] ダッシュボード（統計サマリー）
-- [ ] セッション一覧ページ
-  - [ ] フィルタリング（日付、ステータス、チャンネル）
-  - [ ] ソート機能（コスト、実行時間、日付）
-  - [ ] ページネーション
-- [ ] セッション詳細ページ
-  - [ ] 基本情報（開始/終了時刻、コスト、トークン数）
-  - [ ] スレッドへのリンク
-  - [ ] リアルタイム更新（アクティブセッションの場合）
+#### 2.2 セッション一覧UI実装
+- [x] SessionList.jsx コンポーネント実装
+  - [x] シンプルなテーブル表示
+  - [x] 基本情報のみ（session_id、thread_ts、status、開始/終了時刻）
+- [x] App.jsxにセッション一覧を追加
 
-#### 2.3 統計ビュー
-- [ ] 日別/週別/月別のコストグラフ
-- [ ] セッション数の推移
-- [ ] 平均実行時間の表示
-- [ ] Chart.js または同等のライブラリで可視化
+#### 2.3 セッション一覧の動作確認
+- [x] pnpm buildでdist/再生成（※Goビルドで対応）
+- [x] cc-slackを再起動してセッション一覧が表示されることを確認
 
-### Phase 3: セキュリティと運用機能（1日）
+### Phase 3: 最終確認と調整（1時間）
 
-#### 3.1 認証
-- [ ] Basic認証の実装
-- [ ] 環境変数での認証情報設定
-- [ ] セッション管理（Cookieベース）
+- [ ] 開発サーバー（pnpm dev）での全体動作確認（※Node.js環境が必要）
+- [x] ビルド後のGo統合での全体動作確認
+- [ ] UIの微調整（必要に応じて）→ 006-web-console-improvements.mdで対応予定
 
-#### 3.2 運用機能
-- [ ] Rate limiting（1分あたり60リクエストまで）
-- [ ] アクセスログ
-- [ ] エラーログ
-- [ ] ヘルスチェックエンドポイント（`/web/health`）
+### Phase 3.5: ページ分割とルーティング実装（3時間）
 
-### Phase 4: 拡張機能（オプション）
+#### 3.5.1 React Routerの導入とルーティング設定
+- [x] React Router v7をpnpmでインストール
+- [x] 以下のルーティング構成を実装:
+  - [x] `/`: ThreadListページ（スレッド一覧）
+  - [x] `/sessions`: SessionListページ（全セッション一覧）
+  - [x] `/threads/:thread_id/sessions`: ThreadSessionsページ（特定スレッドのセッション一覧）
 
-#### 4.1 高度な機能
-- [ ] セッションのエクスポート（CSV/JSON）
-- [ ] カスタムダッシュボード
-- [ ] アラート設定（コスト閾値超過時）
-- [ ] セッションの手動停止機能
+#### 3.5.2 APIエンドポイントの追加
+- [x] `GET /web/api/threads/:thread_id/sessions` エンドポイント実装
+  - [x] thread_idに紐づくセッションのみを返す
+  - [x] thread情報も含めて返す
 
-#### 4.2 UI/UX改善
-- [ ] ダークモード対応
-- [ ] リアルタイム通知（トースト）
-- [ ] キーボードショートカット
-- [ ] 検索機能の強化
+#### 3.5.3 UIコンポーネントの更新
+- [x] ナビゲーションメニューコンポーネントの作成
+- [x] ThreadSessionsコンポーネントの新規作成
+- [x] ThreadListからThreadSessionsへのリンク追加
+- [x] SPAのルーティングに対応するためのバックエンド調整（全てのweb/*パスでindex.htmlを返す）
 
-#### 4.3 データ分析機能
-- [ ] メッセージログの表示（messages テーブルの活用）
-- [ ] ツール実行履歴（tool_executions テーブルの活用）
-- [ ] 使用頻度の高いツールの分析
-- [ ] エラー発生率の可視化
+### Phase 4: テストと品質保証（後日実装）
 
-#### 4.4 運用機能
-- [ ] データベースのバックアップ機能
-- [ ] メトリクス収集（Prometheus形式）
-  - [ ] `/metrics` エンドポイント
-  - [ ] セッション数、実行時間、コストのメトリクス
-- [ ] 監視ダッシュボードとの連携
+- [ ] Reactコンポーネントのユニットテスト追加
+- [ ] pnpm all で全てのチェックが通ることを確認
+- [ ] CLAUDE.md に「フロントエンド変更時は pnpm all を必ず実行」ルールを追加
+
+### Phase 5: CI/CD パイプラインの設定（1時間）
+
+#### 5.1 GitHub Actions ワークフローの更新
+- [x] `.github/workflows/test.yaml` に TypeScript ビルドステップを追加
+- [x] aqua-installer を使った pnpm セットアップの実装
+- [x] Node.js 環境のセットアップ（actions/setup-node）
+- [x] キャッシュ戦略の実装（pnpm cache）
+
+#### 5.2 ビルドとテストの統合
+- [x] `web/` ディレクトリでの依存関係インストール（pnpm install --frozen-lockfile）
+- [x] TypeScript 型チェック（pnpm typecheck）
+- [x] Biome による lint チェック（pnpm lint）
+- [x] フロントエンドビルド（pnpm build）
+- [x] ビルド成果物の存在確認（dist/index.html の存在チェック）
+
+#### 5.3 Go と TypeScript の統合テスト
+- [x] フロントエンドビルド後に Go のテストを実行
+- [x] embed.FS が正しく dist ディレクトリを読み込めることを確認（web/dist → internal/web/dist コピー処理追加）
+- [x] 両方のテストが成功した場合のみ CI をパスさせる（CI 通過確認済み）
+
+#### 5.4 最適化と改善
+- [ ] ビルド時間の最適化（並列実行の検討）
+- [ ] エラーメッセージの改善
+- [ ] ビルドアーティファクトの管理
+
+### Phase 5.5: CI/CD エラー修正（実施済み）
+
+#### 追加で実施した内容
+- [x] pnpm-lock.yaml を .gitignore から削除してコミット（CI キャッシュ対応）
+- [x] Biome 設定を v2.1.2 に移行
+- [x] lint エラーと警告を修正（未使用 import、SVG アクセシビリティ、useEffect 依存関係）
+- [x] Biome formatter 設定を更新（double quotes、always semicolons、trailing commas all）
+- [x] CI 通過確認
 
 ## 実装例
 
+### Go定数設定（config.go）
+```go
+// internal/config/config.go
+
+const (
+    // SlackワークスペースのSubdomain
+    // TODO: 将来的に複数workspace対応時はDBに移行
+    SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
+)
+```
+
+### package.json
+```json
+{
+  "name": "cc-slack-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check --unsafe .",
+    "lint:fix": "biome check --write --unsafe .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "all": "pnpm typecheck && pnpm lint && pnpm format && pnpm test"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.10.0",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.0.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^9.1.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.0.0",
+    "vite": "^7.0.2",
+    "vitest": "^2.0.0"
+  }
+}
+```
+
+### vite.config.js
+```javascript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  base: '/web/',
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true
+  }
+})
+```
+
 ### APIレスポンス例
 ```json
+// GET /web/api/threads
+{
+  "threads": [
+    {
+      "thread_ts": "1234567890.123456",
+      "channel_id": "C1234567890",
+      "workspace_subdomain": "yuyat",
+      "session_count": 3,
+      "latest_session_status": "completed"
+    }
+  ]
+}
+
 // GET /web/api/sessions
 {
   "sessions": [
     {
-      "id": 1,
       "session_id": "f0b25458-564a-40fc-963c-21a837ac8c0e",
       "thread_ts": "1234567890.123456",
-      "channel_id": "C1234567890",
       "status": "completed",
       "started_at": "2025-01-27T10:00:00Z",
-      "ended_at": "2025-01-27T10:30:00Z",
-      "total_cost_usd": 0.294,
-      "input_tokens": 15368,
-      "output_tokens": 1245
+      "ended_at": "2025-01-27T10:30:00Z"
     }
-  ],
-  "total": 150,
-  "page": 1,
-  "per_page": 20
+  ]
 }
 ```
 
 ### UI モックアップ
 
-#### メイン画面（スレッドベースのナビゲーション）
+#### シンプルなスレッド・セッション一覧
 ```
 ┌─────────────────────────────────────────────┐
-│ cc-slack Management Console     [Logout]    │
+│ cc-slack Sessions                           │
 ├─────────────────────────────────────────────┤
-│ ┌─────────┐ ┌─────────────────────────────┐│
-│ │Thread   │ │Session Details              ││
-│ │List     │ │                             ││
-│ │         │ │ Thread: #general 1234567    ││
-│ │#general │ │ Sessions: 3                 ││
-│ │ └sess1  │ │ Total Cost: $1.25           ││
-│ │ └sess2  │ │                             ││
-│ │ └sess3  │ │ ┌─────────────────────────┐ ││
-│ │         │ │ │sess1: $0.45 (Completed)│ ││
-│ │#project │ │ │sess2: $0.35 (Completed)│ ││
-│ │ └sess4  │ │ │sess3: $0.45 (Running)  │ ││
-│ └─────────┘ │ └─────────────────────────┘ ││
-└─────────────┴───────────────────────────────┘
-```
-
-#### ダッシュボード画面
-```
-┌─────────────────────────────────────────────┐
-│ cc-slack Management Console     [Logout]    │
-├─────────────────────────────────────────────┤
-│ Dashboard | Threads | Statistics           │
-├─────────────────────────────────────────────┤
-│ Today's Summary                             │
-│ ┌─────────┐ ┌─────────┐ ┌─────────┐       │
-│ │Sessions │ │  Cost   │ │ Tokens  │       │
-│ │   15    │ │ $2.45   │ │ 125.4k  │       │
-│ └─────────┘ └─────────┘ └─────────┘       │
+│ Threads                                     │
+│ ┌─────────────────────────────────────────┐│
+│ │Thread: 1234567890.123456                ││
+│ │Channel: C1234567890                     ││
+│ │Sessions: 3 | Latest: completed          ││
+│ │[Open in Slack ↗]                        ││
+│ └─────────────────────────────────────────┘│
 │                                             │
-│ Recent Sessions                             │
-│ ┌─────────────────────────────────────┐    │
-│ │#general  10:25 AM  $0.29  ✓       │    │
-│ │#project  09:45 AM  $0.15  ✓       │    │
-│ │#general  09:00 AM  $0.45  Running │    │
-│ └─────────────────────────────────────┘    │
+│ Sessions                                    │
+│ ┌─────────────────────────────────────────┐│
+│ │ID: f0b25458-... | Thread: 123456789... ││
+│ │Status: completed                        ││
+│ │2025-01-27 10:00 - 10:30                ││
+│ └─────────────────────────────────────────┘│
 └─────────────────────────────────────────────┘
 ```
 
@@ -180,39 +250,69 @@ cc-slack のセッション情報を可視化し、管理するためのWeb UI�
 
 - **バックエンド**: 既存のGo HTTPサーバーを拡張
 - **フロントエンド**: 
-  - Vanilla JavaScript または Alpine.js（軽量性重視）
-  - Tailwind CSS（CDN版）
-  - Chart.js（グラフ表示）
+  - React 19（最新安定版）
+  - TypeScript 5（型安全性）
+  - Vite 7（高速ビルドツール）
+  - Tailwind CSS 4（ユーティリティファーストCSS）
+  - PostCSS（CSS処理）
+- **開発ツール**:
+  - pnpm（高速パッケージマネージャー）
+  - Biome（高速Linter/Formatter）
+  - Vitest（ユニットテスト）
 - **データ取得**: Fetch API
-- **リアルタイム**: Server-Sent Events
+- **ビルド・配信**: embed.FSでGoバイナリに静的ファイルを埋め込み
 
 ## ディレクトリ構造
 
 ```
-internal/
-  web/
-    handler.go      # HTTPハンドラー
-    api.go          # REST APIエンドポイント
-    sse.go          # Server-Sent Events
-    static/         # 静的ファイル（HTML/CSS/JS）
-```
-
-## 設定
-
-```yaml
-# config.yaml
-web:
-  enabled: true
-  auth:
-    username: ${WEB_AUTH_USERNAME}
-    password: ${WEB_AUTH_PASSWORD}
-  rate_limit:
-    requests_per_minute: 60
+cc-slack/
+├── internal/
+│   └── web/
+│       ├── handler.go      # HTTPハンドラー（embed.FS使用）
+│       └── api.go          # REST APIエンドポイント
+└── web/                    # フロントエンドプロジェクト
+    ├── package.json
+    ├── pnpm-lock.yaml
+    ├── tsconfig.json
+    ├── biome.json
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── index.html
+    ├── src/
+    │   ├── main.jsx
+    │   ├── App.jsx
+    │   └── components/
+    │       ├── ThreadList.jsx
+    │       └── SessionList.jsx
+    ├── styles/
+    │   └── index.css
+    └── dist/               # ビルド成果物（gitignore）
 ```
 
 ## 期待される成果
 
-- セッション履歴を一目で確認できる
-- コスト管理が容易になる
-- モバイルからでも管理が可能
-- 異常なセッションの早期発見
+- スレッド一覧から Slack の元スレッドにアクセスできる
+- セッション履歴を確認できる
+- 最短で動作する管理画面が手に入る
+
+## 実装完了サマリー
+
+2025-01-28: Web管理コンソールのMVP実装と CI/CD パイプライン設定が完了しました。
+
+### 実装内容
+- ✅ バックエンドAPI（/web/api/threads, /web/api/sessions）
+- ✅ フロントエンド（React + Vite + Tailwind）
+- ✅ embed.FSによる静的ファイル配信
+- ✅ Slackへの直接リンク機能
+- ✅ CI/CD パイプラインの設定と修正
+  - aqua-installer による pnpm セットアップ
+  - TypeScript ビルドとテストの統合
+  - Biome v2.1.2 への移行と lint エラー修正
+  - formatter 設定更新（double quotes、always semicolons、trailing commas all）
+
+### 既知の問題
+- セッション数が0と表示される（バグ）
+- thread_tsが読みにくい形式で表示される
+- チャンネルIDがそのまま表示される
+
+これらの問題は 006-web-console-improvements.md で対応予定です。

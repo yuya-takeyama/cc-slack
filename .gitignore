@@ -46,3 +46,9 @@ logs/
 
 # Database files
 data/
+
+# Frontend
+web/node_modules/
+web/dist/
+internal/web/dist/
+web/.pnpm-store/
