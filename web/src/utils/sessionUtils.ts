@@ -4,6 +4,7 @@ type FormatType = "card" | "table";
 interface Session {
   session_id?: string;
   status?: SessionStatus;
+  initial_prompt?: string;
 }
 
 interface SessionSummary {
@@ -58,6 +59,23 @@ export const truncateSessionId = (
   }
 
   return `${sessionId.substring(0, length)}...`;
+};
+
+export const truncatePrompt = (
+  prompt: unknown,
+  length: number = 100,
+): string => {
+  if (!prompt || typeof prompt !== "string") {
+    return "";
+  }
+
+  const cleanPrompt = prompt.trim().replace(/\s+/g, " ");
+  
+  if (cleanPrompt.length <= length) {
+    return cleanPrompt;
+  }
+
+  return `${cleanPrompt.substring(0, length)}...`;
 };
 
 export const getSessionSummary = (
