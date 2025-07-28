@@ -70,7 +70,7 @@ export const truncatePrompt = (
   }
 
   const cleanPrompt = prompt.trim().replace(/\s+/g, " ");
-  
+
   if (cleanPrompt.length <= length) {
     return cleanPrompt;
   }

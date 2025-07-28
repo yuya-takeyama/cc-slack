@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { formatDateRange, formatDuration } from "../utils/dateFormatter";
 import {
   getSessionStatusColor,
-  truncateSessionId,
   truncatePrompt,
+  truncateSessionId,
 } from "../utils/sessionUtils";
 
 interface Session {
@@ -91,7 +91,8 @@ function SessionList() {
                     Duration:{" "}
                     {formatDuration(session.started_at, session.ended_at)}
                   </p>
-                  {(session.initial_prompt || session.initial_prompt === null) && (
+                  {(session.initial_prompt ||
+                    session.initial_prompt === null) && (
                     <div className="mt-2">
                       <p className="text-sm font-medium text-gray-700">
                         Initial Prompt:
