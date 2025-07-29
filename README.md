@@ -36,7 +36,6 @@ go build -o cc-slack cmd/cc-slack/main.go
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
-   - `app_mentions:read`
    - `chat:write`
    - `channels:history`
    - `groups:history`
@@ -48,7 +47,7 @@ go build -o cc-slack cmd/cc-slack/main.go
    - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
-   - Subscribe to bot events: `app_mention`, `message.channels`, `message.groups`, `message.im`, `message.mpim`
+   - Subscribe to bot events: `message.channels`, `message.groups`, `message.im`, `message.mpim`
    
    Note: The `message.*` events are required for the new message filtering feature that improves image handling performance.
 4. Enable Interactive Components:
