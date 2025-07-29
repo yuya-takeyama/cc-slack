@@ -36,9 +36,11 @@ go build -o cc-slack cmd/cc-slack/main.go
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
-   - `chat:write`
-   - `channels:history`
-   - `groups:history`
+   - `chat:write` - Always required for sending messages
+   
+   Choose based on where you'll use cc-slack:
+   - `channels:history` - For public channels
+   - `groups:history` - For private channels
    
    Additional scopes (required depending on your configuration):
    - `chat:write.customize` - Required if you set custom username or icon via `CC_SLACK_SLACK_ASSISTANT_USERNAME`, `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`, or `CC_SLACK_SLACK_ASSISTANT_ICON_URL`
@@ -47,9 +49,13 @@ go build -o cc-slack cmd/cc-slack/main.go
    - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
-   - Subscribe to bot events: `message.channels`, `message.groups`, `message.im`, `message.mpim`
+   - Subscribe to bot events (choose based on where you'll use cc-slack):
+     - `message.channels` - For public channels
+     - `message.groups` - For private channels
+     - `message.im` - For direct messages
+     - `message.mpim` - For multi-person direct messages
    
-   Note: The `message.*` events are required for the new message filtering feature that improves image handling performance.
+   Note: Only subscribe to the message events for the channel types you actually plan to use. For example, if you only use cc-slack in public channels, you only need `message.channels`.
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
 5. Install the app to your workspace
