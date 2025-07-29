@@ -3,22 +3,22 @@ set -e
 
 # Find project root (directory containing go.mod)
 find_project_root() {
-    local current_dir="$PWD"
-    while [[ "$current_dir" != "/" ]]; do
-        if [[ -f "$current_dir/go.mod" ]]; then
-            echo "$current_dir"
-            return 0
-        fi
-        current_dir="$(dirname "$current_dir")"
-    done
-    echo "Error: Could not find project root (no go.mod found)" >&2
-    return 1
+  local current_dir="$PWD"
+  while [[ "$current_dir" != "/" ]]; do
+    if [[ -f "$current_dir/go.mod" ]]; then
+      echo "$current_dir"
+      return 0
+    fi
+    current_dir="$(dirname "$current_dir")"
+  done
+  echo "Error: Could not find project root (no go.mod found)" >&2
+  return 1
 }
 
 # Get project root
 PROJECT_ROOT=$(find_project_root)
 if [[ -z "$PROJECT_ROOT" ]]; then
-    exit 1
+  exit 1
 fi
 
 cd "$PROJECT_ROOT"
