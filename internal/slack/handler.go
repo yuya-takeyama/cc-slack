@@ -18,6 +18,13 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
+	"golang.org/x/sync/errgroup"
+)
+
+// Constants for image download
+const (
+	// MaxConcurrentDownloads is the maximum number of concurrent image downloads
+	MaxConcurrentDownloads = 4
 )
 
 // Re-export tool constants for backward compatibility
@@ -824,38 +831,87 @@ func (h *Handler) containsBotMention(text string) bool {
 
 // processMessageAttachments processes attachments directly from message event
 func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent) []string {
-	var imagePaths []string
-
 	// Create image directory if it doesn't exist
 	imageDir := filepath.Join(h.imagesDir, event.Channel, event.TimeStamp)
 	if err := os.MkdirAll(imageDir, 0755); err != nil {
 		fmt.Printf("Failed to create image directory: %v\n", err)
-		return imagePaths
+		return nil
 	}
 
-	// Process files directly from the event
+	// Filter image files
+	var imageFiles []slack.File
 	for _, file := range event.Message.Files {
-		// Check if it's an image
-		if !strings.HasPrefix(file.Mimetype, "image/") {
-			continue
+		if strings.HasPrefix(file.Mimetype, "image/") {
+			imageFiles = append(imageFiles, file)
 		}
-
-		// Download and save the image
-		imagePath, err := h.downloadAndSaveImage(slack.File{
-			ID:                 file.ID,
-			Name:               file.Name,
-			Mimetype:           file.Mimetype,
-			URLPrivate:         file.URLPrivate,
-			URLPrivateDownload: file.URLPrivateDownload,
-		}, imageDir)
-
-		if err != nil {
-			fmt.Printf("Failed to download image %s: %v\n", file.Name, err)
-			continue
-		}
-
-		imagePaths = append(imagePaths, imagePath)
 	}
 
-	return imagePaths
+	if len(imageFiles) == 0 {
+		return nil
+	}
+
+	// Result structure to maintain order
+	type result struct {
+		path string
+		idx  int
+	}
+
+	resultChan := make(chan result, len(imageFiles))
+	errorChan := make(chan error, len(imageFiles))
+
+	// Create a worker pool with limited concurrency
+	ctx := context.Background()
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(MaxConcurrentDownloads)
+
+	// Start download goroutines
+	for i, file := range imageFiles {
+		i, file := i, file // Capture loop variables
+		g.Go(func() error {
+			imagePath, err := h.downloadAndSaveImage(slack.File{
+				ID:                 file.ID,
+				Name:               file.Name,
+				Mimetype:           file.Mimetype,
+				URLPrivate:         file.URLPrivate,
+				URLPrivateDownload: file.URLPrivateDownload,
+			}, imageDir)
+
+			if err != nil {
+				errorChan <- fmt.Errorf("failed to download %s: %w", file.Name, err)
+				return nil // Don't fail the whole group
+			}
+
+			resultChan <- result{path: imagePath, idx: i}
+			return nil
+		})
+	}
+
+	// Wait for all downloads to complete
+	if err := g.Wait(); err != nil {
+		return nil
+	}
+
+	close(resultChan)
+	close(errorChan)
+
+	// Log any errors
+	for err := range errorChan {
+		fmt.Printf("Download error: %v\n", err)
+	}
+
+	// Collect results in order
+	results := make([]string, 0, len(imageFiles))
+	pathsByIdx := make(map[int]string)
+	for res := range resultChan {
+		pathsByIdx[res.idx] = res.path
+	}
+
+	// Sort by original order
+	for i := 0; i < len(imageFiles); i++ {
+		if path, ok := pathsByIdx[i]; ok {
+			results = append(results, path)
+		}
+	}
+
+	return results
 }
