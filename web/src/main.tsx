@@ -8,6 +8,17 @@ import ThreadSessionsPage from "./pages/ThreadSessionsPage";
 import ThreadsPage from "./pages/ThreadsPage";
 import "../styles/index.css";
 
+// Dynamically determine basename based on current URL
+const getBasename = () => {
+  const pathname = window.location.pathname;
+  // If we're under /web, use /web as basename
+  if (pathname.startsWith("/web")) {
+    return "/web";
+  }
+  // Otherwise, use root
+  return "/";
+};
+
 const router = createBrowserRouter(
   [
     {
@@ -34,7 +45,7 @@ const router = createBrowserRouter(
     },
   ],
   {
-    basename: "/web",
+    basename: getBasename(),
   },
 );
 
