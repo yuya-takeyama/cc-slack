@@ -113,7 +113,6 @@ func TestRemoveBotMentionFromText(t *testing.T) {
 // MockSessionManager implements SessionManager for testing
 type MockSessionManager struct {
 	createSessionCalls       []createSessionCall
-	createSessionWithResume  []createSessionWithResumeCall
 	sendMessageCalls         []sendMessageCall
 	getSessionByThreadCalls  []getSessionByThreadCall
 	getSessionByThreadReturn *Session
@@ -121,12 +120,6 @@ type MockSessionManager struct {
 }
 
 type createSessionCall struct {
-	channelID string
-	threadTS  string
-	workDir   string
-}
-
-type createSessionWithResumeCall struct {
 	channelID     string
 	threadTS      string
 	workDir       string
@@ -151,33 +144,14 @@ func (m *MockSessionManager) GetSessionByThread(channelID, threadTS string) (*Se
 	return m.getSessionByThreadReturn, m.getSessionByThreadError
 }
 
-func (m *MockSessionManager) CreateSession(channelID, threadTS, workDir string) (*Session, error) {
+func (m *MockSessionManager) CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error) {
 	m.createSessionCalls = append(m.createSessionCalls, createSessionCall{
-		channelID: channelID,
-		threadTS:  threadTS,
-		workDir:   workDir,
-	})
-	return &Session{
-		SessionID: "test-session",
-		ChannelID: channelID,
-		ThreadTS:  threadTS,
-		WorkDir:   workDir,
-	}, nil
-}
-
-func (m *MockSessionManager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error) {
-	m.createSessionWithResume = append(m.createSessionWithResume, createSessionWithResumeCall{
 		channelID:     channelID,
 		threadTS:      threadTS,
 		workDir:       workDir,
 		initialPrompt: initialPrompt,
 	})
-	return &Session{
-		SessionID: "test-session",
-		ChannelID: channelID,
-		ThreadTS:  threadTS,
-		WorkDir:   workDir,
-	}, false, "", nil
+	return false, "", nil
 }
 
 func (m *MockSessionManager) SendMessage(sessionID, message string) error {

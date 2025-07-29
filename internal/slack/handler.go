@@ -70,8 +70,7 @@ type Handler struct {
 // SessionManager interface for managing Claude Code sessions
 type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
-	CreateSession(channelID, threadTS, workDir string) (*Session, error)
-	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
+	CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -297,7 +296,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 
 	// Create session with text including image paths
 	ctx := context.Background()
-	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, initialPrompt)
+	resumed, previousSessionID, err := h.sessionMgr.CreateSession(ctx, event.Channel, threadTS, workDir, initialPrompt)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,

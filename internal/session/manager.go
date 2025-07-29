@@ -59,9 +59,9 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 	}
 }
 
-// CreateSessionWithResume creates a new session or resumes an existing one
-// Returns: session, resumed, previousSessionID, error
-func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*ccslack.Session, bool, string, error) {
+// CreateSession creates a new session or resumes an existing one
+// Returns: resumed, previousSessionID, error
+func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error) {
 	// Check if thread exists and get working directory
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -75,29 +75,29 @@ func (m *Manager) CreateSessionWithResume(ctx context.Context, channelID, thread
 	// Check if should resume
 	shouldResume, previousSessionID, err := m.ShouldResume(ctx, channelID, threadTS)
 	if err != nil {
-		return nil, false, "", fmt.Errorf("failed to check resume status: %w", err)
+		return false, "", fmt.Errorf("failed to check resume status: %w", err)
 	}
 
 	// Check for active session
 	hasActive, err := m.CheckActiveSession(ctx, channelID, threadTS)
 	if err != nil {
-		return nil, false, "", fmt.Errorf("failed to check active session: %w", err)
+		return false, "", fmt.Errorf("failed to check active session: %w", err)
 	}
 
 	if hasActive {
-		return nil, false, "", fmt.Errorf("already has an active session for this thread")
+		return false, "", fmt.Errorf("already has an active session for this thread")
 	}
 
-	session, resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, initialPrompt, shouldResume, previousSessionID)
-	return session, resumed, previousSessionID, err
+	resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, initialPrompt, shouldResume, previousSessionID)
+	return resumed, previousSessionID, err
 }
 
 // createSessionInternal handles the actual session creation
-func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir, initialPrompt string, shouldResume bool, previousSessionID string) (*ccslack.Session, bool, error) {
+func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir, initialPrompt string, shouldResume bool, previousSessionID string) (bool, error) {
 	// Get or create thread ID
 	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS, workDir)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to get or create thread: %w", err)
+		return false, fmt.Errorf("failed to get or create thread: %w", err)
 	}
 
 	// Generate temporary session ID
@@ -112,7 +112,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	})
 
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to create session in database: %w", err)
+		return false, fmt.Errorf("failed to create session in database: %w", err)
 	}
 
 	// Create Claude process
@@ -143,7 +143,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 			Status:    sql.NullString{String: "failed", Valid: true},
 			SessionID: tempSessionID,
 		})
-		return nil, false, fmt.Errorf("failed to create Claude process: %w", err)
+		return false, fmt.Errorf("failed to create Claude process: %w", err)
 	}
 
 	// Create session object
@@ -164,19 +164,7 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 	m.lastActiveID = tempSessionID
 	m.mu.Unlock()
 
-	return &ccslack.Session{
-		SessionID: tempSessionID,
-		ChannelID: channelID,
-		ThreadTS:  threadTS,
-		WorkDir:   workDir,
-	}, shouldResume, nil
-}
-
-// CreateSession creates a new session (compatibility method)
-func (m *Manager) CreateSession(channelID, threadTS, workDir string) (*ccslack.Session, error) {
-	ctx := context.Background()
-	session, _, _, err := m.CreateSessionWithResume(ctx, channelID, threadTS, workDir, "")
-	return session, err
+	return shouldResume, nil
 }
 
 // getOrCreateThread gets or creates a thread record
