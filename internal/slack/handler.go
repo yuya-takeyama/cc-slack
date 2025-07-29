@@ -644,14 +644,13 @@ func (h *Handler) fetchAndSaveImages(channelID, timestamp, threadTS string) ([]s
 	var msg slack.Message
 
 	// Create session-specific directory structure
-	// Format: images/{channel}_{thread_ts}/{uuid}/
+	// Format: images/{thread_ts}/{uuid}/
 	sessionID := uuid.New().String()
-	sessionDir := channelID
-	if threadTS != "" {
-		sessionDir = fmt.Sprintf("%s_%s", channelID, strings.ReplaceAll(threadTS, ".", "_"))
-	} else {
-		sessionDir = fmt.Sprintf("%s_%s", channelID, strings.ReplaceAll(timestamp, ".", "_"))
+	sessionDir := threadTS
+	if threadTS == "" {
+		sessionDir = timestamp
 	}
+	sessionDir = strings.ReplaceAll(sessionDir, ".", "_")
 
 	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
 
