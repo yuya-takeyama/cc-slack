@@ -297,7 +297,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 
 	// Create session with text including image paths
 	ctx := context.Background()
-	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, initialPrompt)
+	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, initialPrompt)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
