@@ -48,6 +48,30 @@ function App() {
                 Manager
               </Link>
             </li>
+            <li>
+              <Link
+                to="/repositories"
+                className={`text-lg ${
+                  location.pathname === "/web/repositories"
+                    ? "text-blue-600 font-semibold"
+                    : "text-gray-600 hover:text-blue-600"
+                }`}
+              >
+                Repositories
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/worktrees"
+                className={`text-lg ${
+                  location.pathname === "/web/worktrees"
+                    ? "text-blue-600 font-semibold"
+                    : "text-gray-600 hover:text-blue-600"
+                }`}
+              >
+                Worktrees
+              </Link>
+            </li>
           </ul>
         </nav>
 

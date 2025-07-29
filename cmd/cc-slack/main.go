@@ -15,9 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
-	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
-	"github.com/yuya-takeyama/cc-slack/internal/repository"
 	"github.com/yuya-takeyama/cc-slack/internal/router"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
@@ -57,8 +55,7 @@ func main() {
 	// Create session manager with database support
 	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL)
 
-	// Create repository manager
-	repoManager := repository.NewManager(sqlDB)
+	// Repository manager no longer needed - using config-based approach
 
 	// Create logger for worktree manager
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
@@ -66,8 +63,7 @@ func main() {
 	// Create worktree manager
 	worktreeMgr := worktree.NewManager(logger, cfg, sqlDB)
 
-	// Set managers in session manager
-	sessionMgr.SetRepositoryManager(repoManager)
+	// Set worktree manager in session manager
 	sessionMgr.SetWorktreeManager(worktreeMgr)
 
 	// Start worktree cleanup routine
@@ -92,19 +88,9 @@ func main() {
 
 	// Check if we need to set up repository router for Slack handler
 	if len(cfg.Repositories) > 0 {
-		// Convert config repositories to db repositories for router
-		var dbRepos []db.Repository
-		for _, repo := range cfg.Repositories {
-			dbRepos = append(dbRepos, db.Repository{
-				ID:   int64(len(dbRepos) + 1), // Temporary ID
-				Name: repo.Name,
-				Path: repo.Path,
-			})
-		}
-		repoRouter := router.NewRepositoryRouter(logger, cfg, dbRepos)
+		repoRouter := router.NewRepositoryRouter(logger, cfg, cfg.Repositories)
 
-		// Set managers in Slack handler
-		slackHandler.SetRepositoryManager(repoManager)
+		// Set worktree manager and router in Slack handler
 		slackHandler.SetWorktreeManager(worktreeMgr)
 		slackHandler.SetRepositoryRouter(repoRouter)
 	}

@@ -6,6 +6,8 @@ import ManagerPage from "./pages/ManagerPage";
 import SessionsPage from "./pages/SessionsPage";
 import ThreadSessionsPage from "./pages/ThreadSessionsPage";
 import ThreadsPage from "./pages/ThreadsPage";
+import { RepositoriesPage } from "./pages/RepositoriesPage";
+import { WorktreesPage } from "./pages/WorktreesPage";
 import "../styles/index.css";
 
 // Dynamically determine basename based on current URL
@@ -40,6 +42,14 @@ const router = createBrowserRouter(
         {
           path: "manager",
           element: <ManagerPage />,
+        },
+        {
+          path: "repositories",
+          element: <RepositoriesPage />,
+        },
+        {
+          path: "worktrees",
+          element: <WorktreesPage />,
         },
       ],
     },

@@ -83,6 +83,27 @@ func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 		return
+	case "/api/repositories":
+		if r.Method == http.MethodGet {
+			GetRepositories(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	case "/api/worktrees":
+		if r.Method == http.MethodGet {
+			GetWorktrees(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	case "/api/worktrees/active":
+		if r.Method == http.MethodGet {
+			GetActiveWorktrees(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
 	}
 
 	// Handle pattern matches

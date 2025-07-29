@@ -198,6 +198,12 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	cmd := exec.CommandContext(ctx, opts.ExecutablePath, args...)
 	cmd.Dir = opts.WorkDir
 
+	// Log working directory
+	logger.Info().
+		Str("work_dir", opts.WorkDir).
+		Str("executable", opts.ExecutablePath).
+		Msg("Starting Claude process with working directory")
+
 	// Set up pipes
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

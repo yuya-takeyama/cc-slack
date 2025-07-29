@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
+	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 func TestRepositoryRouter_RouteWithSingleRepo(t *testing.T) {
@@ -94,12 +95,12 @@ func TestRepositoryRouter_ValidateResult(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		result  RouteResult
+		result  slack.RouteResult
 		wantErr bool
 	}{
 		{
 			name: "valid result",
-			result: RouteResult{
+			result: slack.RouteResult{
 				RepositoryID:   1,
 				RepositoryName: "frontend",
 				Confidence:     "high",
@@ -109,7 +110,7 @@ func TestRepositoryRouter_ValidateResult(t *testing.T) {
 		},
 		{
 			name: "mismatched name gets corrected",
-			result: RouteResult{
+			result: slack.RouteResult{
 				RepositoryID:   2,
 				RepositoryName: "wrong-name",
 				Confidence:     "medium",
@@ -119,7 +120,7 @@ func TestRepositoryRouter_ValidateResult(t *testing.T) {
 		},
 		{
 			name: "invalid repository ID",
-			result: RouteResult{
+			result: slack.RouteResult{
 				RepositoryID:   999,
 				RepositoryName: "nonexistent",
 				Confidence:     "low",
@@ -129,7 +130,7 @@ func TestRepositoryRouter_ValidateResult(t *testing.T) {
 		},
 		{
 			name: "invalid confidence gets defaulted",
-			result: RouteResult{
+			result: slack.RouteResult{
 				RepositoryID:   1,
 				RepositoryName: "frontend",
 				Confidence:     "invalid",

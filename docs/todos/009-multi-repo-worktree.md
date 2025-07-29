@@ -60,27 +60,27 @@ cc-slackに以下の2つの重要な機能を実装し、並列Claude Code操作
 
 ## データベーススキーマ
 
-### 新規テーブル: repositories
-```sql
-CREATE TABLE repositories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    path TEXT NOT NULL,
-    default_branch TEXT DEFAULT 'main',
-    slack_channel_id TEXT,
-    slack_username TEXT,
-    slack_icon_emoji TEXT,
-    slack_icon_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### ~~新規テーブル: repositories~~ (削除済み)
+設定ファイルベースの管理に移行しました。リポジトリ情報は config.yaml で管理されます。
+
+```yaml
+repositories:
+  - name: cc-slack
+    path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+    default_branch: main
+    channels:
+      - C097NAK7Q8L
+    slack_override:
+      username: Custom Bot
+      icon_emoji: :robot_face:
 ```
 
-### 新規テーブル: worktrees
+### 新規テーブル: worktrees (更新済み)
 ```sql
 CREATE TABLE worktrees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    repository_id INTEGER NOT NULL,
+    repository_path TEXT NOT NULL,  -- repository_idから変更
+    repository_name TEXT NOT NULL,  -- 新規追加
     thread_id INTEGER NOT NULL,
     path TEXT NOT NULL,
     base_branch TEXT NOT NULL,
@@ -88,23 +88,21 @@ CREATE TABLE worktrees (
     status TEXT NOT NULL DEFAULT 'active', -- active, archived, deleted
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
-    FOREIGN KEY (repository_id) REFERENCES repositories(id),
     FOREIGN KEY (thread_id) REFERENCES threads(id),
     UNIQUE(thread_id)
 );
 ```
 
 ### 既存テーブルの変更
-- threads: `repository_id INTEGER` カラムを追加
-- threads: `working_directory` を `worktree_id` に変更（または両方保持）
+- threads: `working_directory` を保持（worktreeのパスを格納）
 
 ## 実装タスク
 
 ### Phase 1: マルチリポジトリ基盤
-- [x] repositoriesテーブルの作成（migration）
+- [x] ~~repositoriesテーブルの作成（migration）~~ → 設定ファイルベースに変更
 - [x] Repository管理機能の実装
-  - [x] Repository構造体とインターフェース定義
-  - [x] RepositoryManagerの実装
+  - [x] ~~Repository構造体とインターフェース定義~~ → config.RepositoryConfigを使用
+  - [x] ~~RepositoryManagerの実装~~ → 設定ファイルから直接読み込み
 - [x] 設定ファイルのスキーマ拡張
   - [x] Viper設定にリポジトリリストを追加
   - [x] YAML設定の検証ロジック
@@ -134,10 +132,10 @@ CREATE TABLE worktrees (
   - [x] 古いworktreeの削除
   - [ ] ディスク容量監視
   - [x] goroutineによる定期実行
-- [ ] Web管理画面の更新
-  - [ ] リポジトリ一覧表示
-  - [ ] worktree状態表示
-  - [ ] APIエンドポイントの追加
+- [x] Web管理画面の更新
+  - [x] リポジトリ一覧表示
+  - [x] worktree状態表示
+  - [x] APIエンドポイントの追加
 
 ### Phase 4: 高度な機能とテスト
 - [ ] リポジトリ選択の追加オプション実装
@@ -184,3 +182,11 @@ CREATE TABLE worktrees (
 - [GitHub: Using Git Worktree](https://github.blog/2015-07-29-git-2-5-including-multiple-worktrees-and-triangular-workflows/)
 - [Claude Code SDK - Custom System Prompts](https://docs.anthropic.com/en/docs/claude-code/sdk#custom-system-prompts)
 - [Claude Code CLI Reference](https://docs.anthropic.com/en/docs/claude-code/cli-reference)
+
+## 変更履歴
+
+### 2024-01-XX: 設定ファイルベースへの移行
+- リポジトリ管理をデータベースから設定ファイル（config.yaml）に移行
+- repositoriesテーブルを削除し、config.RepositoryConfigを使用
+- worktreesテーブルをrepository_idからrepository_path/repository_nameに変更
+- 理由: フォルダ名の変更に対する柔軟性とメンテナンスの簡素化

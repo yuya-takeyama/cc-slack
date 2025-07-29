@@ -156,6 +156,11 @@ func (m *MockSessionManager) SendMessage(sessionID, message string) error {
 	return nil
 }
 
+func (m *MockSessionManager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*Session, bool, string, error) {
+	// For now, just delegate to CreateSessionWithResume
+	return m.CreateSessionWithResume(ctx, channelID, threadTS, "", initialPrompt)
+}
+
 func TestHandleAppMention_InThread(t *testing.T) {
 	mockSession := &MockSessionManager{
 		getSessionByThreadError: fmt.Errorf("not found"), // Simulate no existing session

@@ -21,7 +21,7 @@ type Manager struct {
 	queries     *db.Queries
 	database    *sql.DB
 	mu          sync.RWMutex
-	wrappers    map[int64]*git.WorktreeWrapper // repository ID -> wrapper
+	wrappers    map[string]*git.WorktreeWrapper // repository path -> wrapper
 	stopCleanup chan struct{}
 	cleanupDone chan struct{}
 }
@@ -33,7 +33,7 @@ func NewManager(logger zerolog.Logger, cfg *config.Config, database *sql.DB) *Ma
 		config:      cfg,
 		queries:     db.New(database),
 		database:    database,
-		wrappers:    make(map[int64]*git.WorktreeWrapper),
+		wrappers:    make(map[string]*git.WorktreeWrapper),
 		stopCleanup: make(chan struct{}),
 		cleanupDone: make(chan struct{}),
 	}
@@ -51,36 +51,26 @@ func (m *Manager) Stop() {
 }
 
 // CreateWorktree creates a new worktree for a thread
-func (m *Manager) CreateWorktree(ctx context.Context, threadID, repositoryID int64, baseBranch string) (*db.Worktree, error) {
-	// Get repository information
-	repo, err := m.queries.GetRepository(ctx, repositoryID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get repository: %w", err)
-	}
-
+func (m *Manager) CreateWorktree(ctx context.Context, threadID int64, repositoryPath, repositoryName, baseBranch string) (*db.Worktree, error) {
 	// Get or create wrapper for repository
-	wrapper := m.getOrCreateWrapper(repositoryID, repo.Path)
+	wrapper := m.getOrCreateWrapper(repositoryPath)
 
 	// Determine base branch
 	if baseBranch == "" {
-		if repo.DefaultBranch.Valid && repo.DefaultBranch.String != "" {
-			baseBranch = repo.DefaultBranch.String
-		} else {
-			// Try to determine default branch
-			defaultBranch, err := git.GetDefaultBranch(ctx, repo.Path)
-			if err != nil {
-				return nil, fmt.Errorf("failed to determine default branch: %w", err)
-			}
-			baseBranch = defaultBranch
+		// Try to determine default branch from git
+		defaultBranch, err := git.GetDefaultBranch(ctx, repositoryPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine default branch: %w", err)
 		}
+		baseBranch = defaultBranch
 	}
 
 	// Generate worktree path
-	worktreePath := m.generateWorktreePath(repo.Name, threadID)
+	worktreePath := m.generateWorktreePath(repositoryName, threadID)
 
 	// Make absolute if relative
 	if !filepath.IsAbs(worktreePath) {
-		worktreePath = filepath.Join(repo.Path, worktreePath)
+		worktreePath = filepath.Join(repositoryPath, worktreePath)
 	}
 
 	// Create physical worktree
@@ -98,12 +88,13 @@ func (m *Manager) CreateWorktree(ctx context.Context, threadID, repositoryID int
 
 	// Create database record
 	worktree, err := m.queries.CreateWorktree(ctx, db.CreateWorktreeParams{
-		RepositoryID:  repositoryID,
-		ThreadID:      threadID,
-		Path:          worktreePath,
-		BaseBranch:    baseBranch,
-		CurrentBranch: sql.NullString{String: currentBranch, Valid: true},
-		Status:        "active",
+		RepositoryPath: repositoryPath,
+		RepositoryName: repositoryName,
+		ThreadID:       threadID,
+		Path:           worktreePath,
+		BaseBranch:     baseBranch,
+		CurrentBranch:  sql.NullString{String: currentBranch, Valid: true},
+		Status:         "active",
 	})
 	if err != nil {
 		// Cleanup on error
@@ -113,7 +104,8 @@ func (m *Manager) CreateWorktree(ctx context.Context, threadID, repositoryID int
 
 	m.logger.Info().
 		Int64("thread_id", threadID).
-		Int64("repository_id", repositoryID).
+		Str("repository_path", repositoryPath).
+		Str("repository_name", repositoryName).
 		Str("path", worktreePath).
 		Str("base_branch", baseBranch).
 		Msg("Created worktree")
@@ -141,14 +133,8 @@ func (m *Manager) RemoveWorktree(ctx context.Context, worktreeID int64) error {
 		return fmt.Errorf("failed to get worktree: %w", err)
 	}
 
-	// Get repository info
-	repo, err := m.queries.GetRepository(ctx, worktree.RepositoryID)
-	if err != nil {
-		return fmt.Errorf("failed to get repository: %w", err)
-	}
-
 	// Get wrapper
-	wrapper := m.getOrCreateWrapper(worktree.RepositoryID, repo.Path)
+	wrapper := m.getOrCreateWrapper(worktree.RepositoryPath)
 
 	// Remove physical worktree
 	if err := wrapper.RemoveWorktree(ctx, worktree.Path); err != nil {
@@ -223,16 +209,16 @@ func (m *Manager) generateWorktreePath(repoName string, threadID int64) string {
 }
 
 // getOrCreateWrapper gets or creates a wrapper for a repository
-func (m *Manager) getOrCreateWrapper(repositoryID int64, repoPath string) *git.WorktreeWrapper {
+func (m *Manager) getOrCreateWrapper(repositoryPath string) *git.WorktreeWrapper {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if wrapper, exists := m.wrappers[repositoryID]; exists {
+	if wrapper, exists := m.wrappers[repositoryPath]; exists {
 		return wrapper
 	}
 
-	wrapper := git.NewWorktreeWrapper(repoPath)
-	m.wrappers[repositoryID] = wrapper
+	wrapper := git.NewWorktreeWrapper(repositoryPath)
+	m.wrappers[repositoryPath] = wrapper
 	return wrapper
 }
 

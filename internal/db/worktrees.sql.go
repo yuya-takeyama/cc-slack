@@ -12,24 +12,26 @@ import (
 
 const createWorktree = `-- name: CreateWorktree :one
 INSERT INTO worktrees (
-    repository_id, thread_id, path, 
+    repository_path, repository_name, thread_id, path, 
     base_branch, current_branch, status
-) VALUES (?, ?, ?, ?, ?, ?)
-RETURNING id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at
 `
 
 type CreateWorktreeParams struct {
-	RepositoryID  int64          `json:"repository_id"`
-	ThreadID      int64          `json:"thread_id"`
-	Path          string         `json:"path"`
-	BaseBranch    string         `json:"base_branch"`
-	CurrentBranch sql.NullString `json:"current_branch"`
-	Status        string         `json:"status"`
+	RepositoryPath string         `json:"repository_path"`
+	RepositoryName string         `json:"repository_name"`
+	ThreadID       int64          `json:"thread_id"`
+	Path           string         `json:"path"`
+	BaseBranch     string         `json:"base_branch"`
+	CurrentBranch  sql.NullString `json:"current_branch"`
+	Status         string         `json:"status"`
 }
 
 func (q *Queries) CreateWorktree(ctx context.Context, arg CreateWorktreeParams) (Worktree, error) {
 	row := q.queryRow(ctx, q.createWorktreeStmt, createWorktree,
-		arg.RepositoryID,
+		arg.RepositoryPath,
+		arg.RepositoryName,
 		arg.ThreadID,
 		arg.Path,
 		arg.BaseBranch,
@@ -39,7 +41,8 @@ func (q *Queries) CreateWorktree(ctx context.Context, arg CreateWorktreeParams) 
 	var i Worktree
 	err := row.Scan(
 		&i.ID,
-		&i.RepositoryID,
+		&i.RepositoryPath,
+		&i.RepositoryName,
 		&i.ThreadID,
 		&i.Path,
 		&i.BaseBranch,
@@ -62,7 +65,7 @@ func (q *Queries) DeleteWorktree(ctx context.Context, id int64) error {
 }
 
 const getWorktree = `-- name: GetWorktree :one
-SELECT id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
 WHERE id = ? LIMIT 1
 `
 
@@ -71,7 +74,8 @@ func (q *Queries) GetWorktree(ctx context.Context, id int64) (Worktree, error) {
 	var i Worktree
 	err := row.Scan(
 		&i.ID,
-		&i.RepositoryID,
+		&i.RepositoryPath,
+		&i.RepositoryName,
 		&i.ThreadID,
 		&i.Path,
 		&i.BaseBranch,
@@ -84,7 +88,7 @@ func (q *Queries) GetWorktree(ctx context.Context, id int64) (Worktree, error) {
 }
 
 const getWorktreeByThreadID = `-- name: GetWorktreeByThreadID :one
-SELECT id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
 WHERE thread_id = ? LIMIT 1
 `
 
@@ -93,7 +97,8 @@ func (q *Queries) GetWorktreeByThreadID(ctx context.Context, threadID int64) (Wo
 	var i Worktree
 	err := row.Scan(
 		&i.ID,
-		&i.RepositoryID,
+		&i.RepositoryPath,
+		&i.RepositoryName,
 		&i.ThreadID,
 		&i.Path,
 		&i.BaseBranch,
@@ -106,7 +111,7 @@ func (q *Queries) GetWorktreeByThreadID(ctx context.Context, threadID int64) (Wo
 }
 
 const listActiveWorktrees = `-- name: ListActiveWorktrees :many
-SELECT id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
 WHERE status = 'active'
 ORDER BY created_at DESC
 `
@@ -122,7 +127,8 @@ func (q *Queries) ListActiveWorktrees(ctx context.Context) ([]Worktree, error) {
 		var i Worktree
 		if err := rows.Scan(
 			&i.ID,
-			&i.RepositoryID,
+			&i.RepositoryPath,
+			&i.RepositoryName,
 			&i.ThreadID,
 			&i.Path,
 			&i.BaseBranch,
@@ -145,7 +151,7 @@ func (q *Queries) ListActiveWorktrees(ctx context.Context) ([]Worktree, error) {
 }
 
 const listOldWorktrees = `-- name: ListOldWorktrees :many
-SELECT id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
 WHERE status = 'active'
 AND created_at < datetime('now', ?)
 ORDER BY created_at
@@ -162,7 +168,8 @@ func (q *Queries) ListOldWorktrees(ctx context.Context, datetime interface{}) ([
 		var i Worktree
 		if err := rows.Scan(
 			&i.ID,
-			&i.RepositoryID,
+			&i.RepositoryPath,
+			&i.RepositoryName,
 			&i.ThreadID,
 			&i.Path,
 			&i.BaseBranch,
@@ -184,14 +191,13 @@ func (q *Queries) ListOldWorktrees(ctx context.Context, datetime interface{}) ([
 	return items, nil
 }
 
-const listWorktreesByRepository = `-- name: ListWorktreesByRepository :many
-SELECT id, repository_id, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
-WHERE repository_id = ?
+const listWorktrees = `-- name: ListWorktrees :many
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListWorktreesByRepository(ctx context.Context, repositoryID int64) ([]Worktree, error) {
-	rows, err := q.query(ctx, q.listWorktreesByRepositoryStmt, listWorktreesByRepository, repositoryID)
+func (q *Queries) ListWorktrees(ctx context.Context) ([]Worktree, error) {
+	rows, err := q.query(ctx, q.listWorktreesStmt, listWorktrees)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +207,48 @@ func (q *Queries) ListWorktreesByRepository(ctx context.Context, repositoryID in
 		var i Worktree
 		if err := rows.Scan(
 			&i.ID,
-			&i.RepositoryID,
+			&i.RepositoryPath,
+			&i.RepositoryName,
+			&i.ThreadID,
+			&i.Path,
+			&i.BaseBranch,
+			&i.CurrentBranch,
+			&i.Status,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorktreesByRepositoryPath = `-- name: ListWorktreesByRepositoryPath :many
+SELECT id, repository_path, repository_name, thread_id, path, base_branch, current_branch, status, created_at, deleted_at FROM worktrees
+WHERE repository_path = ?
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListWorktreesByRepositoryPath(ctx context.Context, repositoryPath string) ([]Worktree, error) {
+	rows, err := q.query(ctx, q.listWorktreesByRepositoryPathStmt, listWorktreesByRepositoryPath, repositoryPath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worktree
+	for rows.Next() {
+		var i Worktree
+		if err := rows.Scan(
+			&i.ID,
+			&i.RepositoryPath,
+			&i.RepositoryName,
 			&i.ThreadID,
 			&i.Path,
 			&i.BaseBranch,

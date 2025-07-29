@@ -7,10 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
-	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
@@ -18,12 +18,12 @@ import (
 type RepositoryRouter struct {
 	logger    zerolog.Logger
 	config    *config.Config
-	repos     []db.Repository
+	repos     []config.RepositoryConfig
 	processID string
 }
 
 // NewRepositoryRouter creates a new repository router
-func NewRepositoryRouter(logger zerolog.Logger, cfg *config.Config, repos []db.Repository) *RepositoryRouter {
+func NewRepositoryRouter(logger zerolog.Logger, cfg *config.Config, repos []config.RepositoryConfig) *RepositoryRouter {
 	return &RepositoryRouter{
 		logger: logger,
 		config: cfg,
@@ -36,7 +36,7 @@ func (r *RepositoryRouter) Route(ctx context.Context, channelID, message string)
 	// If only one repository, skip AI routing
 	if len(r.repos) == 1 {
 		return &slack.RouteResult{
-			RepositoryID:   r.repos[0].ID,
+			RepositoryPath: r.repos[0].Path,
 			RepositoryName: r.repos[0].Name,
 			Confidence:     "high",
 			Reason:         "Only one repository configured for this channel",
@@ -53,7 +53,7 @@ Message: %s
 
 Respond with a JSON object in the following format:
 {
-  "repository_id": <number>,
+  "repository_path": "<string>",
   "repository_name": "<string>",
   "confidence": "<high|medium|low>",
   "reason": "<brief explanation>"
@@ -67,8 +67,26 @@ Respond with a JSON object in the following format:
 
 	// Parse JSON response
 	var routeResult slack.RouteResult
+
+	// DEBUG: Write to debug file
+	debugFile, _ := os.OpenFile("logs/debug/router-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if debugFile != nil {
+		fmt.Fprintf(debugFile, "[%s] [DEBUG] Router LLM raw response: %s\n",
+			time.Now().Format("2006-01-02 15:04:05"), result)
+		defer debugFile.Close()
+	}
+
 	if err := json.Unmarshal([]byte(result), &routeResult); err != nil {
 		return nil, fmt.Errorf("failed to parse routing result: %w", err)
+	}
+
+	if debugFile != nil {
+		fmt.Fprintf(debugFile, "[%s] [DEBUG] Parsed route result - path: '%s', name: '%s', confidence: '%s', reason: '%s'\n",
+			time.Now().Format("2006-01-02 15:04:05"),
+			routeResult.RepositoryPath,
+			routeResult.RepositoryName,
+			routeResult.Confidence,
+			routeResult.Reason)
 	}
 
 	// Validate result
@@ -83,9 +101,9 @@ Respond with a JSON object in the following format:
 func (r *RepositoryRouter) buildSystemPrompt() string {
 	var repoInfo []string
 	for _, repo := range r.repos {
-		info := fmt.Sprintf("- ID: %d, Name: %s, Path: %s", repo.ID, repo.Name, repo.Path)
-		if repo.DefaultBranch.Valid {
-			info += fmt.Sprintf(", Default Branch: %s", repo.DefaultBranch.String)
+		info := fmt.Sprintf("- Name: %s, Path: %s", repo.Name, repo.Path)
+		if repo.DefaultBranch != "" {
+			info += fmt.Sprintf(", Default Branch: %s", repo.DefaultBranch)
 		}
 		repoInfo = append(repoInfo, info)
 	}
@@ -107,65 +125,88 @@ You must respond with valid JSON only.`, strings.Join(repoInfo, "\n"))
 
 // executeClaude runs Claude with the routing prompt
 func (r *RepositoryRouter) executeClaude(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	// Create simplified process for routing (no MCP needed)
+	// Create simplified process for routing (no MCP config = no MCP)
 	args := []string{
-		"--model", "claude-3-5-sonnet-latest",
-		"--no-mcp",
-	}
-
-	if systemPrompt != "" {
-		// Save system prompt to temp file
-		tmpFile, err := os.CreateTemp("", "router-prompt-*.txt")
-		if err != nil {
-			return "", fmt.Errorf("failed to create temp file: %w", err)
-		}
-		defer os.Remove(tmpFile.Name())
-
-		if _, err := tmpFile.WriteString(systemPrompt); err != nil {
-			tmpFile.Close()
-			return "", fmt.Errorf("failed to write system prompt: %w", err)
-		}
-		tmpFile.Close()
-
-		args = append(args, "--system-prompt-file", tmpFile.Name())
+		"--model", "sonnet", // Use model alias
+		"--print",                       // Run once and exit
+		"--system-prompt", systemPrompt, // Override default system prompt
 	}
 
 	// Execute Claude command
 	cmd := exec.CommandContext(ctx, r.config.Claude.Executable, args...)
 	cmd.Dir = r.config.WorkingDirectories.Default
 
-	// Set up pipes
-	stdin, err := cmd.StdinPipe()
+	// Set stdin to the user prompt
+	cmd.Stdin = strings.NewReader(userPrompt)
+
+	// Run command and get output
+	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to create stdin pipe: %w", err)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Include stderr in error message
+			return "", fmt.Errorf("failed to execute Claude: %w, stderr: %s", err, string(exitErr.Stderr))
+		}
+		return "", fmt.Errorf("failed to execute Claude: %w", err)
 	}
 
-	// Start command
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start Claude: %w", err)
+	// Parse response - look for JSON in output (might be wrapped in markdown code block)
+	outputStr := string(output)
+
+	// First, try to extract from markdown code block
+	if strings.Contains(outputStr, "```json") {
+		start := strings.Index(outputStr, "```json")
+		if start != -1 {
+			// Find the actual start of JSON (after newline)
+			jsonStart := start + 7 // Skip "```json"
+			// Skip any whitespace or newline after ```json
+			for jsonStart < len(outputStr) && (outputStr[jsonStart] == '\n' || outputStr[jsonStart] == '\r' || outputStr[jsonStart] == ' ') {
+				jsonStart++
+			}
+
+			end := strings.Index(outputStr[jsonStart:], "```")
+			if end != -1 {
+				jsonResponse := strings.TrimSpace(outputStr[jsonStart : jsonStart+end])
+				return jsonResponse, nil
+			}
+		}
 	}
 
-	// Write prompt to stdin
-	if _, err := stdin.Write([]byte(userPrompt)); err != nil {
-		return "", fmt.Errorf("failed to write prompt: %w", err)
-	}
-	stdin.Close()
+	// Fallback: look for raw JSON
+	lines := strings.Split(outputStr, "\n")
+	var jsonStart, jsonEnd int = -1, -1
 
-	// Wait for command to complete and get output
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to execute Claude: %w, output: %s", err, string(output))
+	// Find the first line that starts with {
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "{" {
+			jsonStart = i
+			break
+		}
 	}
 
-	return string(output), nil
+	// Find the last line that ends with }
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) == "}" {
+			jsonEnd = i
+			break
+		}
+	}
+
+	if jsonStart != -1 && jsonEnd != -1 && jsonStart <= jsonEnd {
+		// Join the lines to form the JSON
+		jsonLines := lines[jsonStart : jsonEnd+1]
+		jsonResponse := strings.Join(jsonLines, "\n")
+		return jsonResponse, nil
+	}
+
+	return "", fmt.Errorf("no JSON response found in output: %s", outputStr)
 }
 
 // validateResult ensures the routing result is valid
 func (r *RepositoryRouter) validateResult(result *slack.RouteResult) error {
-	// Check if repository ID exists
+	// Check if repository path exists
 	found := false
 	for _, repo := range r.repos {
-		if repo.ID == result.RepositoryID {
+		if repo.Path == result.RepositoryPath {
 			found = true
 			// Ensure name matches
 			if result.RepositoryName != repo.Name {
@@ -176,7 +217,7 @@ func (r *RepositoryRouter) validateResult(result *slack.RouteResult) error {
 	}
 
 	if !found {
-		return fmt.Errorf("repository with ID %d not found", result.RepositoryID)
+		return fmt.Errorf("repository with path %s not found", result.RepositoryPath)
 	}
 
 	// Validate confidence level

@@ -25,23 +25,18 @@ type Manager struct {
 	lastActiveID    string
 	mu              sync.RWMutex
 
-	db                *sql.DB
-	queries           *db.Queries
-	config            *config.Config
-	slackHandler      *ccslack.Handler
-	mcpBaseURL        string
-	repositoryManager RepositoryManager
-	worktreeManager   WorktreeManager
-}
-
-// RepositoryManager interface for managing repositories
-type RepositoryManager interface {
-	GetByID(ctx context.Context, id int64) (db.Repository, error)
+	db              *sql.DB
+	queries         *db.Queries
+	config          *config.Config
+	slackHandler    *ccslack.Handler
+	mcpBaseURL      string
+	worktreeManager WorktreeManager
+	debugLogger     *os.File
 }
 
 // WorktreeManager interface for managing worktrees
 type WorktreeManager interface {
-	CreateWorktree(ctx context.Context, threadID int64, repositoryID int64, baseBranch string) (*db.Worktree, error)
+	CreateWorktree(ctx context.Context, threadID int64, repositoryPath, repositoryName, baseBranch string) (*db.Worktree, error)
 	GetWorktreePath(ctx context.Context, threadID int64) (string, error)
 }
 
@@ -59,6 +54,9 @@ type Session struct {
 func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Handler, mcpBaseURL string) *Manager {
 	queries := db.New(database)
 
+	// Create debug logger (same file as slack handler)
+	debugFile, _ := os.OpenFile(fmt.Sprintf("logs/debug/multi-repo-%d.log", time.Now().Unix()), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+
 	return &Manager{
 		sessions:        make(map[string]*Session),
 		threadToSession: make(map[string]string),
@@ -67,12 +65,8 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 		config:          cfg,
 		slackHandler:    slackHandler,
 		mcpBaseURL:      mcpBaseURL,
+		debugLogger:     debugFile,
 	}
-}
-
-// SetRepositoryManager sets the repository manager
-func (m *Manager) SetRepositoryManager(rm RepositoryManager) {
-	m.repositoryManager = rm
 }
 
 // SetWorktreeManager sets the worktree manager
@@ -80,13 +74,12 @@ func (m *Manager) SetWorktreeManager(wm WorktreeManager) {
 	m.worktreeManager = wm
 }
 
-// CreateSessionWithResumeAndRepo creates a new session with repository and worktree support
+// CreateSessionWithResumeAndPath creates a new session with repository path and worktree support
 // Returns: session, resumed, previousSessionID, error
-func (m *Manager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*ccslack.Session, bool, string, error) {
-	// Get repository
-	repo, err := m.repositoryManager.GetByID(ctx, repositoryID)
-	if err != nil {
-		return nil, false, "", fmt.Errorf("failed to get repository: %w", err)
+func (m *Manager) CreateSessionWithResumeAndPath(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryPath, repositoryName string) (*ccslack.Session, bool, string, error) {
+	if m.debugLogger != nil {
+		fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] CreateSessionWithResumeAndPath - channel: %s, thread: %s, repo_path: %s, repo_name: %s\n",
+			time.Now().Format("2006-01-02 15:04:05"), channelID, threadTS, repositoryPath, repositoryName)
 	}
 
 	// Check if thread exists
@@ -101,21 +94,35 @@ func (m *Manager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID,
 	if err == nil {
 		// Thread exists
 		threadID = thread.ID
+		if m.debugLogger != nil {
+			fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Thread exists - ID: %d, existing workDir: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), threadID, thread.WorkingDirectory)
+		}
 
 		// Check if worktree exists
 		if m.worktreeManager != nil {
 			worktreePath, err := m.worktreeManager.GetWorktreePath(ctx, threadID)
 			if err == nil && worktreePath != "" {
 				workDir = worktreePath
+				if m.debugLogger != nil {
+					fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Found existing worktree: %s\n",
+						time.Now().Format("2006-01-02 15:04:05"), worktreePath)
+				}
+			} else if m.debugLogger != nil {
+				fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] No existing worktree found\n",
+					time.Now().Format("2006-01-02 15:04:05"))
 			}
 		}
 	} else {
-		// Create new thread with repository ID
+		// Create new thread
+		if m.debugLogger != nil {
+			fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Creating new thread\n",
+				time.Now().Format("2006-01-02 15:04:05"))
+		}
 		newThread, err := m.queries.CreateThread(ctx, db.CreateThreadParams{
 			ChannelID:        channelID,
 			ThreadTs:         threadTS,
 			WorkingDirectory: "", // Will be set after worktree creation
-			RepositoryID:     sql.NullInt64{Int64: repositoryID, Valid: true},
 		})
 		if err != nil {
 			return nil, false, "", fmt.Errorf("failed to create thread: %w", err)
@@ -124,12 +131,24 @@ func (m *Manager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID,
 	}
 
 	// Create worktree if needed
-	if workDir == "" && m.worktreeManager != nil {
-		worktree, err := m.worktreeManager.CreateWorktree(ctx, threadID, repositoryID, repo.DefaultBranch.String)
+	if workDir == "" && m.worktreeManager != nil && repositoryPath != "" {
+		if m.debugLogger != nil {
+			fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Creating new worktree for repository: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), repositoryPath)
+		}
+		worktree, err := m.worktreeManager.CreateWorktree(ctx, threadID, repositoryPath, repositoryName, "")
 		if err != nil {
+			if m.debugLogger != nil {
+				fmt.Fprintf(m.debugLogger, "[%s] [ERROR] Failed to create worktree: %v\n",
+					time.Now().Format("2006-01-02 15:04:05"), err)
+			}
 			return nil, false, "", fmt.Errorf("failed to create worktree: %w", err)
 		}
 		workDir = worktree.Path
+		if m.debugLogger != nil {
+			fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Created worktree at: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), workDir)
+		}
 
 		// Update thread with worktree path
 		err = m.queries.UpdateThreadWorkingDirectory(ctx, db.UpdateThreadWorkingDirectoryParams{
@@ -142,8 +161,17 @@ func (m *Manager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID,
 	}
 
 	// If still no workDir, use repository path as fallback
-	if workDir == "" {
-		workDir = repo.Path
+	if workDir == "" && repositoryPath != "" {
+		workDir = repositoryPath
+		if m.debugLogger != nil {
+			fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Using repository path as workDir fallback: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), workDir)
+		}
+	}
+
+	if m.debugLogger != nil {
+		fmt.Fprintf(m.debugLogger, "[%s] [DEBUG] Final workDir decision: %s\n",
+			time.Now().Format("2006-01-02 15:04:05"), workDir)
 	}
 
 	// Now create session with the determined working directory

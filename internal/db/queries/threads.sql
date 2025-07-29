@@ -5,9 +5,9 @@ LIMIT 1;
 
 -- name: CreateThread :one
 INSERT INTO threads (
-    channel_id, thread_ts, working_directory, repository_id
+    channel_id, thread_ts, working_directory
 ) VALUES (
-    ?, ?, ?, ?
+    ?, ?, ?
 )
 RETURNING *;
 

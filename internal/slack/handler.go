@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -48,9 +49,9 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
-	repositoryManager  RepositoryManager
 	worktreeManager    WorktreeManager
 	repositoryRouter   RepositoryRouter
+	debugLogger        *os.File
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -58,7 +59,6 @@ type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
 	CreateSession(channelID, threadTS, workDir string) (*Session, error)
 	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
-	CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*Session, bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -77,10 +77,14 @@ type Session struct {
 
 // NewHandler creates a new Slack handler
 func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler {
+	// Create debug logger
+	debugFile, _ := os.OpenFile(fmt.Sprintf("logs/debug/multi-repo-%d.log", time.Now().Unix()), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+
 	h := &Handler{
 		client:        slack.New(token),
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
+		debugLogger:   debugFile,
 	}
 
 	return h
@@ -89,11 +93,6 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 // SetApprovalResponder sets the approval responder for handling approvals
 func (h *Handler) SetApprovalResponder(responder ApprovalResponder) {
 	h.approvalResponder = responder
-}
-
-// SetRepositoryManager sets the repository manager
-func (h *Handler) SetRepositoryManager(rm RepositoryManager) {
-	h.repositoryManager = rm
 }
 
 // SetWorktreeManager sets the worktree manager
@@ -213,24 +212,33 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	ctx := context.Background()
 
 	// Select repository using router if available
-	var repositoryID int64
-	if h.repositoryManager != nil && h.repositoryRouter != nil {
-		// Get repositories for this channel
-		repos, err := h.repositoryManager.ListByChannelID(ctx, event.Channel)
-		if err == nil && len(repos) > 0 {
-			if len(repos) == 1 {
-				// Single repository - use it directly
-				repositoryID = repos[0].ID
-			} else {
-				// Multiple repositories - use router
-				routeResult, err := h.repositoryRouter.Route(ctx, event.Channel, text)
-				if err == nil {
-					repositoryID = routeResult.RepositoryID
-				} else {
-					// Router failed - use first repository as fallback
-					repositoryID = repos[0].ID
-				}
+	var repositoryPath string
+	var repositoryName string
+	if h.debugLogger != nil {
+		fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Starting repository routing - channel: %s, thread_ts: %s, message: %s\n",
+			time.Now().Format("2006-01-02 15:04:05"), event.Channel, threadTS, text)
+	}
+
+	if h.repositoryRouter != nil {
+		routeResult, err := h.repositoryRouter.Route(ctx, event.Channel, text)
+		if err == nil {
+			repositoryPath = routeResult.RepositoryPath
+			repositoryName = routeResult.RepositoryName
+			if h.debugLogger != nil {
+				fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Repository routing successful - path: %s, name: %s, confidence: %s, reason: %s\n",
+					time.Now().Format("2006-01-02 15:04:05"), repositoryPath, repositoryName,
+					routeResult.Confidence, routeResult.Reason)
 			}
+		} else {
+			if h.debugLogger != nil {
+				fmt.Fprintf(h.debugLogger, "[%s] [ERROR] Repository routing failed - error: %v\n",
+					time.Now().Format("2006-01-02 15:04:05"), err)
+			}
+		}
+	} else {
+		if h.debugLogger != nil {
+			fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] No repository router configured\n",
+				time.Now().Format("2006-01-02 15:04:05"))
 		}
 	}
 
@@ -239,20 +247,36 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	var previousSessionID string
 	var err error
 
-	if repositoryID > 0 && h.sessionMgr != nil {
-		// Use repository-aware session creation if available
+	if repositoryPath != "" && h.sessionMgr != nil {
+		if h.debugLogger != nil {
+			fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Using repository-specific session creation - path: %s, name: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), repositoryPath, repositoryName)
+		}
+
+		// Use repository-aware session creation with path
 		if sm, ok := h.sessionMgr.(interface {
-			CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*Session, bool, string, error)
+			CreateSessionWithResumeAndPath(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryPath, repositoryName string) (*Session, bool, string, error)
 		}); ok {
-			_, resumed, previousSessionID, err = sm.CreateSessionWithResumeAndRepo(ctx, event.Channel, threadTS, text, repositoryID)
+			if h.debugLogger != nil {
+				fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Using CreateSessionWithResumeAndPath\n",
+					time.Now().Format("2006-01-02 15:04:05"))
+			}
+			_, resumed, previousSessionID, err = sm.CreateSessionWithResumeAndPath(ctx, event.Channel, threadTS, text, repositoryPath, repositoryName)
 		} else {
-			// Fall back to old method with working directory
-			workDir := h.determineWorkDir(event.Channel)
-			_, resumed, previousSessionID, err = h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+			// Fall back to use repositoryPath as working directory
+			if h.debugLogger != nil {
+				fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Falling back to CreateSessionWithResume with repositoryPath\n",
+					time.Now().Format("2006-01-02 15:04:05"))
+			}
+			_, resumed, previousSessionID, err = h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, repositoryPath, text)
 		}
 	} else {
-		// No repository support - use old method
+		// No repository support - use default working directory
 		workDir := h.determineWorkDir(event.Channel)
+		if h.debugLogger != nil {
+			fmt.Fprintf(h.debugLogger, "[%s] [DEBUG] Using default working directory: %s\n",
+				time.Now().Format("2006-01-02 15:04:05"), workDir)
+		}
 		_, resumed, previousSessionID, err = h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
 	}
 	if err != nil {

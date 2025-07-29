@@ -7,32 +7,25 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 const createThread = `-- name: CreateThread :one
 INSERT INTO threads (
-    channel_id, thread_ts, working_directory, repository_id
+    channel_id, thread_ts, working_directory
 ) VALUES (
-    ?, ?, ?, ?
+    ?, ?, ?
 )
-RETURNING id, channel_id, thread_ts, working_directory, created_at, updated_at, repository_id
+RETURNING id, channel_id, thread_ts, working_directory, created_at, updated_at
 `
 
 type CreateThreadParams struct {
-	ChannelID        string        `json:"channel_id"`
-	ThreadTs         string        `json:"thread_ts"`
-	WorkingDirectory string        `json:"working_directory"`
-	RepositoryID     sql.NullInt64 `json:"repository_id"`
+	ChannelID        string `json:"channel_id"`
+	ThreadTs         string `json:"thread_ts"`
+	WorkingDirectory string `json:"working_directory"`
 }
 
 func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thread, error) {
-	row := q.queryRow(ctx, q.createThreadStmt, createThread,
-		arg.ChannelID,
-		arg.ThreadTs,
-		arg.WorkingDirectory,
-		arg.RepositoryID,
-	)
+	row := q.queryRow(ctx, q.createThreadStmt, createThread, arg.ChannelID, arg.ThreadTs, arg.WorkingDirectory)
 	var i Thread
 	err := row.Scan(
 		&i.ID,
@@ -41,13 +34,12 @@ func (q *Queries) CreateThread(ctx context.Context, arg CreateThreadParams) (Thr
 		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.RepositoryID,
 	)
 	return i, err
 }
 
 const getThread = `-- name: GetThread :one
-SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at, repository_id FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 WHERE channel_id = ? AND thread_ts = ?
 LIMIT 1
 `
@@ -67,13 +59,12 @@ func (q *Queries) GetThread(ctx context.Context, arg GetThreadParams) (Thread, e
 		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.RepositoryID,
 	)
 	return i, err
 }
 
 const getThreadByID = `-- name: GetThreadByID :one
-SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at, repository_id FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 WHERE id = ?
 LIMIT 1
 `
@@ -88,13 +79,12 @@ func (q *Queries) GetThreadByID(ctx context.Context, id int64) (Thread, error) {
 		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.RepositoryID,
 	)
 	return i, err
 }
 
 const getThreadByThreadTs = `-- name: GetThreadByThreadTs :one
-SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at, repository_id FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 WHERE thread_ts = ?
 LIMIT 1
 `
@@ -109,13 +99,12 @@ func (q *Queries) GetThreadByThreadTs(ctx context.Context, threadTs string) (Thr
 		&i.WorkingDirectory,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.RepositoryID,
 	)
 	return i, err
 }
 
 const listThreads = `-- name: ListThreads :many
-SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at, repository_id FROM threads
+SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
 ORDER BY updated_at DESC
 `
 
@@ -135,7 +124,6 @@ func (q *Queries) ListThreads(ctx context.Context) ([]Thread, error) {
 			&i.WorkingDirectory,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.RepositoryID,
 		); err != nil {
 			return nil, err
 		}

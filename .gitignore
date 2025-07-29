@@ -9,8 +9,8 @@
 *.dylib
 
 # Built binaries
-/cc-slack
-cmd/cc-slack/cc-slack
+cc-slack
+cc-slack-manager
 
 # Test binary, built with `go test -c`
 *.test
@@ -31,6 +31,9 @@ go.work.sum
 # env file
 .env
 .envrc
+
+# Local configuration
+config.yaml
 
 # Editor/IDE
 # .idea/
@@ -53,3 +56,5 @@ web/dist/
 internal/web/dist/
 web/.pnpm-store/
 web/coverage/
+
+.cc-slack-worktrees/

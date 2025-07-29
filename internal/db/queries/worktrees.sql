@@ -11,16 +11,20 @@ SELECT * FROM worktrees
 WHERE status = 'active'
 ORDER BY created_at DESC;
 
--- name: ListWorktreesByRepository :many
+-- name: ListWorktrees :many
 SELECT * FROM worktrees
-WHERE repository_id = ?
+ORDER BY created_at DESC;
+
+-- name: ListWorktreesByRepositoryPath :many
+SELECT * FROM worktrees
+WHERE repository_path = ?
 ORDER BY created_at DESC;
 
 -- name: CreateWorktree :one
 INSERT INTO worktrees (
-    repository_id, thread_id, path, 
+    repository_path, repository_name, thread_id, path, 
     base_branch, current_branch, status
-) VALUES (?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateWorktreeStatus :exec
