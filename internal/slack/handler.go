@@ -9,15 +9,23 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
 	"golang.org/x/sync/errgroup"
+)
+
+// Constants for image download
+const (
+	// MaxConcurrentDownloads is the maximum number of concurrent image downloads
+	MaxConcurrentDownloads = 4
 )
 
 // Re-export tool constants for backward compatibility
@@ -43,12 +51,6 @@ const (
 	MessageApprovalPrompt = tools.MessageApprovalPrompt
 )
 
-// Constants for image download
-const (
-	// MaxConcurrentDownloads is the maximum number of concurrent image downloads
-	MaxConcurrentDownloads = 4
-)
-
 // Handler handles Slack events and interactions
 type Handler struct {
 	client             *slack.Client
@@ -61,13 +63,14 @@ type Handler struct {
 	fileUploadEnabled  bool
 	imagesDir          string
 	botToken           string // Store bot token for file downloads
+	config             *config.Config
+	botUserID          string // Store bot user ID for mention detection
 }
 
 // SessionManager interface for managing Claude Code sessions
 type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
-	CreateSession(channelID, threadTS, workDir string) (*Session, error)
-	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
+	CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -85,13 +88,18 @@ type Session struct {
 }
 
 // NewHandler creates a new Slack handler
-func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler {
+func NewHandler(cfg *config.Config, sessionMgr SessionManager, botUserID string) *Handler {
 	h := &Handler{
-		client:        slack.New(token),
-		signingSecret: signingSecret,
+		client:        slack.New(cfg.Slack.BotToken),
+		signingSecret: cfg.Slack.SigningSecret,
 		sessionMgr:    sessionMgr,
-		botToken:      token,
+		botToken:      cfg.Slack.BotToken,
+		config:        cfg,
+		botUserID:     botUserID,
 	}
+
+	// Apply configuration
+	h.Configure()
 
 	return h
 }
@@ -112,6 +120,18 @@ func (h *Handler) SetAssistantOptions(username, iconEmoji, iconURL string) {
 func (h *Handler) SetFileUploadOptions(enabled bool, imagesDir string) {
 	h.fileUploadEnabled = enabled
 	h.imagesDir = imagesDir
+}
+
+// Configure applies configuration settings to the handler
+func (h *Handler) Configure() {
+	// Apply assistant options
+	h.assistantUsername = h.config.Slack.Assistant.Username
+	h.assistantIconEmoji = h.config.Slack.Assistant.IconEmoji
+	h.assistantIconURL = h.config.Slack.Assistant.IconURL
+
+	// Apply file upload options
+	h.fileUploadEnabled = h.config.Slack.FileUpload.Enabled
+	h.imagesDir = h.config.Slack.FileUpload.ImagesDir
 }
 
 // GetClient returns the Slack client
@@ -167,24 +187,31 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	if eventsAPIEvent.Type == slackevents.CallbackEvent {
 		innerEvent := eventsAPIEvent.InnerEvent
 		switch ev := innerEvent.Data.(type) {
-		case *slackevents.AppMentionEvent:
-			h.handleAppMention(ev)
+		case *slackevents.MessageEvent:
+			h.handleMessage(ev)
 		}
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleAppMention handles bot mentions
-func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
-	// Extract message without mention
-	text := h.removeBotMention(event.Text)
-	if text == "" {
+// handleMessage handles message events
+func (h *Handler) handleMessage(event *slackevents.MessageEvent) {
+	// Apply filtering
+	if !h.shouldProcessMessage(event) {
 		return
 	}
 
+	// Extract message text, optionally removing bot mention if it exists
+	text := event.Text
+	if h.config.Slack.MessageFilter.RequireMention {
+		text = h.removeBotMention(text)
+		if text == "" {
+			return
+		}
+	}
+
 	// Determine thread timestamp for session management
-	// If mentioned in a thread, use thread_ts; otherwise use the message ts
 	threadTS := event.ThreadTimeStamp
 	if threadTS == "" {
 		threadTS = event.TimeStamp
@@ -192,25 +219,26 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 
 	// Check if mentioned in a thread with an existing session
 	if event.ThreadTimeStamp != "" {
-		h.handleThreadMessage(event, text)
+		h.handleThreadMessageEvent(event, text)
 	} else {
-		h.handleNewSession(event, text, threadTS)
+		h.handleNewSessionFromMessage(event, text, threadTS)
 	}
 }
 
-// handleThreadMessage handles messages in existing threads
-func (h *Handler) handleThreadMessage(event *slackevents.AppMentionEvent, text string) {
+// handleThreadMessageEvent handles message events in existing threads
+func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text string) {
 	// Try to find existing session
 	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
 	if err == nil && session != nil {
-		// Fetch full message details if file upload is enabled
+		// Process attachments directly from the event
 		var imagePaths []string
-		if h.fileUploadEnabled {
-			imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
-			if err != nil {
-				fmt.Printf("Failed to fetch images: %v\n", err)
-				// Continue without images
-			}
+		var files []slack.File
+		if event.Message != nil {
+			files = event.Message.Files
+		}
+
+		if h.fileUploadEnabled && len(files) > 0 {
+			imagePaths = h.processMessageAttachments(event, files)
 		}
 
 		// Add image paths to the prompt if any
@@ -231,34 +259,44 @@ func (h *Handler) handleThreadMessage(event *slackevents.AppMentionEvent, text s
 	}
 
 	// No existing session found - create new session
-	h.handleNewSession(event, text, event.ThreadTimeStamp)
+	h.handleNewSessionFromMessage(event, text, event.ThreadTimeStamp)
 }
 
-// handleNewSession creates a new session or resumes a previous one
-func (h *Handler) handleNewSession(event *slackevents.AppMentionEvent, text string, threadTS string) {
+// handleNewSessionFromMessage creates a new session or resumes one for message events
+func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, text string, threadTS string) {
 	// Determine working directory
 	workDir := h.determineWorkDir(event.Channel)
 
-	// Fetch full message details if file upload is enabled
-	var imagePaths []string
-	if h.fileUploadEnabled {
-		var err error
-		// Use event.ThreadTimeStamp for fetchAndSaveImages (empty string for non-thread messages)
-		imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
-		if err != nil {
-			fmt.Printf("Failed to fetch images: %v\n", err)
-			// Continue without images
+	// Process attachments if any, but defer actual download
+	var hasImages bool
+	var files []slack.File
+	// Check files in Message field
+	if event.Message != nil && len(event.Message.Files) > 0 {
+		files = event.Message.Files
+	}
+
+	if h.fileUploadEnabled && len(files) > 0 {
+		for _, file := range files {
+			if strings.HasPrefix(file.Mimetype, "image/") {
+				hasImages = true
+				break
+			}
 		}
 	}
 
-	// Add image paths to the prompt if any
-	if len(imagePaths) > 0 {
-		text = h.appendImagePaths(text, imagePaths)
+	// Process images first if any
+	var initialPrompt string = text
+	if hasImages && len(files) > 0 {
+		imagePaths := h.processMessageAttachments(event, files)
+		if len(imagePaths) > 0 {
+			// Append image paths to the initial prompt
+			initialPrompt = h.appendImagePaths(text, imagePaths)
+		}
 	}
 
-	// Create session with resume check
+	// Create session with text including image paths
 	ctx := context.Background()
-	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+	resumed, previousSessionID, err := h.sessionMgr.CreateSession(ctx, event.Channel, threadTS, workDir, initialPrompt)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
@@ -285,6 +323,8 @@ func (h *Handler) handleNewSession(event *slackevents.AppMentionEvent, text stri
 		fmt.Printf("Failed to post message: %v\n", err)
 		return
 	}
+
+	// Image processing has already been done before session creation
 }
 
 // HandleInteraction handles Slack interactive components (buttons, etc.)
@@ -349,15 +389,28 @@ func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, actio
 
 // removeBotMention removes bot mention from message text
 func (h *Handler) removeBotMention(text string) string {
-	// Remove <@BOTID> pattern
-	// TODO: Get actual bot ID
-	text = strings.TrimSpace(text)
-	if strings.HasPrefix(text, "<@") {
-		if idx := strings.Index(text, ">"); idx != -1 {
-			text = strings.TrimSpace(text[idx+1:])
-		}
+	return RemoveBotMentionFromText(text, h.botUserID)
+}
+
+// RemoveBotMentionFromText removes bot mention from text (pure function)
+func RemoveBotMentionFromText(text string, botUserID string) string {
+	if botUserID == "" {
+		return text
 	}
-	return text
+
+	// Remove <@BOTID> pattern
+	botMention := fmt.Sprintf("<@%s>", botUserID)
+	text = strings.TrimSpace(text)
+
+	// Handle mention at the beginning
+	if strings.HasPrefix(text, botMention) {
+		text = strings.TrimSpace(text[len(botMention):])
+	}
+
+	// Handle mention anywhere else in the text
+	text = strings.ReplaceAll(text, botMention, "")
+
+	return strings.TrimSpace(text)
 }
 
 // determineWorkDir determines the working directory for a channel
@@ -639,146 +692,6 @@ func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
 	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
 }
 
-// fetchAndSaveImages fetches message details and downloads attached images
-func (h *Handler) fetchAndSaveImages(channelID, timestamp, threadTS string) ([]string, error) {
-	var msg slack.Message
-
-	// Create session-specific directory structure
-	// Format: images/{thread_ts}/{uuid}/
-	sessionID := uuid.New().String()
-	sessionDir := threadTS
-	if threadTS == "" {
-		sessionDir = timestamp
-	}
-	sessionDir = strings.ReplaceAll(sessionDir, ".", "_")
-
-	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
-
-	// If we're in a thread, use GetConversationReplies to get the specific message
-	if threadTS != "" {
-		repliesParams := &slack.GetConversationRepliesParameters{
-			ChannelID: channelID,
-			Timestamp: threadTS,
-			Inclusive: true,
-		}
-
-		replies, _, _, err := h.client.GetConversationReplies(repliesParams)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get conversation replies: %w", err)
-		}
-
-		// Find the specific message by timestamp
-		found := false
-		for _, m := range replies {
-			if m.Timestamp == timestamp {
-				msg = m
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil, nil // No message found
-		}
-	} else {
-		// Not in a thread, use GetConversationHistory
-		params := &slack.GetConversationHistoryParameters{
-			ChannelID: channelID,
-			Latest:    timestamp,
-			Inclusive: true,
-			Limit:     1,
-		}
-
-		history, err := h.client.GetConversationHistory(params)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get conversation history: %w", err)
-		}
-
-		if len(history.Messages) == 0 {
-			return nil, nil // No message found
-		}
-
-		msg = history.Messages[0]
-	}
-	if len(msg.Files) == 0 {
-		return nil, nil // No files attached
-	}
-
-	// Create session-specific directory if it doesn't exist
-	if err := os.MkdirAll(imageDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create image directory: %w", err)
-	}
-
-	// Filter image files
-	var imageFiles []slack.File
-	for _, file := range msg.Files {
-		if strings.HasPrefix(file.Mimetype, "image/") {
-			imageFiles = append(imageFiles, file)
-		}
-	}
-
-	if len(imageFiles) == 0 {
-		return nil, nil // No image files
-	}
-
-	// Download images concurrently
-	type result struct {
-		path string
-		idx  int
-	}
-
-	resultChan := make(chan result, len(imageFiles))
-	errorChan := make(chan error, len(imageFiles))
-
-	// Create a worker pool with limited concurrency
-	ctx := context.Background()
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(MaxConcurrentDownloads)
-
-	// Start download goroutines
-	for i, file := range imageFiles {
-		i, file := i, file // Capture loop variables
-		g.Go(func() error {
-			path, err := h.downloadAndSaveImage(file, imageDir)
-			if err != nil {
-				errorChan <- fmt.Errorf("failed to download %s: %w", file.Name, err)
-				return nil // Don't fail the whole group
-			}
-			resultChan <- result{path: path, idx: i}
-			return nil
-		})
-	}
-
-	// Wait for all downloads to complete
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	close(resultChan)
-	close(errorChan)
-
-	// Log any errors
-	for err := range errorChan {
-		fmt.Printf("Download error: %v\n", err)
-	}
-
-	// Collect results in order
-	results := make([]string, 0, len(imageFiles))
-	pathsByIdx := make(map[int]string)
-	for res := range resultChan {
-		pathsByIdx[res.idx] = res.path
-	}
-
-	// Sort by original order
-	for i := 0; i < len(imageFiles); i++ {
-		if path, ok := pathsByIdx[i]; ok {
-			results = append(results, path)
-		}
-	}
-
-	return results, nil
-}
-
 // downloadAndSaveImage downloads a Slack file and saves it locally
 func (h *Handler) downloadAndSaveImage(file slack.File, imageDir string) (string, error) {
 	// Generate unique filename
@@ -873,10 +786,163 @@ func (h *Handler) appendImagePaths(text string, imagePaths []string) string {
 	return builder.String()
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
+// shouldProcessMessage filters message events based on configuration
+func (h *Handler) shouldProcessMessage(event *slackevents.MessageEvent) bool {
+	// If filtering is disabled, process all messages
+	if !h.config.Slack.MessageFilter.Enabled {
+		return true
 	}
-	return b
+
+	// Skip bot messages
+	if event.BotID != "" {
+		return false
+	}
+
+	// Skip subtypes (edits, deletes, etc.) but allow file_share
+	if event.SubType != "" && event.SubType != "file_share" {
+		return false
+	}
+
+	// Check if bot mention is required
+	if h.config.Slack.MessageFilter.RequireMention {
+		if !h.containsBotMention(event.Text) {
+			return false
+		}
+	}
+
+	// Check include patterns
+	if len(h.config.Slack.MessageFilter.IncludePatterns) > 0 {
+		matched := false
+		for _, pattern := range h.config.Slack.MessageFilter.IncludePatterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				continue
+			}
+			if re.MatchString(event.Text) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	// Check exclude patterns
+	if len(h.config.Slack.MessageFilter.ExcludePatterns) > 0 {
+		for _, pattern := range h.config.Slack.MessageFilter.ExcludePatterns {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				continue
+			}
+			if re.MatchString(event.Text) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// containsBotMention checks if the text contains a mention of the bot
+func (h *Handler) containsBotMention(text string) bool {
+	if h.botUserID == "" {
+		return false
+	}
+	return strings.Contains(text, fmt.Sprintf("<@%s>", h.botUserID))
+}
+
+// processMessageAttachments processes attachments directly from message event
+func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent, files []slack.File) []string {
+	// Create session-specific directory structure
+	// Format: images/{thread_ts}/{uuid}/
+	sessionID := uuid.New().String()
+	sessionDir := event.ThreadTimeStamp
+	if sessionDir == "" {
+		sessionDir = event.TimeStamp
+	}
+	sessionDir = strings.ReplaceAll(sessionDir, ".", "_")
+
+	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
+	if err := os.MkdirAll(imageDir, 0755); err != nil {
+		fmt.Printf("Failed to create image directory: %v\n", err)
+		return nil
+	}
+
+	// Filter image files
+	var imageFiles []slack.File
+	for _, file := range files {
+		if strings.HasPrefix(file.Mimetype, "image/") {
+			imageFiles = append(imageFiles, file)
+		}
+	}
+
+	if len(imageFiles) == 0 {
+		return nil
+	}
+
+	// Result structure to maintain order
+	type result struct {
+		path string
+		idx  int
+	}
+
+	resultChan := make(chan result, len(imageFiles))
+	errorChan := make(chan error, len(imageFiles))
+
+	// Create a worker pool with limited concurrency
+	ctx := context.Background()
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(MaxConcurrentDownloads)
+
+	// Start download goroutines
+	for i, file := range imageFiles {
+		i, file := i, file // Capture loop variables
+		g.Go(func() error {
+			imagePath, err := h.downloadAndSaveImage(slack.File{
+				ID:                 file.ID,
+				Name:               file.Name,
+				Mimetype:           file.Mimetype,
+				URLPrivate:         file.URLPrivate,
+				URLPrivateDownload: file.URLPrivateDownload,
+			}, imageDir)
+
+			if err != nil {
+				errorChan <- fmt.Errorf("failed to download %s: %w", file.Name, err)
+				return nil // Don't fail the whole group
+			}
+
+			resultChan <- result{path: imagePath, idx: i}
+			return nil
+		})
+	}
+
+	// Wait for all downloads to complete
+	if err := g.Wait(); err != nil {
+		return nil
+	}
+
+	close(resultChan)
+	close(errorChan)
+
+	// Log any errors
+	for err := range errorChan {
+		fmt.Printf("Download error: %v\n", err)
+	}
+
+	// Collect results in order
+	results := make([]string, 0, len(imageFiles))
+	pathsByIdx := make(map[int]string)
+	for res := range resultChan {
+		pathsByIdx[res.idx] = res.path
+	}
+
+	// Sort by original order
+	for i := 0; i < len(imageFiles); i++ {
+		if path, ok := pathsByIdx[i]; ok {
+			results = append(results, path)
+		}
+	}
+
+	return results
 }

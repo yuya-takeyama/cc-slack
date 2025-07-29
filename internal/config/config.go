@@ -30,11 +30,12 @@ type ServerConfig struct {
 
 // SlackConfig contains Slack-related settings
 type SlackConfig struct {
-	BotToken      string           `mapstructure:"bot_token"`
-	AppToken      string           `mapstructure:"app_token"`
-	SigningSecret string           `mapstructure:"signing_secret"`
-	Assistant     AssistantConfig  `mapstructure:"assistant"`
-	FileUpload    FileUploadConfig `mapstructure:"file_upload"`
+	BotToken      string              `mapstructure:"bot_token"`
+	AppToken      string              `mapstructure:"app_token"`
+	SigningSecret string              `mapstructure:"signing_secret"`
+	Assistant     AssistantConfig     `mapstructure:"assistant"`
+	FileUpload    FileUploadConfig    `mapstructure:"file_upload"`
+	MessageFilter MessageFilterConfig `mapstructure:"message_filter"`
 }
 
 // AssistantConfig contains assistant display settings
@@ -75,6 +76,14 @@ type LoggingConfig struct {
 type FileUploadConfig struct {
 	Enabled   bool   `mapstructure:"enabled"`
 	ImagesDir string `mapstructure:"images_dir"`
+}
+
+// MessageFilterConfig contains message filtering settings
+type MessageFilterConfig struct {
+	Enabled         bool     `mapstructure:"enabled"`
+	IncludePatterns []string `mapstructure:"include_patterns"`
+	ExcludePatterns []string `mapstructure:"exclude_patterns"`
+	RequireMention  bool     `mapstructure:"require_mention"`
 }
 
 // Load loads configuration from file and environment variables
@@ -160,6 +169,12 @@ func setDefaultsWithViper(v *viper.Viper) {
 	// File upload defaults
 	v.SetDefault("slack.file_upload.enabled", true)
 	v.SetDefault("slack.file_upload.images_dir", "./tmp/uploaded_images")
+
+	// Message filter defaults
+	v.SetDefault("slack.message_filter.enabled", true)
+	v.SetDefault("slack.message_filter.require_mention", true)
+	v.SetDefault("slack.message_filter.include_patterns", []string{})
+	v.SetDefault("slack.message_filter.exclude_patterns", []string{})
 }
 
 // validate validates the configuration

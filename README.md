@@ -36,10 +36,11 @@ go build -o cc-slack cmd/cc-slack/main.go
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
-   - `app_mentions:read`
-   - `chat:write`
-   - `channels:history`
-   - `groups:history`
+   - `chat:write` - Always required for sending messages
+   
+   Choose based on where you'll use cc-slack:
+   - `channels:history` - For public channels
+   - `groups:history` - For private channels
    
    Additional scopes (required depending on your configuration):
    - `chat:write.customize` - Required if you set custom username or icon via `CC_SLACK_SLACK_ASSISTANT_USERNAME`, `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`, or `CC_SLACK_SLACK_ASSISTANT_ICON_URL`
@@ -48,7 +49,13 @@ go build -o cc-slack cmd/cc-slack/main.go
    - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
-   - Subscribe to bot events: `app_mention`, `message.channels`
+   - Subscribe to bot events (choose based on where you'll use cc-slack):
+     - `message.channels` - For public channels
+     - `message.groups` - For private channels
+     - `message.im` - For direct messages
+     - `message.mpim` - For multi-person direct messages
+   
+   Note: Only subscribe to the message events for the channel types you actually plan to use. For example, if you only use cc-slack in public channels, you only need `message.channels`.
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
 5. Install the app to your workspace
@@ -92,6 +99,26 @@ claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
    ```
 
 Note: Claude Code sessions use the current working directory where cc-slack is running.
+
+### Message Filtering
+
+cc-slack now supports message event filtering for improved performance and flexibility:
+
+- **Default behavior**: Only responds to bot mentions (backward compatible)
+- **Image handling**: Processes images directly from message events without additional API calls
+- **Pattern matching**: Configure include/exclude patterns for message processing
+
+Configure in `config.yaml`:
+```yaml
+slack:
+  message_filter:
+    enabled: true
+    require_mention: true  # Only respond to @mentions
+    # include_patterns: ["analyze", "help"]  # Optional: only process matching messages
+    # exclude_patterns: ["^#", "test"]      # Optional: skip matching messages
+```
+
+This feature significantly reduces Slack API rate limit issues when processing images.
 
 ## Development Tools
 

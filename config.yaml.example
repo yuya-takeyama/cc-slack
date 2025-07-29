@@ -1,0 +1,69 @@
+# cc-slack Configuration Example
+
+# Server settings
+server:
+  port: 8080
+  base_url: "http://localhost:8080"
+
+# Slack settings
+slack:
+  # Required: Bot OAuth Token (xoxb-...)
+  bot_token: "xoxb-your-bot-token"
+  # Required: App-level token (xapp-...) - only if using Socket Mode
+  app_token: "xapp-your-app-token"
+  # Required: Signing secret for request verification
+  signing_secret: "your-signing-secret"
+  
+  # Assistant display settings
+  assistant:
+    username: "Claude Code"
+    icon_emoji: ":robot_face:"
+    # icon_url: "https://example.com/icon.png"  # Alternative to icon_emoji
+  
+  # File upload settings
+  file_upload:
+    enabled: true
+    images_dir: "./tmp/uploaded_images"
+  
+  # Message filter settings (new feature)
+  message_filter:
+    enabled: true
+    # When true, only processes messages that mention the bot
+    require_mention: true
+    # Optional: Only process messages that match these patterns (regex)
+    # include_patterns:
+    #   - "analyze"
+    #   - "help"
+    #   - "^!claude"
+    # Optional: Skip messages that match these patterns (regex)
+    # exclude_patterns:
+    #   - "^#"
+    #   - "ignore"
+
+# Claude settings
+claude:
+  executable: "claude"
+  permission_prompt_tool: "mcp__cc-slack__approval_prompt"
+  # default_options:
+  #   - "--verbose"
+
+# Database settings
+database:
+  path: "./data/cc-slack.db"
+  migrations_path: "./migrations"
+
+# Session settings
+session:
+  timeout: "30m"
+  cleanup_interval: "5m"
+  resume_window: "1h"
+
+# Logging settings
+logging:
+  level: "info"
+  format: "json"
+  output: "./logs"
+
+# Working directories settings (not shown in current config)
+# working_directories:
+#   default: "/tmp/claude-workspace"
