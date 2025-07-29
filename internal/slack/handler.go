@@ -778,8 +778,21 @@ func (h *Handler) downloadAndSaveImage(file slack.File) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	// Log response details for debugging
+	fmt.Printf("Download response: status=%d, url=%s, content-type=%s\n",
+		resp.StatusCode, downloadURL, resp.Header.Get("Content-Type"))
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to download file: status %d", resp.StatusCode)
+		// Read error response body for debugging
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("Error response body: %s\n", string(body))
+		return "", fmt.Errorf("failed to download file: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Check if we got HTML instead of an image
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "text/html") {
+		return "", fmt.Errorf("received HTML instead of image, likely authentication issue - missing files:read scope?")
 	}
 
 	// Save to file
