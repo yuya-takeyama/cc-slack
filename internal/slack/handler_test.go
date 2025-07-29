@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/slack-go/slack/slackevents"
+	"github.com/yuya-takeyama/cc-slack/internal/config"
 )
 
 func TestRemoveBotMention(t *testing.T) {
@@ -156,11 +157,29 @@ func (m *MockSessionManager) SendMessage(sessionID, message string) error {
 	return nil
 }
 
+// createTestConfig creates a minimal config for testing
+func createTestConfig() *config.Config {
+	return &config.Config{
+		Slack: config.SlackConfig{
+			BotToken:      "test-token",
+			SigningSecret: "test-secret",
+			MessageFilter: config.MessageFilterConfig{
+				Enabled:        true,
+				RequireMention: true,
+			},
+			FileUpload: config.FileUploadConfig{
+				Enabled:   false,
+				ImagesDir: "/tmp/test-images",
+			},
+		},
+	}
+}
+
 func TestHandleAppMention_InThread(t *testing.T) {
 	mockSession := &MockSessionManager{
 		getSessionByThreadError: fmt.Errorf("not found"), // Simulate no existing session
 	}
-	h := NewHandler("test-token", "test-secret", mockSession)
+	h := NewHandler(createTestConfig(), mockSession)
 
 	// App mention in a thread
 	event := &slackevents.AppMentionEvent{
@@ -195,7 +214,7 @@ func TestHandleAppMention_InThread(t *testing.T) {
 
 func TestHandleAppMention_OutsideThread(t *testing.T) {
 	mockSession := &MockSessionManager{}
-	h := NewHandler("test-token", "test-secret", mockSession)
+	h := NewHandler(createTestConfig(), mockSession)
 
 	// App mention outside a thread
 	event := &slackevents.AppMentionEvent{
@@ -232,7 +251,7 @@ func TestHandleAppMention_ExistingSession(t *testing.T) {
 			WorkDir:   "/test/dir",
 		},
 	}
-	h := NewHandler("test-token", "test-secret", mockSession)
+	h := NewHandler(createTestConfig(), mockSession)
 
 	// App mention in a thread with existing session
 	event := &slackevents.AppMentionEvent{

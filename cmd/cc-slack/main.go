@@ -53,13 +53,7 @@ func main() {
 	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL, cfg.Slack.FileUpload.ImagesDir)
 
 	// Now create the actual Slack handler with the session manager
-	*slackHandler = *slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
-
-	// Set assistant display options
-	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
-
-	// Set file upload options
-	slackHandler.SetFileUploadOptions(cfg.Slack.FileUpload.Enabled, cfg.Slack.FileUpload.ImagesDir)
+	*slackHandler = *slack.NewHandler(cfg, sessionMgr)
 
 	// Create channel cache for web API
 	slackClient := slackHandler.GetClient()

@@ -48,7 +48,9 @@ go build -o cc-slack cmd/cc-slack/main.go
    - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
-   - Subscribe to bot events: `app_mention`, `message.channels`
+   - Subscribe to bot events: `app_mention`, `message.channels`, `message.groups`, `message.im`, `message.mpim`
+   
+   Note: The `message.*` events are required for the new message filtering feature that improves image handling performance.
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
 5. Install the app to your workspace
@@ -92,6 +94,26 @@ claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
    ```
 
 Note: Claude Code sessions use the current working directory where cc-slack is running.
+
+### Message Filtering
+
+cc-slack now supports message event filtering for improved performance and flexibility:
+
+- **Default behavior**: Only responds to bot mentions (backward compatible)
+- **Image handling**: Processes images directly from message events without additional API calls
+- **Pattern matching**: Configure include/exclude patterns for message processing
+
+Configure in `config.yaml`:
+```yaml
+slack:
+  message_filter:
+    enabled: true
+    require_mention: true  # Only respond to @mentions
+    # include_patterns: ["analyze", "help"]  # Optional: only process matching messages
+    # exclude_patterns: ["^#", "test"]      # Optional: skip matching messages
+```
+
+This feature significantly reduces Slack API rate limit issues when processing images.
 
 ## Development Tools
 

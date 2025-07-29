@@ -1,6 +1,6 @@
 ---
 title: Migrate from app_mention to message event for better image handling
-status: draft
+status: done
 ---
 
 # 009: Migrate from app_mention to message event
