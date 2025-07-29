@@ -8,7 +8,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -48,6 +50,9 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
+	fileUploadEnabled  bool
+	imagesDir          string
+	botToken           string // Store bot token for file downloads
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -77,6 +82,7 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 		client:        slack.New(token),
 		signingSecret: signingSecret,
 		sessionMgr:    sessionMgr,
+		botToken:      token,
 	}
 
 	return h
@@ -92,6 +98,12 @@ func (h *Handler) SetAssistantOptions(username, iconEmoji, iconURL string) {
 	h.assistantUsername = username
 	h.assistantIconEmoji = iconEmoji
 	h.assistantIconURL = iconURL
+}
+
+// SetFileUploadOptions sets file upload configuration
+func (h *Handler) SetFileUploadOptions(enabled bool, imagesDir string) {
+	h.fileUploadEnabled = enabled
+	h.imagesDir = imagesDir
 }
 
 // GetClient returns the Slack client
@@ -157,6 +169,12 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 
 // handleAppMention handles bot mentions
 func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
+	// DEBUG: Log app_mention event payload to check for file information
+	eventJSON, err := json.Marshal(event)
+	if err == nil {
+		fmt.Printf("DEBUG: app_mention event payload: %s\n", string(eventJSON))
+	}
+
 	// Extract message without mention
 	text := h.removeBotMention(event.Text)
 	if text == "" {
@@ -175,6 +193,21 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 		// Try to find existing session
 		session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
 		if err == nil && session != nil {
+			// Fetch full message details if file upload is enabled
+			var imagePaths []string
+			if h.fileUploadEnabled {
+				imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp)
+				if err != nil {
+					fmt.Printf("Failed to fetch images: %v\n", err)
+					// Continue without images
+				}
+			}
+
+			// Add image paths to the prompt if any
+			if len(imagePaths) > 0 {
+				text = h.appendImagePaths(text, imagePaths)
+			}
+
 			// Existing session found - send message to it
 			err = h.sessionMgr.SendMessage(session.SessionID, text)
 			if err != nil {
@@ -193,6 +226,21 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	// No existing session - create new one or resume
 	// Determine working directory
 	workDir := h.determineWorkDir(event.Channel)
+
+	// Fetch full message details if file upload is enabled
+	var imagePaths []string
+	if h.fileUploadEnabled {
+		imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp)
+		if err != nil {
+			fmt.Printf("Failed to fetch images: %v\n", err)
+			// Continue without images
+		}
+	}
+
+	// Add image paths to the prompt if any
+	if len(imagePaths) > 0 {
+		text = h.appendImagePaths(text, imagePaths)
+	}
 
 	// Create session with resume check
 	ctx := context.Background()
@@ -575,4 +623,138 @@ func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
 	}
 
 	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
+}
+
+// fetchAndSaveImages fetches message details and downloads attached images
+func (h *Handler) fetchAndSaveImages(channelID, timestamp string) ([]string, error) {
+	// Get conversation history to fetch the specific message
+	params := &slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Latest:    timestamp,
+		Inclusive: true,
+		Limit:     1,
+	}
+
+	history, err := h.client.GetConversationHistory(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation history: %w", err)
+	}
+
+	if len(history.Messages) == 0 {
+		return nil, nil // No message found
+	}
+
+	msg := history.Messages[0]
+	if len(msg.Files) == 0 {
+		return nil, nil // No files attached
+	}
+
+	// Create images directory if it doesn't exist
+	if err := os.MkdirAll(h.imagesDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create images directory: %w", err)
+	}
+
+	var imagePaths []string
+	for _, file := range msg.Files {
+		// Skip non-image files
+		if !strings.HasPrefix(file.Mimetype, "image/") {
+			continue
+		}
+
+		// Download and save the image
+		path, err := h.downloadAndSaveImage(file)
+		if err != nil {
+			fmt.Printf("Failed to download image %s: %v\n", file.Name, err)
+			continue
+		}
+
+		imagePaths = append(imagePaths, path)
+	}
+
+	return imagePaths, nil
+}
+
+// downloadAndSaveImage downloads a Slack file and saves it locally
+func (h *Handler) downloadAndSaveImage(file slack.File) (string, error) {
+	// Generate unique filename with timestamp
+	timeStr := time.Now().Format("20060102-150405")
+	ext := filepath.Ext(file.Name)
+	if ext == "" {
+		ext = ".jpg" // Default extension
+	}
+	filename := fmt.Sprintf("%s-%s-%s%s", timeStr, file.ID, file.Name[:min(20, len(file.Name))], ext)
+	filePath := filepath.Join(h.imagesDir, filename)
+
+	// Download the file
+	var downloadURL string
+	if file.URLPrivateDownload != "" {
+		downloadURL = file.URLPrivateDownload
+	} else if file.URLPrivate != "" {
+		downloadURL = file.URLPrivate
+	} else {
+		return "", fmt.Errorf("no download URL available for file %s", file.Name)
+	}
+
+	req, err := http.NewRequest("GET", downloadURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add authorization header
+	req.Header.Set("Authorization", "Bearer "+h.botToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download file: status %d", resp.StatusCode)
+	}
+
+	// Save to file
+	out, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file: %w", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to save file: %w", err)
+	}
+
+	// Return absolute path
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return filePath, nil // Return relative path if abs fails
+	}
+
+	return absPath, nil
+}
+
+// appendImagePaths appends image paths to the prompt
+func (h *Handler) appendImagePaths(text string, imagePaths []string) string {
+	if len(imagePaths) == 0 {
+		return text
+	}
+
+	var builder strings.Builder
+	builder.WriteString(text)
+	builder.WriteString("\n\n# Images attached with the message\n")
+
+	for i, path := range imagePaths {
+		builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, path))
+	}
+
+	return builder.String()
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

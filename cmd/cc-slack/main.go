@@ -58,6 +58,9 @@ func main() {
 	// Set assistant display options
 	slackHandler.SetAssistantOptions(cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)
 
+	// Set file upload options
+	slackHandler.SetFileUploadOptions(cfg.FileUpload.Enabled, cfg.FileUpload.ImagesDir)
+
 	// Create channel cache for web API
 	slackClient := slackHandler.GetClient()
 	channelCache := slack.NewChannelCache(slackClient, 1*time.Hour)

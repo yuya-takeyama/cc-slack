@@ -14,12 +14,13 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Slack    SlackConfig    `mapstructure:"slack"`
-	Claude   ClaudeConfig   `mapstructure:"claude"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Session  SessionConfig  `mapstructure:"session"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Slack      SlackConfig      `mapstructure:"slack"`
+	Claude     ClaudeConfig     `mapstructure:"claude"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Session    SessionConfig    `mapstructure:"session"`
+	Logging    LoggingConfig    `mapstructure:"logging"`
+	FileUpload FileUploadConfig `mapstructure:"file_upload"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -70,6 +71,12 @@ type LoggingConfig struct {
 	Output string `mapstructure:"output"`
 }
 
+// FileUploadConfig contains file upload settings
+type FileUploadConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	ImagesDir string `mapstructure:"images_dir"`
+}
+
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -98,6 +105,8 @@ func Load() (*Config, error) {
 	v.BindEnv("session.timeout")
 	v.BindEnv("session.cleanup_interval")
 	v.BindEnv("session.resume_window")
+	v.BindEnv("file_upload.enabled")
+	v.BindEnv("file_upload.images_dir")
 
 	// Set defaults with the new viper instance
 	setDefaultsWithViper(v)
@@ -147,6 +156,10 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "./logs")
+
+	// File upload defaults
+	v.SetDefault("file_upload.enabled", true)
+	v.SetDefault("file_upload.images_dir", "./tmp/uploaded_images")
 }
 
 // validate validates the configuration

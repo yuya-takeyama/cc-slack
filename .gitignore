@@ -37,6 +37,7 @@ go.work.sum
 # .vscode/
 
 tmp
+!tmp/uploaded_images/.gitkeep
 
 **/.claude/settings.local.json
 CLAUDE.local.json
