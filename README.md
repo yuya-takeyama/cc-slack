@@ -45,6 +45,7 @@ go build -o cc-slack cmd/cc-slack/main.go
    - `chat:write.customize` - Required if you set custom username or icon via `CC_SLACK_SLACK_ASSISTANT_USERNAME`, `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`, or `CC_SLACK_SLACK_ASSISTANT_ICON_URL`
    - `groups:read` - Required for private channels when using conversations.info API
    - `channels:read` - Required for public channels when using conversations.info API
+   - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
    - Subscribe to bot events: `app_mention`, `message.channels`

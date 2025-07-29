@@ -218,11 +218,20 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 		return nil, fmt.Errorf("failed to start claude process: %w", err)
 	}
 
+	// Create scanners with larger buffer for image data
+	stdoutScanner := bufio.NewScanner(stdout)
+	stderrScanner := bufio.NewScanner(stderr)
+
+	// Set max token size to 100MB (default is 64KB)
+	const maxTokenSize = 100 * 1024 * 1024 // 100MB
+	stdoutScanner.Buffer(make([]byte, 0, maxTokenSize), maxTokenSize)
+	stderrScanner.Buffer(make([]byte, 0, maxTokenSize), maxTokenSize)
+
 	p := &ClaudeProcess{
 		cmd:        cmd,
 		stdin:      stdin,
-		stdout:     bufio.NewScanner(stdout),
-		stderr:     bufio.NewScanner(stderr),
+		stdout:     stdoutScanner,
+		stderr:     stderrScanner,
 		workDir:    opts.WorkDir,
 		configPath: configPath,
 		createdAt:  time.Now(),

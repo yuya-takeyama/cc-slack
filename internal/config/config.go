@@ -30,10 +30,11 @@ type ServerConfig struct {
 
 // SlackConfig contains Slack-related settings
 type SlackConfig struct {
-	BotToken      string          `mapstructure:"bot_token"`
-	AppToken      string          `mapstructure:"app_token"`
-	SigningSecret string          `mapstructure:"signing_secret"`
-	Assistant     AssistantConfig `mapstructure:"assistant"`
+	BotToken      string           `mapstructure:"bot_token"`
+	AppToken      string           `mapstructure:"app_token"`
+	SigningSecret string           `mapstructure:"signing_secret"`
+	Assistant     AssistantConfig  `mapstructure:"assistant"`
+	FileUpload    FileUploadConfig `mapstructure:"file_upload"`
 }
 
 // AssistantConfig contains assistant display settings
@@ -70,6 +71,12 @@ type LoggingConfig struct {
 	Output string `mapstructure:"output"`
 }
 
+// FileUploadConfig contains file upload settings
+type FileUploadConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	ImagesDir string `mapstructure:"images_dir"`
+}
+
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -91,6 +98,8 @@ func Load() (*Config, error) {
 	v.BindEnv("slack.assistant.username")
 	v.BindEnv("slack.assistant.icon_emoji")
 	v.BindEnv("slack.assistant.icon_url")
+	v.BindEnv("slack.file_upload.enabled")
+	v.BindEnv("slack.file_upload.images_dir")
 	v.BindEnv("server.port")
 	v.BindEnv("server.base_url")
 	v.BindEnv("database.path")
@@ -147,6 +156,10 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "./logs")
+
+	// File upload defaults
+	v.SetDefault("slack.file_upload.enabled", true)
+	v.SetDefault("slack.file_upload.images_dir", "./tmp/uploaded_images")
 }
 
 // validate validates the configuration
