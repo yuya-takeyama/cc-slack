@@ -48,6 +48,9 @@ type Handler struct {
 	assistantUsername  string
 	assistantIconEmoji string
 	assistantIconURL   string
+	repositoryManager  RepositoryManager
+	worktreeManager    WorktreeManager
+	repositoryRouter   RepositoryRouter
 }
 
 // SessionManager interface for managing Claude Code sessions
@@ -55,6 +58,7 @@ type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
 	CreateSession(channelID, threadTS, workDir string) (*Session, error)
 	CreateSessionWithResume(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (*Session, bool, string, error)
+	CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*Session, bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -85,6 +89,21 @@ func NewHandler(token, signingSecret string, sessionMgr SessionManager) *Handler
 // SetApprovalResponder sets the approval responder for handling approvals
 func (h *Handler) SetApprovalResponder(responder ApprovalResponder) {
 	h.approvalResponder = responder
+}
+
+// SetRepositoryManager sets the repository manager
+func (h *Handler) SetRepositoryManager(rm RepositoryManager) {
+	h.repositoryManager = rm
+}
+
+// SetWorktreeManager sets the worktree manager
+func (h *Handler) SetWorktreeManager(wm WorktreeManager) {
+	h.worktreeManager = wm
+}
+
+// SetRepositoryRouter sets the repository router
+func (h *Handler) SetRepositoryRouter(rr RepositoryRouter) {
+	h.repositoryRouter = rr
 }
 
 // SetAssistantOptions sets the display options for assistant messages
@@ -191,12 +210,51 @@ func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
 	}
 
 	// No existing session - create new one or resume
-	// Determine working directory
-	workDir := h.determineWorkDir(event.Channel)
+	ctx := context.Background()
+
+	// Select repository using router if available
+	var repositoryID int64
+	if h.repositoryManager != nil && h.repositoryRouter != nil {
+		// Get repositories for this channel
+		repos, err := h.repositoryManager.ListByChannelID(ctx, event.Channel)
+		if err == nil && len(repos) > 0 {
+			if len(repos) == 1 {
+				// Single repository - use it directly
+				repositoryID = repos[0].ID
+			} else {
+				// Multiple repositories - use router
+				routeResult, err := h.repositoryRouter.Route(ctx, event.Channel, text)
+				if err == nil {
+					repositoryID = routeResult.RepositoryID
+				} else {
+					// Router failed - use first repository as fallback
+					repositoryID = repos[0].ID
+				}
+			}
+		}
+	}
 
 	// Create session with resume check
-	ctx := context.Background()
-	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+	var resumed bool
+	var previousSessionID string
+	var err error
+
+	if repositoryID > 0 && h.sessionMgr != nil {
+		// Use repository-aware session creation if available
+		if sm, ok := h.sessionMgr.(interface {
+			CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*Session, bool, string, error)
+		}); ok {
+			_, resumed, previousSessionID, err = sm.CreateSessionWithResumeAndRepo(ctx, event.Channel, threadTS, text, repositoryID)
+		} else {
+			// Fall back to old method with working directory
+			workDir := h.determineWorkDir(event.Channel)
+			_, resumed, previousSessionID, err = h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+		}
+	} else {
+		// No repository support - use old method
+		workDir := h.determineWorkDir(event.Channel)
+		_, resumed, previousSessionID, err = h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+	}
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,

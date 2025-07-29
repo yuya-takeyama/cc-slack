@@ -25,11 +25,24 @@ type Manager struct {
 	lastActiveID    string
 	mu              sync.RWMutex
 
-	db           *sql.DB
-	queries      *db.Queries
-	config       *config.Config
-	slackHandler *ccslack.Handler
-	mcpBaseURL   string
+	db                *sql.DB
+	queries           *db.Queries
+	config            *config.Config
+	slackHandler      *ccslack.Handler
+	mcpBaseURL        string
+	repositoryManager RepositoryManager
+	worktreeManager   WorktreeManager
+}
+
+// RepositoryManager interface for managing repositories
+type RepositoryManager interface {
+	GetByID(ctx context.Context, id int64) (db.Repository, error)
+}
+
+// WorktreeManager interface for managing worktrees
+type WorktreeManager interface {
+	CreateWorktree(ctx context.Context, threadID int64, repositoryID int64, baseBranch string) (*db.Worktree, error)
+	GetWorktreePath(ctx context.Context, threadID int64) (string, error)
 }
 
 // Session represents an active Claude session
@@ -55,6 +68,86 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 		slackHandler:    slackHandler,
 		mcpBaseURL:      mcpBaseURL,
 	}
+}
+
+// SetRepositoryManager sets the repository manager
+func (m *Manager) SetRepositoryManager(rm RepositoryManager) {
+	m.repositoryManager = rm
+}
+
+// SetWorktreeManager sets the worktree manager
+func (m *Manager) SetWorktreeManager(wm WorktreeManager) {
+	m.worktreeManager = wm
+}
+
+// CreateSessionWithResumeAndRepo creates a new session with repository and worktree support
+// Returns: session, resumed, previousSessionID, error
+func (m *Manager) CreateSessionWithResumeAndRepo(ctx context.Context, channelID, threadTS, initialPrompt string, repositoryID int64) (*ccslack.Session, bool, string, error) {
+	// Get repository
+	repo, err := m.repositoryManager.GetByID(ctx, repositoryID)
+	if err != nil {
+		return nil, false, "", fmt.Errorf("failed to get repository: %w", err)
+	}
+
+	// Check if thread exists
+	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
+		ChannelID: channelID,
+		ThreadTs:  threadTS,
+	})
+
+	var threadID int64
+	var workDir string
+
+	if err == nil {
+		// Thread exists
+		threadID = thread.ID
+
+		// Check if worktree exists
+		if m.worktreeManager != nil {
+			worktreePath, err := m.worktreeManager.GetWorktreePath(ctx, threadID)
+			if err == nil && worktreePath != "" {
+				workDir = worktreePath
+			}
+		}
+	} else {
+		// Create new thread with repository ID
+		newThread, err := m.queries.CreateThread(ctx, db.CreateThreadParams{
+			ChannelID:        channelID,
+			ThreadTs:         threadTS,
+			WorkingDirectory: "", // Will be set after worktree creation
+			RepositoryID:     sql.NullInt64{Int64: repositoryID, Valid: true},
+		})
+		if err != nil {
+			return nil, false, "", fmt.Errorf("failed to create thread: %w", err)
+		}
+		threadID = newThread.ID
+	}
+
+	// Create worktree if needed
+	if workDir == "" && m.worktreeManager != nil {
+		worktree, err := m.worktreeManager.CreateWorktree(ctx, threadID, repositoryID, repo.DefaultBranch.String)
+		if err != nil {
+			return nil, false, "", fmt.Errorf("failed to create worktree: %w", err)
+		}
+		workDir = worktree.Path
+
+		// Update thread with worktree path
+		err = m.queries.UpdateThreadWorkingDirectory(ctx, db.UpdateThreadWorkingDirectoryParams{
+			WorkingDirectory: workDir,
+			ID:               threadID,
+		})
+		if err != nil {
+			return nil, false, "", fmt.Errorf("failed to update thread working directory: %w", err)
+		}
+	}
+
+	// If still no workDir, use repository path as fallback
+	if workDir == "" {
+		workDir = repo.Path
+	}
+
+	// Now create session with the determined working directory
+	return m.CreateSessionWithResume(ctx, channelID, threadTS, workDir, initialPrompt)
 }
 
 // CreateSessionWithResume creates a new session or resumes an existing one

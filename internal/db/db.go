@@ -126,6 +126,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.updateThreadTimestampStmt, err = db.PrepareContext(ctx, updateThreadTimestamp); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateThreadTimestamp: %w", err)
 	}
+	if q.updateThreadWorkingDirectoryStmt, err = db.PrepareContext(ctx, updateThreadWorkingDirectory); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateThreadWorkingDirectory: %w", err)
+	}
 	if q.updateWorktreeBranchStmt, err = db.PrepareContext(ctx, updateWorktreeBranch); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateWorktreeBranch: %w", err)
 	}
@@ -307,6 +310,11 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing updateThreadTimestampStmt: %w", cerr)
 		}
 	}
+	if q.updateThreadWorkingDirectoryStmt != nil {
+		if cerr := q.updateThreadWorkingDirectoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateThreadWorkingDirectoryStmt: %w", cerr)
+		}
+	}
 	if q.updateWorktreeBranchStmt != nil {
 		if cerr := q.updateWorktreeBranchStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing updateWorktreeBranchStmt: %w", cerr)
@@ -390,6 +398,7 @@ type Queries struct {
 	updateSessionOnCompleteStmt        *sql.Stmt
 	updateSessionStatusStmt            *sql.Stmt
 	updateThreadTimestampStmt          *sql.Stmt
+	updateThreadWorkingDirectoryStmt   *sql.Stmt
 	updateWorktreeBranchStmt           *sql.Stmt
 	updateWorktreeStatusStmt           *sql.Stmt
 }
@@ -432,6 +441,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		updateSessionOnCompleteStmt:        q.updateSessionOnCompleteStmt,
 		updateSessionStatusStmt:            q.updateSessionStatusStmt,
 		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
+		updateThreadWorkingDirectoryStmt:   q.updateThreadWorkingDirectoryStmt,
 		updateWorktreeBranchStmt:           q.updateWorktreeBranchStmt,
 		updateWorktreeStatusStmt:           q.updateWorktreeStatusStmt,
 	}

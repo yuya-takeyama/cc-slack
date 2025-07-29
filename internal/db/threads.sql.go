@@ -160,3 +160,19 @@ func (q *Queries) UpdateThreadTimestamp(ctx context.Context, id int64) error {
 	_, err := q.exec(ctx, q.updateThreadTimestampStmt, updateThreadTimestamp, id)
 	return err
 }
+
+const updateThreadWorkingDirectory = `-- name: UpdateThreadWorkingDirectory :exec
+UPDATE threads
+SET working_directory = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type UpdateThreadWorkingDirectoryParams struct {
+	WorkingDirectory string `json:"working_directory"`
+	ID               int64  `json:"id"`
+}
+
+func (q *Queries) UpdateThreadWorkingDirectory(ctx context.Context, arg UpdateThreadWorkingDirectoryParams) error {
+	_, err := q.exec(ctx, q.updateThreadWorkingDirectoryStmt, updateThreadWorkingDirectory, arg.WorkingDirectory, arg.ID)
+	return err
+}

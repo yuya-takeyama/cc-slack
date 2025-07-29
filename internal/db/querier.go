@@ -44,6 +44,7 @@ type Querier interface {
 	UpdateSessionOnComplete(ctx context.Context, arg UpdateSessionOnCompleteParams) error
 	UpdateSessionStatus(ctx context.Context, arg UpdateSessionStatusParams) error
 	UpdateThreadTimestamp(ctx context.Context, id int64) error
+	UpdateThreadWorkingDirectory(ctx context.Context, arg UpdateThreadWorkingDirectoryParams) error
 	UpdateWorktreeBranch(ctx context.Context, arg UpdateWorktreeBranchParams) error
 	UpdateWorktreeStatus(ctx context.Context, arg UpdateWorktreeStatusParams) error
 }

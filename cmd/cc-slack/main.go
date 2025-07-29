@@ -12,12 +12,17 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
+	"github.com/yuya-takeyama/cc-slack/internal/db"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
+	"github.com/yuya-takeyama/cc-slack/internal/repository"
+	"github.com/yuya-takeyama/cc-slack/internal/router"
 	"github.com/yuya-takeyama/cc-slack/internal/session"
 	"github.com/yuya-takeyama/cc-slack/internal/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/web"
+	"github.com/yuya-takeyama/cc-slack/internal/worktree"
 )
 
 func main() {
@@ -52,6 +57,23 @@ func main() {
 	// Create session manager with database support
 	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL)
 
+	// Create repository manager
+	repoManager := repository.NewManager(sqlDB)
+
+	// Create logger for worktree manager
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
+	// Create worktree manager
+	worktreeMgr := worktree.NewManager(logger, cfg, sqlDB)
+
+	// Set managers in session manager
+	sessionMgr.SetRepositoryManager(repoManager)
+	sessionMgr.SetWorktreeManager(worktreeMgr)
+
+	// Start worktree cleanup routine
+	ctx := context.Background()
+	worktreeMgr.Start(ctx)
+
 	// Now create the actual Slack handler with the session manager
 	*slackHandler = *slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)
 
@@ -67,6 +89,25 @@ func main() {
 
 	// Set MCP server as approval responder in Slack handler
 	slackHandler.SetApprovalResponder(mcpServer)
+
+	// Check if we need to set up repository router for Slack handler
+	if len(cfg.Repositories) > 0 {
+		// Convert config repositories to db repositories for router
+		var dbRepos []db.Repository
+		for _, repo := range cfg.Repositories {
+			dbRepos = append(dbRepos, db.Repository{
+				ID:   int64(len(dbRepos) + 1), // Temporary ID
+				Name: repo.Name,
+				Path: repo.Path,
+			})
+		}
+		repoRouter := router.NewRepositoryRouter(logger, cfg, dbRepos)
+
+		// Set managers in Slack handler
+		slackHandler.SetRepositoryManager(repoManager)
+		slackHandler.SetWorktreeManager(worktreeMgr)
+		slackHandler.SetRepositoryRouter(repoRouter)
+	}
 
 	// Create HTTP router
 	router := mux.NewRouter()

@@ -1,6 +1,6 @@
 ---
 title: マルチリポジトリ・マルチWorktreeサポートの実装
-status: draft
+status: in_progress
 ---
 
 # 009: マルチリポジトリ・マルチWorktreeサポートの実装
@@ -101,39 +101,39 @@ CREATE TABLE worktrees (
 ## 実装タスク
 
 ### Phase 1: マルチリポジトリ基盤
-- [ ] repositoriesテーブルの作成（migration）
-- [ ] Repository管理機能の実装
-  - [ ] Repository構造体とインターフェース定義
-  - [ ] RepositoryManagerの実装
-- [ ] 設定ファイルのスキーマ拡張
-  - [ ] Viper設定にリポジトリリストを追加
-  - [ ] YAML設定の検証ロジック
-- [ ] AIリポジトリルーターの実装
-  - [ ] ルーター用Claude Codeプロセスの管理
-  - [ ] システムプロンプトの設計（リポジトリ設定情報を含む）
-  - [ ] JSON Schemaによる応答フォーマット定義
-  - [ ] Sonnetモデルを使用したルーティングロジック
+- [x] repositoriesテーブルの作成（migration）
+- [x] Repository管理機能の実装
+  - [x] Repository構造体とインターフェース定義
+  - [x] RepositoryManagerの実装
+- [x] 設定ファイルのスキーマ拡張
+  - [x] Viper設定にリポジトリリストを追加
+  - [x] YAML設定の検証ロジック
+- [x] AIリポジトリルーターの実装
+  - [x] ルーター用Claude Codeプロセスの管理
+  - [x] システムプロンプトの設計（リポジトリ設定情報を含む）
+  - [x] JSON Schemaによる応答フォーマット定義
+  - [x] Sonnetモデルを使用したルーティングロジック
   - [ ] ルーティング結果のキャッシュ機構
 
 ### Phase 2: マルチWorktree基盤
-- [ ] worktreesテーブルの作成（migration）
-- [ ] Git worktree操作のラッパー実装
-  - [ ] worktree作成関数
-  - [ ] worktree削除関数
-  - [ ] worktree状態確認関数
-- [ ] WorktreeManagerの実装
-  - [ ] worktreeディレクトリの管理
-  - [ ] 並行性制御（mutex）
-- [ ] セッション作成時のworktree自動作成
+- [x] worktreesテーブルの作成（migration）
+- [x] Git worktree操作のラッパー実装
+  - [x] worktree作成関数
+  - [x] worktree削除関数
+  - [x] worktree状態確認関数
+- [x] WorktreeManagerの実装
+  - [x] worktreeディレクトリの管理
+  - [x] 並行性制御（mutex）
+- [x] セッション作成時のworktree自動作成
 
 ### Phase 3: 統合とクリーンアップ
-- [ ] SessionManagerの更新
-  - [ ] リポジトリとworktreeを考慮したセッション作成
-  - [ ] working directory解決ロジックの更新
-- [ ] 定期クリーンアップジョブの実装
-  - [ ] 古いworktreeの削除
+- [x] SessionManagerの更新
+  - [x] リポジトリとworktreeを考慮したセッション作成
+  - [x] working directory解決ロジックの更新
+- [x] 定期クリーンアップジョブの実装
+  - [x] 古いworktreeの削除
   - [ ] ディスク容量監視
-  - [ ] goroutineによる定期実行
+  - [x] goroutineによる定期実行
 - [ ] Web管理画面の更新
   - [ ] リポジトリ一覧表示
   - [ ] worktree状態表示

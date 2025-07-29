@@ -29,3 +29,8 @@ ORDER BY updated_at DESC;
 SELECT * FROM threads
 WHERE thread_ts = ?
 LIMIT 1;
+
+-- name: UpdateThreadWorkingDirectory :exec
+UPDATE threads
+SET working_directory = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?;

@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
+	"github.com/yuya-takeyama/cc-slack/internal/slack"
 )
 
 // RepositoryRouter uses Claude to route messages to appropriate repositories
@@ -30,19 +31,11 @@ func NewRepositoryRouter(logger zerolog.Logger, cfg *config.Config, repos []db.R
 	}
 }
 
-// RouteResult represents the routing decision
-type RouteResult struct {
-	RepositoryID   int64  `json:"repository_id"`
-	RepositoryName string `json:"repository_name"`
-	Confidence     string `json:"confidence"` // high, medium, low
-	Reason         string `json:"reason"`
-}
-
 // Route determines which repository should handle the message
-func (r *RepositoryRouter) Route(ctx context.Context, channelID, message string) (*RouteResult, error) {
+func (r *RepositoryRouter) Route(ctx context.Context, channelID, message string) (*slack.RouteResult, error) {
 	// If only one repository, skip AI routing
 	if len(r.repos) == 1 {
-		return &RouteResult{
+		return &slack.RouteResult{
 			RepositoryID:   r.repos[0].ID,
 			RepositoryName: r.repos[0].Name,
 			Confidence:     "high",
@@ -73,7 +66,7 @@ Respond with a JSON object in the following format:
 	}
 
 	// Parse JSON response
-	var routeResult RouteResult
+	var routeResult slack.RouteResult
 	if err := json.Unmarshal([]byte(result), &routeResult); err != nil {
 		return nil, fmt.Errorf("failed to parse routing result: %w", err)
 	}
@@ -168,7 +161,7 @@ func (r *RepositoryRouter) executeClaude(ctx context.Context, systemPrompt, user
 }
 
 // validateResult ensures the routing result is valid
-func (r *RepositoryRouter) validateResult(result *RouteResult) error {
+func (r *RepositoryRouter) validateResult(result *slack.RouteResult) error {
 	// Check if repository ID exists
 	found := false
 	for _, repo := range r.repos {
