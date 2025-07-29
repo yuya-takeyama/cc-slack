@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
+	"github.com/yuya-takeyama/cc-slack/internal/logger"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
 	"golang.org/x/sync/errgroup"
@@ -142,6 +144,15 @@ func (h *Handler) GetClient() *slack.Client {
 
 // HandleEvent handles Slack webhook events
 func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
+	// Create JSON logger for structured logging
+	jsonLogger, err := logger.NewSlackLogger("./logs/slack-events.jsonl")
+	if err != nil {
+		// Fallback to basic logging if we can't create JSON logger
+		fmt.Printf("Failed to create JSON logger: %v\n", err)
+	} else {
+		defer jsonLogger.Close()
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
@@ -167,8 +178,27 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	// Parse event
 	eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
 	if err != nil {
+		if jsonLogger != nil {
+			jsonLogger.Log("Failed to parse Slack event", "", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
 		http.Error(w, "Failed to parse event", http.StatusBadRequest)
 		return
+	}
+
+	// Extract event metadata from raw body for logging
+	var rawEvent map[string]interface{}
+	json.Unmarshal(body, &rawEvent)
+
+	// Get event_id and event_time from the raw event
+	eventID := ""
+	eventTime := ""
+	if id, ok := rawEvent["event_id"].(string); ok {
+		eventID = id
+	}
+	if ts, ok := rawEvent["event_time"].(float64); ok {
+		eventTime = fmt.Sprintf("%.6f", ts)
 	}
 
 	// Handle URL verification
@@ -189,17 +219,53 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 		innerEvent := eventsAPIEvent.InnerEvent
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.MessageEvent:
-			h.handleMessage(ev)
+			// Pass event context to handleMessage
+			h.handleMessage(ev, eventID, eventTime, jsonLogger)
+		default:
+			if jsonLogger != nil {
+				jsonLogger.LogWithEvent("Unhandled event type", "", eventID, eventTime, map[string]interface{}{
+					"event_type": fmt.Sprintf("%T", ev),
+				})
+			}
 		}
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleMessage handles message events
-func (h *Handler) handleMessage(event *slackevents.MessageEvent) {
+// handleMessage handles message events with structured logging
+func (h *Handler) handleMessage(event *slackevents.MessageEvent, eventID string, eventTime string, jsonLogger *logger.SlackLogger) {
+	// Skip bot messages to avoid logging clutter
+	if event.BotID != "" {
+		return
+	}
+
+	// Get session ID if exists
+	sessionID := ""
+	if event.ThreadTimeStamp != "" {
+		if session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp); err == nil && session != nil {
+			sessionID = session.SessionID
+		}
+	}
+
+	// Log message received
+	if jsonLogger != nil {
+		fileCount := 0
+		if event.Message != nil {
+			fileCount = len(event.Message.Files)
+		}
+		jsonLogger.LogMessage(sessionID, eventID, eventTime, event.TimeStamp, event.ThreadTimeStamp, event.User, event.Text, event.SubType, fileCount > 0, fileCount)
+	}
+
 	// Apply filtering
 	if !h.shouldProcessMessage(event) {
+		if jsonLogger != nil {
+			jsonLogger.LogFilter("Message filtered", map[string]interface{}{
+				"bot_id":   event.BotID,
+				"subtype":  event.SubType,
+				"event_id": eventID,
+			})
+		}
 		return
 	}
 
@@ -220,21 +286,39 @@ func (h *Handler) handleMessage(event *slackevents.MessageEvent) {
 
 	// Check if mentioned in a thread with an existing session
 	if event.ThreadTimeStamp != "" {
-		h.handleThreadMessageEvent(event, text)
+		h.handleThreadMessageEvent(event, text, sessionID, jsonLogger)
 	} else {
-		h.handleNewSessionFromMessage(event, text, threadTS)
+		h.handleNewSessionFromMessage(event, text, threadTS, jsonLogger)
 	}
 }
 
 // handleThreadMessageEvent handles message events in existing threads
-func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text string) {
+func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text string, sessionID string, jsonLogger *logger.SlackLogger) {
 	// Try to find existing session
 	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
 	if err == nil && session != nil {
+		if jsonLogger != nil {
+			jsonLogger.LogSession(session.SessionID, "found_existing", map[string]interface{}{
+				"thread_ts": event.ThreadTimeStamp,
+			})
+		}
+		sessionID = session.SessionID
+
 		// Process attachments directly from the event
 		var imagePaths []string
-		if h.fileUploadEnabled && event.Message != nil && len(event.Message.Files) > 0 {
-			imagePaths = h.processMessageAttachments(event)
+		var files []slack.File
+		if event.Message != nil {
+			files = event.Message.Files
+		}
+
+		if jsonLogger != nil && len(files) > 0 {
+			jsonLogger.LogSession(sessionID, "processing_files", map[string]interface{}{
+				"file_count": len(files),
+			})
+		}
+
+		if h.fileUploadEnabled && len(files) > 0 {
+			imagePaths = h.processMessageAttachments(event, files)
 		}
 
 		// Add image paths to the prompt if any
@@ -255,18 +339,36 @@ func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text
 	}
 
 	// No existing session found - create new session
-	h.handleNewSessionFromMessage(event, text, event.ThreadTimeStamp)
+	if jsonLogger != nil {
+		jsonLogger.LogSession("", "no_session_found", map[string]interface{}{
+			"thread_ts": event.ThreadTimeStamp,
+			"action":    "creating_new",
+		})
+	}
+	h.handleNewSessionFromMessage(event, text, event.ThreadTimeStamp, jsonLogger)
 }
 
 // handleNewSessionFromMessage creates a new session or resumes one for message events
-func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, text string, threadTS string) {
+func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, text string, threadTS string, jsonLogger *logger.SlackLogger) {
 	// Determine working directory
 	workDir := h.determineWorkDir(event.Channel)
 
 	// Process attachments if any, but defer actual download
 	var hasImages bool
-	if h.fileUploadEnabled && event.Message != nil && len(event.Message.Files) > 0 {
-		for _, file := range event.Message.Files {
+	var files []slack.File
+	// Check files in Message field
+	if event.Message != nil && len(event.Message.Files) > 0 {
+		files = event.Message.Files
+	}
+
+	if h.fileUploadEnabled && len(files) > 0 {
+		if jsonLogger != nil {
+			for _, file := range files {
+				jsonLogger.LogFileProcessing("", "detected", file.Name, file.Mimetype, true)
+			}
+		}
+
+		for _, file := range files {
 			if strings.HasPrefix(file.Mimetype, "image/") {
 				hasImages = true
 				break
@@ -274,9 +376,34 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 		}
 	}
 
-	// Create session with original text (without image paths yet)
+	// Process images first if any
+	var initialPrompt string = text
+	if hasImages && len(files) > 0 {
+		imagePaths := h.processMessageAttachments(event, files)
+		if len(imagePaths) > 0 {
+			// Append image paths to the initial prompt
+			initialPrompt = h.appendImagePaths(text, imagePaths)
+		}
+	}
+
+	// Create session with text including image paths
 	ctx := context.Background()
-	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, initialPrompt)
+
+	if jsonLogger != nil {
+		if err != nil {
+			jsonLogger.LogSession("", "create_failed", map[string]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			jsonLogger.LogSession(session.SessionID, "created", map[string]interface{}{
+				"resumed":     resumed,
+				"has_images":  hasImages,
+				"previous_id": previousSessionID,
+			})
+		}
+	}
+
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
@@ -304,18 +431,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 		return
 	}
 
-	// Now process and download images if there were any
-	if hasImages && session != nil {
-		imagePaths := h.processMessageAttachments(event)
-		if len(imagePaths) > 0 {
-			// Send image paths as a follow-up message
-			imageMessage := h.appendImagePaths("", imagePaths)
-			err = h.sessionMgr.SendMessage(session.SessionID, imageMessage)
-			if err != nil {
-				fmt.Printf("Failed to send image paths: %v\n", err)
-			}
-		}
-	}
+	// Image processing has already been done before session creation
 }
 
 // HandleInteraction handles Slack interactive components (buttons, etc.)
@@ -779,9 +895,9 @@ func (h *Handler) appendImagePaths(text string, imagePaths []string) string {
 
 // shouldProcessMessage filters message events based on configuration
 func (h *Handler) shouldProcessMessage(event *slackevents.MessageEvent) bool {
-	// Skip if filtering is disabled
+	// If filtering is disabled, process all messages
 	if !h.config.Slack.MessageFilter.Enabled {
-		return false
+		return true
 	}
 
 	// Skip bot messages
@@ -789,14 +905,21 @@ func (h *Handler) shouldProcessMessage(event *slackevents.MessageEvent) bool {
 		return false
 	}
 
-	// Skip subtypes (edits, deletes, etc.)
-	if event.SubType != "" {
+	// Skip subtypes (edits, deletes, etc.) but allow file_share
+	if event.SubType != "" && event.SubType != "file_share" {
 		return false
 	}
 
 	// Check if bot mention is required
 	if h.config.Slack.MessageFilter.RequireMention {
 		if !h.containsBotMention(event.Text) {
+			// Debug logging
+			debugFile, _ := os.OpenFile("./logs/slack-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if debugFile != nil {
+				defer debugFile.Close()
+				debugLog := log.New(debugFile, "[SLACK-DEBUG] ", log.Ldate|log.Ltime|log.Lmicroseconds)
+				debugLog.Printf("No bot mention found - Text: %s, BotUserID: %s", event.Text, h.botUserID)
+			}
 			return false
 		}
 	}
@@ -844,7 +967,13 @@ func (h *Handler) containsBotMention(text string) bool {
 }
 
 // processMessageAttachments processes attachments directly from message event
-func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent) []string {
+func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent, files []slack.File) []string {
+	// Log files information
+	fmt.Printf("[FILE_PROCESSING] Total files to process: %d\n", len(files))
+	for i, file := range files {
+		fmt.Printf("[FILE_PROCESSING] File %d: Name=%s, Mimetype=%s, ID=%s\n", i+1, file.Name, file.Mimetype, file.ID)
+	}
+
 	// Create session-specific directory structure
 	// Format: images/{thread_ts}/{uuid}/
 	sessionID := uuid.New().String()
@@ -862,7 +991,7 @@ func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent) []s
 
 	// Filter image files
 	var imageFiles []slack.File
-	for _, file := range event.Message.Files {
+	for _, file := range files {
 		if strings.HasPrefix(file.Mimetype, "image/") {
 			imageFiles = append(imageFiles, file)
 		}
