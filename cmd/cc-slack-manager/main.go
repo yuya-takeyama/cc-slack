@@ -113,6 +113,17 @@ func (m *Manager) Start() error {
 	log.Printf("📁 Project root: %s", projectRoot)
 	log.Printf("📁 Executable path: %s", execPath)
 
+	// Build cc-slack before starting
+	log.Println("🔨 Building cc-slack...")
+	buildCmd := exec.Command("./scripts/build")
+	buildCmd.Dir = projectRoot
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+
+	if err := buildCmd.Run(); err != nil {
+		return fmt.Errorf("failed to build cc-slack: %w", err)
+	}
+
 	cmd := exec.CommandContext(m.ctx, "./cc-slack")
 	cmd.Dir = projectRoot // Set working directory to project root
 
@@ -172,7 +183,6 @@ func (m *Manager) Stop() error {
 	log.Printf("🔄 Stopping cc-slack (PID: %d)...", m.cmd.Process.Pid)
 
 	// Try graceful shutdown first
-	// Note: When using 'go run', we need to send signal to the process group
 	pgid, err := syscall.Getpgid(m.cmd.Process.Pid)
 	if err == nil {
 		// Send signal to the entire process group
