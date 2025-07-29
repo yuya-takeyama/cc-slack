@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
@@ -205,7 +206,7 @@ func (h *Handler) handleThreadMessage(event *slackevents.AppMentionEvent, text s
 		// Fetch full message details if file upload is enabled
 		var imagePaths []string
 		if h.fileUploadEnabled {
-			imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp)
+			imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
 			if err != nil {
 				fmt.Printf("Failed to fetch images: %v\n", err)
 				// Continue without images
@@ -242,7 +243,8 @@ func (h *Handler) handleNewSession(event *slackevents.AppMentionEvent, text stri
 	var imagePaths []string
 	if h.fileUploadEnabled {
 		var err error
-		imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp)
+		// Use event.ThreadTimeStamp for fetchAndSaveImages (empty string for non-thread messages)
+		imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
 		if err != nil {
 			fmt.Printf("Failed to fetch images: %v\n", err)
 			// Continue without images
@@ -638,32 +640,74 @@ func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
 }
 
 // fetchAndSaveImages fetches message details and downloads attached images
-func (h *Handler) fetchAndSaveImages(channelID, timestamp string) ([]string, error) {
-	// Get conversation history to fetch the specific message
-	params := &slack.GetConversationHistoryParameters{
-		ChannelID: channelID,
-		Latest:    timestamp,
-		Inclusive: true,
-		Limit:     1,
+func (h *Handler) fetchAndSaveImages(channelID, timestamp, threadTS string) ([]string, error) {
+	var msg slack.Message
+
+	// Create session-specific directory structure
+	// Format: images/{channel}_{thread_ts}/{uuid}/
+	sessionID := uuid.New().String()
+	sessionDir := channelID
+	if threadTS != "" {
+		sessionDir = fmt.Sprintf("%s_%s", channelID, strings.ReplaceAll(threadTS, ".", "_"))
+	} else {
+		sessionDir = fmt.Sprintf("%s_%s", channelID, strings.ReplaceAll(timestamp, ".", "_"))
 	}
 
-	history, err := h.client.GetConversationHistory(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get conversation history: %w", err)
-	}
+	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
 
-	if len(history.Messages) == 0 {
-		return nil, nil // No message found
-	}
+	// If we're in a thread, use GetConversationReplies to get the specific message
+	if threadTS != "" {
+		repliesParams := &slack.GetConversationRepliesParameters{
+			ChannelID: channelID,
+			Timestamp: threadTS,
+			Inclusive: true,
+		}
 
-	msg := history.Messages[0]
+		replies, _, _, err := h.client.GetConversationReplies(repliesParams)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get conversation replies: %w", err)
+		}
+
+		// Find the specific message by timestamp
+		found := false
+		for _, m := range replies {
+			if m.Timestamp == timestamp {
+				msg = m
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, nil // No message found
+		}
+	} else {
+		// Not in a thread, use GetConversationHistory
+		params := &slack.GetConversationHistoryParameters{
+			ChannelID: channelID,
+			Latest:    timestamp,
+			Inclusive: true,
+			Limit:     1,
+		}
+
+		history, err := h.client.GetConversationHistory(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get conversation history: %w", err)
+		}
+
+		if len(history.Messages) == 0 {
+			return nil, nil // No message found
+		}
+
+		msg = history.Messages[0]
+	}
 	if len(msg.Files) == 0 {
 		return nil, nil // No files attached
 	}
 
-	// Create images directory if it doesn't exist
-	if err := os.MkdirAll(h.imagesDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create images directory: %w", err)
+	// Create session-specific directory if it doesn't exist
+	if err := os.MkdirAll(imageDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create image directory: %w", err)
 	}
 
 	// Filter image files
@@ -696,7 +740,7 @@ func (h *Handler) fetchAndSaveImages(channelID, timestamp string) ([]string, err
 	for i, file := range imageFiles {
 		i, file := i, file // Capture loop variables
 		g.Go(func() error {
-			path, err := h.downloadAndSaveImage(file)
+			path, err := h.downloadAndSaveImage(file, imageDir)
 			if err != nil {
 				errorChan <- fmt.Errorf("failed to download %s: %w", file.Name, err)
 				return nil // Don't fail the whole group
@@ -737,22 +781,21 @@ func (h *Handler) fetchAndSaveImages(channelID, timestamp string) ([]string, err
 }
 
 // downloadAndSaveImage downloads a Slack file and saves it locally
-func (h *Handler) downloadAndSaveImage(file slack.File) (string, error) {
-	// Generate unique filename with timestamp
-	timeStr := time.Now().Format("20060102-150405")
+func (h *Handler) downloadAndSaveImage(file slack.File, imageDir string) (string, error) {
+	// Generate unique filename
 	ext := filepath.Ext(file.Name)
 	if ext == "" {
 		ext = ".jpg" // Default extension
 	}
 
-	// Remove extension from original filename to avoid double extensions
-	baseName := strings.TrimSuffix(file.Name, ext)
-	if len(baseName) > 20 {
-		baseName = baseName[:20]
+	// Keep original filename if possible
+	filename := file.Name
+	if filename == "" || filename == "image"+ext {
+		// Generate a meaningful name if original is generic
+		filename = fmt.Sprintf("%s-%s%s", file.ID, time.Now().Format("20060102-150405"), ext)
 	}
 
-	filename := fmt.Sprintf("%s-%s-%s%s", timeStr, file.ID, baseName, ext)
-	filePath := filepath.Join(h.imagesDir, filename)
+	filePath := filepath.Join(imageDir, filename)
 
 	// Download the file
 	var downloadURL string
@@ -829,6 +872,8 @@ func (h *Handler) appendImagePaths(text string, imagePaths []string) string {
 	for i, path := range imagePaths {
 		builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, path))
 	}
+
+	builder.WriteString("\n**IMPORTANT: Please read and analyze these images as they are part of the context for this message. Consider their content when formulating your response.**")
 
 	return builder.String()
 }

@@ -222,8 +222,8 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	stdoutScanner := bufio.NewScanner(stdout)
 	stderrScanner := bufio.NewScanner(stderr)
 
-	// Set max token size to 10MB (default is 64KB)
-	const maxTokenSize = 10 * 1024 * 1024 // 10MB
+	// Set max token size to 100MB (default is 64KB)
+	const maxTokenSize = 100 * 1024 * 1024 // 100MB
 	stdoutScanner.Buffer(make([]byte, 0, maxTokenSize), maxTokenSize)
 	stderrScanner.Buffer(make([]byte, 0, maxTokenSize), maxTokenSize)
 
