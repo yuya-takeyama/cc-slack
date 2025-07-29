@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
@@ -262,20 +263,20 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	// Determine working directory
 	workDir := h.determineWorkDir(event.Channel)
 
-	// Process attachments directly from the event
-	var imagePaths []string
+	// Process attachments if any, but defer actual download
+	var hasImages bool
 	if h.fileUploadEnabled && event.Message != nil && len(event.Message.Files) > 0 {
-		imagePaths = h.processMessageAttachments(event)
+		for _, file := range event.Message.Files {
+			if strings.HasPrefix(file.Mimetype, "image/") {
+				hasImages = true
+				break
+			}
+		}
 	}
 
-	// Add image paths to the prompt if any
-	if len(imagePaths) > 0 {
-		text = h.appendImagePaths(text, imagePaths)
-	}
-
-	// Create session with resume check
+	// Create session with original text (without image paths yet)
 	ctx := context.Background()
-	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
+	session, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
@@ -301,6 +302,19 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	if err != nil {
 		fmt.Printf("Failed to post message: %v\n", err)
 		return
+	}
+
+	// Now process and download images if there were any
+	if hasImages && session != nil {
+		imagePaths := h.processMessageAttachments(event)
+		if len(imagePaths) > 0 {
+			// Send image paths as a follow-up message
+			imageMessage := h.appendImagePaths("", imagePaths)
+			err = h.sessionMgr.SendMessage(session.SessionID, imageMessage)
+			if err != nil {
+				fmt.Printf("Failed to send image paths: %v\n", err)
+			}
+		}
 	}
 }
 
@@ -831,8 +845,16 @@ func (h *Handler) containsBotMention(text string) bool {
 
 // processMessageAttachments processes attachments directly from message event
 func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent) []string {
-	// Create image directory if it doesn't exist
-	imageDir := filepath.Join(h.imagesDir, event.Channel, event.TimeStamp)
+	// Create session-specific directory structure
+	// Format: images/{thread_ts}/{uuid}/
+	sessionID := uuid.New().String()
+	sessionDir := event.ThreadTimeStamp
+	if sessionDir == "" {
+		sessionDir = event.TimeStamp
+	}
+	sessionDir = strings.ReplaceAll(sessionDir, ".", "_")
+
+	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
 	if err := os.MkdirAll(imageDir, 0755); err != nil {
 		fmt.Printf("Failed to create image directory: %v\n", err)
 		return nil
