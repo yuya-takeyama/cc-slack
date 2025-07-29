@@ -30,7 +30,7 @@ pnpm install
 cd ..
 ```
 
-**Quick build (recommended):**
+**Build:**
 ```bash
 ./scripts/build
 ```
@@ -39,21 +39,6 @@ This script will:
 1. Build the frontend (React/Vite)
 2. Copy the frontend dist to internal/web/dist
 3. Build the Go binary with embedded frontend
-
-**Manual build:**
-```bash
-# Build frontend
-cd web
-pnpm build
-cd ..
-
-# Copy frontend dist
-rm -rf internal/web/dist
-cp -r web/dist internal/web/
-
-# Build Go binary
-go build -o cc-slack ./cmd/cc-slack
-```
 
 **Development mode:**
 ```bash
@@ -68,38 +53,22 @@ This will watch for frontend changes and rebuild automatically (requires fswatch
 ./cc-slack
 ```
 
-### Testing
+### Testing and Code Quality Checks
 
 ```bash
-go test ./...
+./scripts/check-all
 ```
 
-### Code Quality Checks
+This script runs all necessary checks including:
+- Frontend and backend builds
+- Go static analysis (`go vet`)
+- All tests
+- Dependency cleanup (`go mod tidy`)
+- Frontend checks (`pnpm all`)
 
-**Always run these commands after making changes:**
-
-```bash
-# Run static analysis
-go vet ./...
-
-# Run tests
-go test ./...
-
-# Clean up dependencies
-go mod tidy
-```
+The script works from any directory within the project.
 
 ### Database Development (SQLite + sqlc + golang-migrate)
-
-#### Prerequisites
-
-```bash
-# Install sqlc
-go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-
-# Install golang-migrate
-go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-```
 
 #### Database Schema Management
 
@@ -123,19 +92,6 @@ cc-slack automatically runs migrations on startup. No manual intervention requir
 if err := database.Migrate(sqlDB, cfg.Database.MigrationsPath); err != nil {
     log.Fatalf("Failed to run migrations: %v", err)
 }
-```
-
-**Manual migration commands (optional, for debugging/rollback):**
-
-```bash
-# Apply all pending migrations manually
-migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations up
-
-# Rollback one migration
-migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations down 1
-
-# Check current migration version
-migrate -database "sqlite3://./data/cc-slack.db" -path ./migrations version
 ```
 
 #### sqlc Workflow

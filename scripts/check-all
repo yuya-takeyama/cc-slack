@@ -1,0 +1,60 @@
+#!/bin/bash
+set -e
+
+# Find project root (directory containing go.mod)
+find_project_root() {
+  local current_dir="$PWD"
+  while [[ "$current_dir" != "/" ]]; do
+    if [[ -f "$current_dir/go.mod" ]]; then
+      echo "$current_dir"
+      return 0
+    fi
+    current_dir="$(dirname "$current_dir")"
+  done
+  echo "Error: Could not find project root (no go.mod found)" >&2
+  return 1
+}
+
+# Get project root
+PROJECT_ROOT=$(find_project_root)
+if [[ -z "$PROJECT_ROOT" ]]; then
+  exit 1
+fi
+
+cd "$PROJECT_ROOT"
+
+echo "🚀 Running all checks..."
+echo
+
+# Build everything
+echo "📦 Building cc-slack..."
+./scripts/build
+echo "✅ Build complete"
+echo
+
+# Go static analysis
+echo "🔍 Running go vet..."
+go vet ./...
+echo "✅ go vet passed"
+echo
+
+# Go tests
+echo "🧪 Running go tests..."
+go test ./...
+echo "✅ All tests passed"
+echo
+
+# Clean up dependencies
+echo "🧹 Tidying go modules..."
+go mod tidy
+echo "✅ go.mod is tidy"
+echo
+
+# Frontend checks
+echo "🎨 Running frontend checks..."
+cd web
+pnpm all
+echo "✅ Frontend checks passed"
+echo
+
+echo "🎉 All checks passed!"
