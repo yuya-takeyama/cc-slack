@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -913,13 +912,6 @@ func (h *Handler) shouldProcessMessage(event *slackevents.MessageEvent) bool {
 	// Check if bot mention is required
 	if h.config.Slack.MessageFilter.RequireMention {
 		if !h.containsBotMention(event.Text) {
-			// Debug logging
-			debugFile, _ := os.OpenFile("./logs/slack-debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if debugFile != nil {
-				defer debugFile.Close()
-				debugLog := log.New(debugFile, "[SLACK-DEBUG] ", log.Ldate|log.Ltime|log.Lmicroseconds)
-				debugLog.Printf("No bot mention found - Text: %s, BotUserID: %s", event.Text, h.botUserID)
-			}
 			return false
 		}
 	}
@@ -968,12 +960,6 @@ func (h *Handler) containsBotMention(text string) bool {
 
 // processMessageAttachments processes attachments directly from message event
 func (h *Handler) processMessageAttachments(event *slackevents.MessageEvent, files []slack.File) []string {
-	// Log files information
-	fmt.Printf("[FILE_PROCESSING] Total files to process: %d\n", len(files))
-	for i, file := range files {
-		fmt.Printf("[FILE_PROCESSING] File %d: Name=%s, Mimetype=%s, ID=%s\n", i+1, file.Name, file.Mimetype, file.ID)
-	}
-
 	// Create session-specific directory structure
 	// Format: images/{thread_ts}/{uuid}/
 	sessionID := uuid.New().String()
