@@ -53,7 +53,11 @@ func main() {
 	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL, cfg.Slack.FileUpload.ImagesDir)
 
 	// Now create the actual Slack handler with the session manager
-	*slackHandler = *slack.NewHandler(cfg, sessionMgr)
+	handler, err := slack.NewHandler(cfg, sessionMgr)
+	if err != nil {
+		log.Fatalf("Failed to create Slack handler: %v", err)
+	}
+	*slackHandler = *handler
 
 	// Create channel cache for web API
 	slackClient := slackHandler.GetClient()

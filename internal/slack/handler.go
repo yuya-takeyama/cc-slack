@@ -89,7 +89,7 @@ type Session struct {
 }
 
 // NewHandler creates a new Slack handler
-func NewHandler(cfg *config.Config, sessionMgr SessionManager) *Handler {
+func NewHandler(cfg *config.Config, sessionMgr SessionManager) (*Handler, error) {
 	h := &Handler{
 		client:        slack.New(cfg.Slack.BotToken),
 		signingSecret: cfg.Slack.SigningSecret,
@@ -100,14 +100,15 @@ func NewHandler(cfg *config.Config, sessionMgr SessionManager) *Handler {
 
 	// Get bot user ID for mention detection
 	auth, err := h.client.AuthTest()
-	if err == nil {
-		h.botUserID = auth.UserID
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate with Slack API: %w", err)
 	}
+	h.botUserID = auth.UserID
 
 	// Apply configuration
 	h.Configure()
 
-	return h
+	return h, nil
 }
 
 // SetApprovalResponder sets the approval responder for handling approvals

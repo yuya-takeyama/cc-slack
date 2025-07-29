@@ -213,3 +213,70 @@ slack:
 - [Slack Events API - message event](https://api.slack.com/events/message)
 - [Slack Events API - app_mention event](https://api.slack.com/events/app_mention)
 - [Slack API Rate Limits](https://api.slack.com/docs/rate-limits)
+
+## Implementation Progress
+
+### Completed ✅
+
+1. **Message Event Handler**
+   - Added MessageEvent case to HandleEvent switch
+   - Implemented handleMessage function
+   - Created separate handlers for thread messages and new sessions
+
+2. **Configuration**
+   - Added MessageFilterConfig to config structure
+   - Implemented filtering options (require_mention, include/exclude patterns)
+   - Added environment variable bindings
+
+3. **Filtering Logic**
+   - Implemented shouldProcessMessage with bot message filtering
+   - Added SubType filtering (to exclude edits, deletes)
+   - Bot mention detection using bot user ID
+
+4. **Image Processing**
+   - Implemented processMessageAttachments for direct image handling
+   - Eliminated need for conversations.history/replies API calls
+   - Images are processed directly from MessageEvent.Message.Files
+
+5. **Bot Mention Detection**
+   - Added bot user ID detection via AuthTest in NewHandler
+   - Implemented containsBotMention to check for bot mentions
+   - Made require_mention default to true for backward compatibility
+
+6. **Error Handling**
+   - Changed NewHandler to return (*Handler, error)
+   - Added proper error handling for AuthTest failures
+   - Updated main.go to handle initialization errors
+
+### Testing Status ⚠️
+
+- Unit tests are failing due to AuthTest being called in NewHandler
+- Need to implement proper mocking strategy for Slack client
+
+### Remaining Tasks 📝
+
+1. **Fix Unit Tests**
+   - Create SlackClient interface to enable mocking
+   - Update tests to use mock client
+   - Ensure all tests pass
+
+2. **Integration Testing**
+   - Test with actual Slack workspace
+   - Verify message event subscription works
+   - Confirm image processing without API calls
+
+3. **Documentation**
+   - Update README with message event subscription requirements
+   - Add config.yaml.example with message_filter options
+   - Document breaking changes (if any)
+
+### Notes for Next Session
+
+The implementation is functionally complete but tests need fixing. The main issue is that NewHandler now calls AuthTest to get the bot user ID, which fails in test environment with "invalid_auth".
+
+Possible solutions:
+1. Extract Slack client interface for mocking
+2. Add test-specific constructor
+3. Use dependency injection for AuthTest
+
+The first option (interface extraction) is recommended as it follows Go best practices and enables proper unit testing.

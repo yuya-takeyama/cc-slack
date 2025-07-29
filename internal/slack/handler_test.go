@@ -179,7 +179,10 @@ func TestHandleAppMention_InThread(t *testing.T) {
 	mockSession := &MockSessionManager{
 		getSessionByThreadError: fmt.Errorf("not found"), // Simulate no existing session
 	}
-	h := NewHandler(createTestConfig(), mockSession)
+	h, err := NewHandler(createTestConfig(), mockSession)
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	// App mention in a thread
 	event := &slackevents.AppMentionEvent{
@@ -214,7 +217,10 @@ func TestHandleAppMention_InThread(t *testing.T) {
 
 func TestHandleAppMention_OutsideThread(t *testing.T) {
 	mockSession := &MockSessionManager{}
-	h := NewHandler(createTestConfig(), mockSession)
+	h, err := NewHandler(createTestConfig(), mockSession)
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	// App mention outside a thread
 	event := &slackevents.AppMentionEvent{
@@ -251,7 +257,10 @@ func TestHandleAppMention_ExistingSession(t *testing.T) {
 			WorkDir:   "/test/dir",
 		},
 	}
-	h := NewHandler(createTestConfig(), mockSession)
+	h, err := NewHandler(createTestConfig(), mockSession)
+	if err != nil {
+		t.Fatalf("Failed to create handler: %v", err)
+	}
 
 	// App mention in a thread with existing session
 	event := &slackevents.AppMentionEvent{
