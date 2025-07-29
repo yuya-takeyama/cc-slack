@@ -49,6 +49,7 @@ func TestFormatSessionStartMessage(t *testing.T) {
 func TestFormatSessionCompleteMessage(t *testing.T) {
 	tests := []struct {
 		name         string
+		sessionID    string
 		duration     time.Duration
 		turns        int
 		cost         float64
@@ -58,12 +59,14 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 	}{
 		{
 			name:         "short session",
+			sessionID:    "session-123",
 			duration:     5 * time.Second,
 			turns:        3,
 			cost:         0.05,
 			inputTokens:  1000,
 			outputTokens: 500,
 			want: "✅ セッション完了\n" +
+				"セッションID: `session-123`\n" +
 				"実行時間: 5秒\n" +
 				"ターン数: 3\n" +
 				"コスト: $0.050000 USD\n" +
@@ -71,12 +74,14 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 		},
 		{
 			name:         "long session with high cost",
+			sessionID:    "d423f0ad-9ba7-46e4-8afb-869f70a89fff",
 			duration:     125 * time.Second,
 			turns:        20,
 			cost:         1.5,
 			inputTokens:  50000,
 			outputTokens: 25000,
 			want: "✅ セッション完了\n" +
+				"セッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
 				"実行時間: 2分5秒\n" +
 				"ターン数: 20\n" +
 				"コスト: $1.500000 USD\n" +
@@ -85,12 +90,14 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 		},
 		{
 			name:         "very long session",
+			sessionID:    "5238c540-08c9-42e3-b7fa-7b74385e9c88",
 			duration:     3665 * time.Second,
 			turns:        50,
 			cost:         0.8,
 			inputTokens:  100000,
 			outputTokens: 50000,
 			want: "✅ セッション完了\n" +
+				"セッションID: `5238c540-08c9-42e3-b7fa-7b74385e9c88`\n" +
 				"実行時間: 1時間1分5秒\n" +
 				"ターン数: 50\n" +
 				"コスト: $0.800000 USD\n" +
@@ -100,7 +107,7 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatSessionCompleteMessage(tt.duration, tt.turns, tt.cost, tt.inputTokens, tt.outputTokens)
+			got := FormatSessionCompleteMessage(tt.sessionID, tt.duration, tt.turns, tt.cost, tt.inputTokens, tt.outputTokens)
 			if got != tt.want {
 				t.Errorf("FormatSessionCompleteMessage() = %v, want %v", got, tt.want)
 			}

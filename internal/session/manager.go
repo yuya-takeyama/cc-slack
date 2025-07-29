@@ -550,12 +550,18 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 		// Post result message
 		var text string
+		// Get the actual session ID (could be the updated one or the temp one)
+		actualSessionID := msg.SessionID
+		if actualSessionID == "" {
+			actualSessionID = tempSessionID
+		}
+
 		if msg.IsError {
-			text = messages.FormatErrorMessage(msg.SessionID)
+			text = messages.FormatErrorMessage(actualSessionID)
 		} else {
 			// Convert milliseconds to time.Duration
 			duration := time.Duration(msg.DurationMS) * time.Millisecond
-			text = messages.FormatSessionCompleteMessage(duration, msg.NumTurns, msg.TotalCostUSD, msg.Usage.InputTokens, msg.Usage.OutputTokens)
+			text = messages.FormatSessionCompleteMessage(actualSessionID, duration, msg.NumTurns, msg.TotalCostUSD, msg.Usage.InputTokens, msg.Usage.OutputTokens)
 		}
 
 		return m.slackHandler.PostToThread(channelID, threadTS, text)

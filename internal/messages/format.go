@@ -16,12 +16,14 @@ func FormatSessionStartMessage(sessionID, cwd, model string) string {
 }
 
 // FormatSessionCompleteMessage formats the session completion message
-func FormatSessionCompleteMessage(duration time.Duration, turns int, cost float64, inputTokens, outputTokens int) string {
+func FormatSessionCompleteMessage(sessionID string, duration time.Duration, turns int, cost float64, inputTokens, outputTokens int) string {
 	text := fmt.Sprintf("✅ セッション完了\n"+
+		"セッションID: `%s`\n"+
 		"実行時間: %s\n"+
 		"ターン数: %d\n"+
 		"コスト: $%.6f USD\n"+
 		"使用トークン: 入力=%d, 出力=%d",
+		sessionID,
 		FormatDuration(duration),
 		turns,
 		cost,
