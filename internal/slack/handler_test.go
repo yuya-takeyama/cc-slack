@@ -188,7 +188,7 @@ func TestParseApprovalMessage(t *testing.T) {
 	}{
 		{
 			name:    "WebFetch tool",
-			message: "**ツール**: WebFetch \n **URL**: https://example.com \n **内容**: test prompt",
+			message: "**Tool**: WebFetch \n **URL**: https://example.com \n **Content**: test prompt",
 			expected: &ApprovalInfo{
 				ToolName: "WebFetch",
 				URL:      "https://example.com",
@@ -197,7 +197,7 @@ func TestParseApprovalMessage(t *testing.T) {
 		},
 		{
 			name:    "Bash tool",
-			message: "**ツール**: Bash \n **コマンド**: ls -la \n **説明**: List files",
+			message: "**Tool**: Bash \n **Command**: ls -la \n **Description**: List files",
 			expected: &ApprovalInfo{
 				ToolName:    "Bash",
 				Command:     "ls -la",
@@ -206,7 +206,7 @@ func TestParseApprovalMessage(t *testing.T) {
 		},
 		{
 			name:    "Write tool",
-			message: "**ツール**: Write \n **ファイルパス**: /tmp/test.txt",
+			message: "**Tool**: Write \n **File path**: /tmp/test.txt",
 			expected: &ApprovalInfo{
 				ToolName: "Write",
 				FilePath: "/tmp/test.txt",
@@ -214,7 +214,7 @@ func TestParseApprovalMessage(t *testing.T) {
 		},
 		{
 			name:    "Mixed content with extra spaces",
-			message: "  **ツール**: WebFetch  \n  **URL**: https://example.com  ",
+			message: "  **Tool**: WebFetch  \n  **URL**: https://example.com  ",
 			expected: &ApprovalInfo{
 				ToolName: "WebFetch",
 				URL:      "https://example.com",
@@ -227,7 +227,7 @@ func TestParseApprovalMessage(t *testing.T) {
 		},
 		{
 			name:    "Unknown fields",
-			message: "**Unknown**: value \n **ツール**: Test",
+			message: "**Unknown**: value \n **Tool**: Test",
 			expected: &ApprovalInfo{
 				ToolName: "Test",
 			},
@@ -272,7 +272,7 @@ func TestBuildApprovalMarkdownText(t *testing.T) {
 				URL:      "https://example.com",
 				Prompt:   "test prompt",
 			},
-			expected: "*ツールの実行許可が必要です*\n\n*ツール:* WebFetch\n*URL:* <https://example.com>\n*内容:*\n```\ntest prompt\n```",
+			expected: "*Tool execution permission required*\n\n*Tool:* WebFetch\n*URL:* <https://example.com>\n*Content:*\n```\ntest prompt\n```",
 		},
 		{
 			name: "Bash tool",
@@ -281,7 +281,7 @@ func TestBuildApprovalMarkdownText(t *testing.T) {
 				Command:     "ls -la",
 				Description: "List files",
 			},
-			expected: "*ツールの実行許可が必要です*\n\n*ツール:* Bash\n*コマンド:*\n```\nls -la\n```\n*説明:*\n```\nList files\n```",
+			expected: "*Tool execution permission required*\n\n*Tool:* Bash\n*Command:*\n```\nls -la\n```\n*Description:*\n```\nList files\n```",
 		},
 		{
 			name: "Write tool",
@@ -289,19 +289,19 @@ func TestBuildApprovalMarkdownText(t *testing.T) {
 				ToolName: "Write",
 				FilePath: "/tmp/test.txt",
 			},
-			expected: "*ツールの実行許可が必要です*\n\n*ツール:* Write\n*ファイルパス:* `/tmp/test.txt`",
+			expected: "*Tool execution permission required*\n\n*Tool:* Write\n*File path:* `/tmp/test.txt`",
 		},
 		{
 			name:     "Empty info",
 			info:     &ApprovalInfo{},
-			expected: "*ツールの実行許可が必要です*\n\n",
+			expected: "*Tool execution permission required*\n\n",
 		},
 		{
 			name: "Tool name only",
 			info: &ApprovalInfo{
 				ToolName: "CustomTool",
 			},
-			expected: "*ツールの実行許可が必要です*\n\n*ツール:* CustomTool\n",
+			expected: "*Tool execution permission required*\n\n*Tool:* CustomTool\n",
 		},
 	}
 

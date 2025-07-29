@@ -441,3 +441,20 @@ The project documentation is organized as follows:
 - **Requirements and Design**: These documents represent the stable specifications and are updated only when requirements or architecture changes
 - **Task Documents**: Track implementation progress and are actively updated during development
 - **Separation of Concerns**: This structure separates "what and how" (requirements/design) from "progress tracking" (todos)
+
+## Language and Communication Guidelines
+
+### Software Language Policy
+- **All software components must be in English**: This includes but is not limited to:
+  - User-facing messages and UI text
+  - Log messages and error messages
+  - Code comments and documentation
+  - Git commit messages (already specified above)
+  - Pull Request titles and descriptions
+  - GitHub Issues
+  - API responses and error messages
+  - Configuration file comments
+  - Test descriptions and assertions
+
+### Why English?
+To ensure cc-slack is accessible to the global developer community and maintains consistency across all components.

@@ -25,7 +25,7 @@ func NewResumeManager(queries *db.Queries, resumeWindow time.Duration) *ResumeMa
 
 // GetLatestSessionID returns the latest completed session ID for a given channel and thread
 func (rm *ResumeManager) GetLatestSessionID(ctx context.Context, channelID, threadTS string) (string, error) {
-	// 1. threads テーブルから thread_id を取得
+	// 1. Get thread_id from threads table
 	thread, err := rm.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
 		ThreadTs:  threadTS,
@@ -37,7 +37,7 @@ func (rm *ResumeManager) GetLatestSessionID(ctx context.Context, channelID, thre
 		return "", fmt.Errorf("failed to get thread: %w", err)
 	}
 
-	// 2. sessions テーブルから最新の completed セッションを取得
+	// 2. Get latest completed session from sessions table
 	session, err := rm.queries.GetLatestSessionByThread(ctx, thread.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
