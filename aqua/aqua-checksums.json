@@ -31,6 +31,36 @@
       "algorithm": "sha256"
     },
     {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.darwin-amd64.tar.gz",
+      "checksum": "EA108E639EB49CAF92FADF70FA373DCEB48DB25E5B962774C5AD49A1C1363D8E",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.darwin-arm64.tar.gz",
+      "checksum": "C6E3CB3DCD7354E05B1800B1C532AF7BCC7A043121E4FA377B8A4B0B5BCC1B58",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.linux-amd64.tar.gz",
+      "checksum": "60C59C0CAC50E99172D95135B2F421863C4B2F4A67709E66DAAE024D652FA1B5",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.linux-arm64.tar.gz",
+      "checksum": "4A94C63259006FFD4E24C311C7118D85687DBEB4F310FADD66D796173C8768D9",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.windows-amd64.zip",
+      "checksum": "6074E16862BC8211349495257E41A0A40B4B3C5EB2B52388C761F0A32D7558B2",
+      "algorithm": "sha256"
+    },
+    {
+      "id": "github_release/github.com/golang-migrate/migrate/v4.18.3/migrate.windows-arm64.zip",
+      "checksum": "0F6349C83C540145406BA895BC122D4CA63356DC53C628B2D4A9969F92C52D5D",
+      "algorithm": "sha256"
+    },
+    {
       "id": "github_release/github.com/pnpm/pnpm/v10.13.1/pnpm-linux-arm64",
       "checksum": "0F6D0A1E1B95F2231CE76C13330C754BB76B8F069CA165E5CB8DBE225259F841",
       "algorithm": "sha256"

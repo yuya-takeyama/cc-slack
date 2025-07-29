@@ -11,6 +11,7 @@ registries:
   - type: standard
     ref: v4.388.0 # renovate: depName=aquaproj/aqua-registry
 packages:
+  - name: golang-migrate/migrate@v4.18.3
   - name: pnpm/pnpm@v10.13.1
   - name: cli/cli@v2.76.0
   - name: suzuki-shunsuke/pinact@v3.3.2

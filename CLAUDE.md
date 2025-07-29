@@ -70,16 +70,6 @@ The script works from any directory within the project.
 
 ### Database Development (SQLite + sqlc + golang-migrate)
 
-#### Prerequisites
-
-```bash
-# Install sqlc
-go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-
-# Install golang-migrate
-go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-```
-
 #### Database Schema Management
 
 **Creating new migrations:**
