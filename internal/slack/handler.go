@@ -89,26 +89,20 @@ type Session struct {
 }
 
 // NewHandler creates a new Slack handler
-func NewHandler(cfg *config.Config, sessionMgr SessionManager) (*Handler, error) {
+func NewHandler(cfg *config.Config, sessionMgr SessionManager, botUserID string) *Handler {
 	h := &Handler{
 		client:        slack.New(cfg.Slack.BotToken),
 		signingSecret: cfg.Slack.SigningSecret,
 		sessionMgr:    sessionMgr,
 		botToken:      cfg.Slack.BotToken,
 		config:        cfg,
+		botUserID:     botUserID,
 	}
-
-	// Get bot user ID for mention detection
-	auth, err := h.client.AuthTest()
-	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate with Slack API: %w", err)
-	}
-	h.botUserID = auth.UserID
 
 	// Apply configuration
 	h.Configure()
 
-	return h, nil
+	return h
 }
 
 // SetApprovalResponder sets the approval responder for handling approvals
@@ -194,37 +188,12 @@ func (h *Handler) HandleEvent(w http.ResponseWriter, r *http.Request) {
 	if eventsAPIEvent.Type == slackevents.CallbackEvent {
 		innerEvent := eventsAPIEvent.InnerEvent
 		switch ev := innerEvent.Data.(type) {
-		case *slackevents.AppMentionEvent:
-			h.handleAppMention(ev)
 		case *slackevents.MessageEvent:
 			h.handleMessage(ev)
 		}
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
-
-// handleAppMention handles bot mentions
-func (h *Handler) handleAppMention(event *slackevents.AppMentionEvent) {
-	// Extract message without mention
-	text := h.removeBotMention(event.Text)
-	if text == "" {
-		return
-	}
-
-	// Determine thread timestamp for session management
-	// If mentioned in a thread, use thread_ts; otherwise use the message ts
-	threadTS := event.ThreadTimeStamp
-	if threadTS == "" {
-		threadTS = event.TimeStamp
-	}
-
-	// Check if mentioned in a thread with an existing session
-	if event.ThreadTimeStamp != "" {
-		h.handleThreadMessage(event, text)
-	} else {
-		h.handleNewSession(event, text, threadTS)
-	}
 }
 
 // handleMessage handles message events
@@ -257,42 +226,6 @@ func (h *Handler) handleMessage(event *slackevents.MessageEvent) {
 	}
 }
 
-// handleThreadMessage handles messages in existing threads
-func (h *Handler) handleThreadMessage(event *slackevents.AppMentionEvent, text string) {
-	// Try to find existing session
-	session, err := h.sessionMgr.GetSessionByThread(event.Channel, event.ThreadTimeStamp)
-	if err == nil && session != nil {
-		// Fetch full message details if file upload is enabled
-		var imagePaths []string
-		if h.fileUploadEnabled {
-			imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
-			if err != nil {
-				fmt.Printf("Failed to fetch images: %v\n", err)
-				// Continue without images
-			}
-		}
-
-		// Add image paths to the prompt if any
-		if len(imagePaths) > 0 {
-			text = h.appendImagePaths(text, imagePaths)
-		}
-
-		// Existing session found - send message to it
-		err = h.sessionMgr.SendMessage(session.SessionID, text)
-		if err != nil {
-			h.client.PostMessage(
-				event.Channel,
-				slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
-				slack.MsgOptionTS(event.ThreadTimeStamp),
-			)
-		}
-		return
-	}
-
-	// No existing session found - create new session
-	h.handleNewSession(event, text, event.ThreadTimeStamp)
-}
-
 // handleThreadMessageEvent handles message events in existing threads
 func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text string) {
 	// Try to find existing session
@@ -323,59 +256,6 @@ func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text
 
 	// No existing session found - create new session
 	h.handleNewSessionFromMessage(event, text, event.ThreadTimeStamp)
-}
-
-// handleNewSession creates a new session or resumes a previous one
-func (h *Handler) handleNewSession(event *slackevents.AppMentionEvent, text string, threadTS string) {
-	// Determine working directory
-	workDir := h.determineWorkDir(event.Channel)
-
-	// Fetch full message details if file upload is enabled
-	var imagePaths []string
-	if h.fileUploadEnabled {
-		var err error
-		// Use event.ThreadTimeStamp for fetchAndSaveImages (empty string for non-thread messages)
-		imagePaths, err = h.fetchAndSaveImages(event.Channel, event.TimeStamp, event.ThreadTimeStamp)
-		if err != nil {
-			fmt.Printf("Failed to fetch images: %v\n", err)
-			// Continue without images
-		}
-	}
-
-	// Add image paths to the prompt if any
-	if len(imagePaths) > 0 {
-		text = h.appendImagePaths(text, imagePaths)
-	}
-
-	// Create session with resume check
-	ctx := context.Background()
-	_, resumed, previousSessionID, err := h.sessionMgr.CreateSessionWithResume(ctx, event.Channel, threadTS, workDir, text)
-	if err != nil {
-		h.client.PostMessage(
-			event.Channel,
-			slack.MsgOptionText(fmt.Sprintf("セッション作成に失敗しました: %v", err), false),
-			slack.MsgOptionTS(threadTS),
-		)
-		return
-	}
-
-	// Post initial response based on whether session was resumed
-	var initialMessage string
-	if resumed {
-		initialMessage = fmt.Sprintf("前回のセッション `%s` を再開します...", previousSessionID)
-	} else {
-		initialMessage = "Claude Code セッションを開始しています..."
-	}
-
-	_, _, err = h.client.PostMessage(
-		event.Channel,
-		slack.MsgOptionText(initialMessage, false),
-		slack.MsgOptionTS(threadTS),
-	)
-	if err != nil {
-		fmt.Printf("Failed to post message: %v\n", err)
-		return
-	}
 }
 
 // handleNewSessionFromMessage creates a new session or resumes one for message events
@@ -487,15 +367,28 @@ func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, actio
 
 // removeBotMention removes bot mention from message text
 func (h *Handler) removeBotMention(text string) string {
-	// Remove <@BOTID> pattern
-	// TODO: Get actual bot ID
-	text = strings.TrimSpace(text)
-	if strings.HasPrefix(text, "<@") {
-		if idx := strings.Index(text, ">"); idx != -1 {
-			text = strings.TrimSpace(text[idx+1:])
-		}
+	return RemoveBotMentionFromText(text, h.botUserID)
+}
+
+// RemoveBotMentionFromText removes bot mention from text (pure function)
+func RemoveBotMentionFromText(text string, botUserID string) string {
+	if botUserID == "" {
+		return text
 	}
-	return text
+
+	// Remove <@BOTID> pattern
+	botMention := fmt.Sprintf("<@%s>", botUserID)
+	text = strings.TrimSpace(text)
+
+	// Handle mention at the beginning
+	if strings.HasPrefix(text, botMention) {
+		text = strings.TrimSpace(text[len(botMention):])
+	}
+
+	// Handle mention anywhere else in the text
+	text = strings.ReplaceAll(text, botMention, "")
+
+	return strings.TrimSpace(text)
 }
 
 // determineWorkDir determines the working directory for a channel

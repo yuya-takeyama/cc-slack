@@ -2,78 +2,109 @@ package slack
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
-	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 )
 
-func TestRemoveBotMention(t *testing.T) {
-	h := &Handler{}
-
+func TestRemoveBotMentionFromText(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name      string
+		input     string
+		botUserID string
+		expected  string
 	}{
 		{
-			name:     "simple mention",
-			input:    "<@U123456> hello",
-			expected: "hello",
+			name:      "simple mention",
+			input:     "<@U123456> hello",
+			botUserID: "U123456",
+			expected:  "hello",
 		},
 		{
-			name:     "mention with no space",
-			input:    "<@U123456>hello",
-			expected: "hello",
+			name:      "mention with no space",
+			input:     "<@U123456>hello",
+			botUserID: "U123456",
+			expected:  "hello",
 		},
 		{
-			name:     "no mention",
-			input:    "hello world",
-			expected: "hello world",
+			name:      "no mention",
+			input:     "hello world",
+			botUserID: "U123456",
+			expected:  "hello world",
 		},
 		{
-			name:     "mention only",
-			input:    "<@U123456>",
-			expected: "",
+			name:      "mention only",
+			input:     "<@U123456>",
+			botUserID: "U123456",
+			expected:  "",
 		},
 		{
-			name:     "mention with extra spaces",
-			input:    "<@U123456>   hello world",
-			expected: "hello world",
+			name:      "mention with extra spaces",
+			input:     "<@U123456>   hello world",
+			botUserID: "U123456",
+			expected:  "hello world",
 		},
 		{
-			name:     "multiple words after mention",
-			input:    "<@U123456> hello world test",
-			expected: "hello world test",
+			name:      "multiple words after mention",
+			input:     "<@U123456> hello world test",
+			botUserID: "U123456",
+			expected:  "hello world test",
 		},
 		{
-			name:     "empty string",
-			input:    "",
-			expected: "",
+			name:      "empty string",
+			input:     "",
+			botUserID: "U123456",
+			expected:  "",
 		},
 		{
-			name:     "only spaces",
-			input:    "   ",
-			expected: "",
+			name:      "only spaces",
+			input:     "   ",
+			botUserID: "U123456",
+			expected:  "",
 		},
 		{
-			name:     "mention with newline",
-			input:    "<@U123456>\nhello",
-			expected: "hello",
+			name:      "mention with newline",
+			input:     "<@U123456>\nhello",
+			botUserID: "U123456",
+			expected:  "hello",
 		},
 		{
-			name:     "incomplete mention",
-			input:    "<@U123456 hello",
-			expected: "<@U123456 hello",
+			name:      "incomplete mention",
+			input:     "<@U123456 hello",
+			botUserID: "U123456",
+			expected:  "<@U123456 hello",
+		},
+		{
+			name:      "wrong bot id",
+			input:     "<@U999999> hello",
+			botUserID: "U123456",
+			expected:  "<@U999999> hello",
+		},
+		{
+			name:      "empty bot id",
+			input:     "<@U123456> hello",
+			botUserID: "",
+			expected:  "<@U123456> hello",
+		},
+		{
+			name:      "mention in middle",
+			input:     "hello <@U123456> world",
+			botUserID: "U123456",
+			expected:  "hello  world",
+		},
+		{
+			name:      "multiple mentions",
+			input:     "<@U123456> hello <@U123456> world",
+			botUserID: "U123456",
+			expected:  "hello  world",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := h.removeBotMention(tt.input)
+			got := RemoveBotMentionFromText(tt.input, tt.botUserID)
 			if got != tt.expected {
-				t.Errorf("removeBotMention(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("RemoveBotMentionFromText(%q, %q) = %q, want %q", tt.input, tt.botUserID, got, tt.expected)
 			}
 		})
 	}
@@ -175,128 +206,137 @@ func createTestConfig() *config.Config {
 	}
 }
 
-func TestHandleAppMention_InThread(t *testing.T) {
-	mockSession := &MockSessionManager{
-		getSessionByThreadError: fmt.Errorf("not found"), // Simulate no existing session
-	}
-	h, err := NewHandler(createTestConfig(), mockSession)
-	if err != nil {
-		t.Fatalf("Failed to create handler: %v", err)
-	}
-
-	// App mention in a thread
-	event := &slackevents.AppMentionEvent{
-		Type:            "app_mention",
-		Channel:         "C123456",
-		TimeStamp:       "1234567890.123456",
-		ThreadTimeStamp: "1234567890.000000", // In a thread
-		Text:            "<@U123456> hello from thread",
-	}
-
-	// Handle mention
-	h.handleAppMention(event)
-
-	// Verify GetSessionByThread was called first
-	if len(mockSession.getSessionByThreadCalls) != 1 {
-		t.Errorf("Expected 1 getSessionByThreadCalls, got %d", len(mockSession.getSessionByThreadCalls))
-	}
-
-	// Verify session was created with thread_ts
-	if len(mockSession.createSessionWithResume) != 1 {
-		t.Errorf("Expected 1 createSessionWithResume call, got %d", len(mockSession.createSessionWithResume))
-	}
-
-	call := mockSession.createSessionWithResume[0]
-	if call.threadTS != "1234567890.000000" {
-		t.Errorf("Expected threadTS to be %s, got %s", "1234567890.000000", call.threadTS)
-	}
-	if call.initialPrompt != "hello from thread" {
-		t.Errorf("Expected initialPrompt to be %s, got %s", "hello from thread", call.initialPrompt)
-	}
-}
-
-func TestHandleAppMention_OutsideThread(t *testing.T) {
-	mockSession := &MockSessionManager{}
-	h, err := NewHandler(createTestConfig(), mockSession)
-	if err != nil {
-		t.Fatalf("Failed to create handler: %v", err)
-	}
-
-	// App mention outside a thread
-	event := &slackevents.AppMentionEvent{
-		Type:            "app_mention",
-		Channel:         "C123456",
-		TimeStamp:       "1234567890.123456",
-		ThreadTimeStamp: "", // Not in a thread
-		Text:            "<@U123456> hello from channel",
-	}
-
-	// Handle mention
-	h.handleAppMention(event)
-
-	// Verify session was created with message ts as thread_ts
-	if len(mockSession.createSessionWithResume) != 1 {
-		t.Errorf("Expected 1 createSessionWithResume call, got %d", len(mockSession.createSessionWithResume))
-	}
-
-	call := mockSession.createSessionWithResume[0]
-	if call.threadTS != "1234567890.123456" {
-		t.Errorf("Expected threadTS to be %s, got %s", "1234567890.123456", call.threadTS)
-	}
-	if call.initialPrompt != "hello from channel" {
-		t.Errorf("Expected initialPrompt to be %s, got %s", "hello from channel", call.initialPrompt)
-	}
-}
-
-func TestHandleAppMention_ExistingSession(t *testing.T) {
-	mockSession := &MockSessionManager{
-		getSessionByThreadReturn: &Session{
-			SessionID: "existing-session",
-			ChannelID: "C123456",
-			ThreadTS:  "1234567890.000000",
-			WorkDir:   "/test/dir",
+func TestParseApprovalMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  string
+		expected *ApprovalInfo
+	}{
+		{
+			name:    "WebFetch tool",
+			message: "**ツール**: WebFetch \n **URL**: https://example.com \n **内容**: test prompt",
+			expected: &ApprovalInfo{
+				ToolName: "WebFetch",
+				URL:      "https://example.com",
+				Prompt:   "test prompt",
+			},
+		},
+		{
+			name:    "Bash tool",
+			message: "**ツール**: Bash \n **コマンド**: ls -la \n **説明**: List files",
+			expected: &ApprovalInfo{
+				ToolName:    "Bash",
+				Command:     "ls -la",
+				Description: "List files",
+			},
+		},
+		{
+			name:    "Write tool",
+			message: "**ツール**: Write \n **ファイルパス**: /tmp/test.txt",
+			expected: &ApprovalInfo{
+				ToolName: "Write",
+				FilePath: "/tmp/test.txt",
+			},
+		},
+		{
+			name:    "Mixed content with extra spaces",
+			message: "  **ツール**: WebFetch  \n  **URL**: https://example.com  ",
+			expected: &ApprovalInfo{
+				ToolName: "WebFetch",
+				URL:      "https://example.com",
+			},
+		},
+		{
+			name:     "Empty message",
+			message:  "",
+			expected: &ApprovalInfo{},
+		},
+		{
+			name:    "Unknown fields",
+			message: "**Unknown**: value \n **ツール**: Test",
+			expected: &ApprovalInfo{
+				ToolName: "Test",
+			},
 		},
 	}
-	h, err := NewHandler(createTestConfig(), mockSession)
-	if err != nil {
-		t.Fatalf("Failed to create handler: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseApprovalMessage(tt.message)
+			if got.ToolName != tt.expected.ToolName {
+				t.Errorf("ToolName = %q, want %q", got.ToolName, tt.expected.ToolName)
+			}
+			if got.URL != tt.expected.URL {
+				t.Errorf("URL = %q, want %q", got.URL, tt.expected.URL)
+			}
+			if got.Prompt != tt.expected.Prompt {
+				t.Errorf("Prompt = %q, want %q", got.Prompt, tt.expected.Prompt)
+			}
+			if got.Command != tt.expected.Command {
+				t.Errorf("Command = %q, want %q", got.Command, tt.expected.Command)
+			}
+			if got.Description != tt.expected.Description {
+				t.Errorf("Description = %q, want %q", got.Description, tt.expected.Description)
+			}
+			if got.FilePath != tt.expected.FilePath {
+				t.Errorf("FilePath = %q, want %q", got.FilePath, tt.expected.FilePath)
+			}
+		})
+	}
+}
+
+func TestBuildApprovalMarkdownText(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     *ApprovalInfo
+		expected string
+	}{
+		{
+			name: "WebFetch tool",
+			info: &ApprovalInfo{
+				ToolName: "WebFetch",
+				URL:      "https://example.com",
+				Prompt:   "test prompt",
+			},
+			expected: "*ツールの実行許可が必要です*\n\n*ツール:* WebFetch\n*URL:* <https://example.com>\n*内容:*\n```\ntest prompt\n```",
+		},
+		{
+			name: "Bash tool",
+			info: &ApprovalInfo{
+				ToolName:    "Bash",
+				Command:     "ls -la",
+				Description: "List files",
+			},
+			expected: "*ツールの実行許可が必要です*\n\n*ツール:* Bash\n*コマンド:*\n```\nls -la\n```\n*説明:*\n```\nList files\n```",
+		},
+		{
+			name: "Write tool",
+			info: &ApprovalInfo{
+				ToolName: "Write",
+				FilePath: "/tmp/test.txt",
+			},
+			expected: "*ツールの実行許可が必要です*\n\n*ツール:* Write\n*ファイルパス:* `/tmp/test.txt`",
+		},
+		{
+			name:     "Empty info",
+			info:     &ApprovalInfo{},
+			expected: "*ツールの実行許可が必要です*\n\n",
+		},
+		{
+			name: "Tool name only",
+			info: &ApprovalInfo{
+				ToolName: "CustomTool",
+			},
+			expected: "*ツールの実行許可が必要です*\n\n*ツール:* CustomTool\n",
+		},
 	}
 
-	// App mention in a thread with existing session
-	event := &slackevents.AppMentionEvent{
-		Type:            "app_mention",
-		Channel:         "C123456",
-		TimeStamp:       "1234567890.999999",
-		ThreadTimeStamp: "1234567890.000000", // In a thread
-		Text:            "<@U123456> interrupt message",
-	}
-
-	// Handle mention
-	h.handleAppMention(event)
-
-	// Verify GetSessionByThread was called
-	if len(mockSession.getSessionByThreadCalls) != 1 {
-		t.Errorf("Expected 1 getSessionByThreadCalls, got %d", len(mockSession.getSessionByThreadCalls))
-	}
-	call := mockSession.getSessionByThreadCalls[0]
-	if call.channelID != "C123456" || call.threadTS != "1234567890.000000" {
-		t.Errorf("Expected GetSessionByThread to be called with correct params")
-	}
-
-	// Verify SendMessage was called instead of CreateSessionWithResume
-	if len(mockSession.sendMessageCalls) != 1 {
-		t.Errorf("Expected 1 sendMessageCalls, got %d", len(mockSession.sendMessageCalls))
-	}
-	sendCall := mockSession.sendMessageCalls[0]
-	if sendCall.sessionID != "existing-session" {
-		t.Errorf("Expected sessionID to be %s, got %s", "existing-session", sendCall.sessionID)
-	}
-	if sendCall.message != "interrupt message" {
-		t.Errorf("Expected message to be %s, got %s", "interrupt message", sendCall.message)
-	}
-
-	// Verify CreateSessionWithResume was NOT called
-	if len(mockSession.createSessionWithResume) != 0 {
-		t.Errorf("Expected 0 createSessionWithResume calls, got %d", len(mockSession.createSessionWithResume))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildApprovalMarkdownText(tt.info)
+			if got != tt.expected {
+				t.Errorf("buildApprovalMarkdownText() = %q, want %q", got, tt.expected)
+			}
+		})
 	}
 }

@@ -280,3 +280,32 @@ Possible solutions:
 3. Use dependency injection for AuthTest
 
 The first option (interface extraction) is recommended as it follows Go best practices and enables proper unit testing.
+
+### Latest Changes (Uncommitted)
+
+1. **Bot Mention Validation**
+   - Added proper bot user ID detection via AuthTest
+   - Implemented containsBotMention to check for specific bot mentions  
+   - Made NewHandler return error for fail-fast behavior
+
+2. **Started AppMention Removal**
+   - Removed AppMentionEvent case from HandleEvent switch
+   - Started removing handleAppMention function
+   - Plan to fully migrate to message events only
+
+### Next Steps
+
+1. **Complete AppMention Removal**
+   - Remove handleThreadMessage(AppMentionEvent)
+   - Remove handleNewSession(AppMentionEvent)  
+   - Clean up any remaining AppMention references
+
+2. **Fix Tests**
+   - Implement Slack client interface for mocking
+   - Update all tests to use mock client
+   - Ensure tests pass with new error handling
+
+3. **Update Documentation**
+   - Remove app_mention from README
+   - Update Event Subscriptions requirements
+   - Document migration steps for users

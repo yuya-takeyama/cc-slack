@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	slackapi "github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
@@ -45,6 +46,15 @@ func main() {
 		log.Fatalf("Failed to create MCP server: %v", err)
 	}
 
+	// Authenticate with Slack API to get bot user ID
+	slackClient := slackapi.New(cfg.Slack.BotToken)
+	auth, err := slackClient.AuthTest()
+	if err != nil {
+		log.Fatalf("Failed to authenticate with Slack API: %v", err)
+	}
+	botUserID := auth.UserID
+	log.Printf("Authenticated as bot user: %s", botUserID)
+
 	// We need to create the slack handler and session manager in two steps
 	// First create a placeholder handler
 	slackHandler := &slack.Handler{}
@@ -53,15 +63,11 @@ func main() {
 	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL, cfg.Slack.FileUpload.ImagesDir)
 
 	// Now create the actual Slack handler with the session manager
-	handler, err := slack.NewHandler(cfg, sessionMgr)
-	if err != nil {
-		log.Fatalf("Failed to create Slack handler: %v", err)
-	}
+	handler := slack.NewHandler(cfg, sessionMgr, botUserID)
 	*slackHandler = *handler
 
 	// Create channel cache for web API
-	slackClient := slackHandler.GetClient()
-	channelCache := slack.NewChannelCache(slackClient, 1*time.Hour)
+	channelCache := slack.NewChannelCache(slackHandler.GetClient(), 1*time.Hour)
 
 	// Set Slack integration in MCP server
 	mcpServer.SetSlackIntegration(slackHandler, sessionMgr)
