@@ -30,6 +30,7 @@ type Manager struct {
 	config       *config.Config
 	slackHandler *ccslack.Handler
 	mcpBaseURL   string
+	imagesDir    string // Directory for storing uploaded images
 }
 
 // Session represents an active Claude session
@@ -43,7 +44,7 @@ type Session struct {
 }
 
 // NewManager creates a new session manager
-func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Handler, mcpBaseURL string) *Manager {
+func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Handler, mcpBaseURL string, imagesDir string) *Manager {
 	queries := db.New(database)
 
 	return &Manager{
@@ -54,6 +55,7 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 		config:          cfg,
 		slackHandler:    slackHandler,
 		mcpBaseURL:      mcpBaseURL,
+		imagesDir:       imagesDir,
 	}
 }
 
@@ -549,6 +551,15 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 		delete(m.threadToSession, key)
 		m.mu.Unlock()
 
+		// Clean up uploaded images
+		if m.imagesDir != "" && threadTS != "" {
+			imageDir := filepath.Join(m.imagesDir, strings.ReplaceAll(threadTS, ".", "_"))
+			if err := os.RemoveAll(imageDir); err != nil {
+				// Log error but don't fail the session completion
+				fmt.Fprintf(os.Stderr, "Failed to remove image directory %s: %v\n", imageDir, err)
+			}
+		}
+
 		// Post result message
 		var text string
 		if msg.IsError {
@@ -632,6 +643,15 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 
 			// Close process and clean up
 			session.Process.Close()
+
+			// Clean up uploaded images
+			if m.imagesDir != "" && session.ThreadTS != "" {
+				imageDir := filepath.Join(m.imagesDir, strings.ReplaceAll(session.ThreadTS, ".", "_"))
+				if err := os.RemoveAll(imageDir); err != nil {
+					// Log error but don't fail the cleanup
+					fmt.Fprintf(os.Stderr, "Failed to remove image directory %s: %v\n", imageDir, err)
+				}
+			}
 
 			m.mu.Lock()
 			key := fmt.Sprintf("%s:%s", session.ChannelID, session.ThreadTS)

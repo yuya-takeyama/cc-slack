@@ -50,7 +50,7 @@ func main() {
 	slackHandler := &slack.Handler{}
 
 	// Create session manager with database support
-	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL)
+	sessionMgr := session.NewManager(sqlDB, cfg, slackHandler, cfg.Server.BaseURL, cfg.FileUpload.ImagesDir)
 
 	// Now create the actual Slack handler with the session manager
 	*slackHandler = *slack.NewHandler(cfg.Slack.BotToken, cfg.Slack.SigningSecret, sessionMgr)

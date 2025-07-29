@@ -820,10 +820,6 @@ func (h *Handler) downloadAndSaveImage(file slack.File, imageDir string) (string
 	}
 	defer resp.Body.Close()
 
-	// Log response details for debugging
-	fmt.Printf("Download response: status=%d, url=%s, content-type=%s\n",
-		resp.StatusCode, downloadURL, resp.Header.Get("Content-Type"))
-
 	if resp.StatusCode != http.StatusOK {
 		// Read error response body for debugging
 		body, _ := io.ReadAll(resp.Body)
