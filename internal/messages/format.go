@@ -8,21 +8,21 @@ import (
 
 // FormatSessionStartMessage formats the session start message
 func FormatSessionStartMessage(sessionID, cwd, model string) string {
-	return fmt.Sprintf("🚀 Claude Code セッション開始\n"+
-		"セッションID: `%s`\n"+
-		"作業ディレクトリ: %s\n"+
-		"モデル: %s",
+	return fmt.Sprintf("🚀 Claude Code session started\n"+
+		"Session ID: `%s`\n"+
+		"Working directory: %s\n"+
+		"Model: %s",
 		sessionID, cwd, model)
 }
 
 // FormatSessionCompleteMessage formats the session completion message
 func FormatSessionCompleteMessage(sessionID string, duration time.Duration, turns int, cost float64, inputTokens, outputTokens int) string {
-	text := fmt.Sprintf("✅ セッション完了\n"+
-		"セッションID: `%s`\n"+
-		"実行時間: %s\n"+
-		"ターン数: %d\n"+
-		"コスト: $%.6f USD\n"+
-		"使用トークン: 入力=%d, 出力=%d",
+	text := fmt.Sprintf("✅ Session completed\n"+
+		"Session ID: `%s`\n"+
+		"Duration: %s\n"+
+		"Turns: %d\n"+
+		"Cost: $%.6f USD\n"+
+		"Tokens used: input=%d, output=%d",
 		sessionID,
 		FormatDuration(duration),
 		turns,
@@ -32,7 +32,7 @@ func FormatSessionCompleteMessage(sessionID string, duration time.Duration, turn
 
 	// Cost warning
 	if cost > 1.0 {
-		text += "\n⚠️ 高コストセッション"
+		text += "\n⚠️ High cost session"
 	}
 
 	return text
@@ -40,10 +40,10 @@ func FormatSessionCompleteMessage(sessionID string, duration time.Duration, turn
 
 // FormatTimeoutMessage formats the timeout message
 func FormatTimeoutMessage(idleMinutes int, sessionID string) string {
-	return fmt.Sprintf("⏰ セッションがタイムアウトしました\n"+
-		"アイドル時間: %d分\n"+
-		"セッションID: `%s`\n\n"+
-		"新しいセッションを開始するには、再度メンションしてください。",
+	return fmt.Sprintf("⏰ Session timed out\n"+
+		"Idle time: %d minutes\n"+
+		"Session ID: `%s`\n\n"+
+		"To start a new session, please mention me again.",
 		idleMinutes, sessionID)
 }
 
@@ -139,15 +139,15 @@ func FormatWebSearchToolMessage(query string) string {
 
 // FormatCompletionMessage formats the completion message with session info
 func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
-	text := fmt.Sprintf("✅ セッション完了\n"+
-		"セッションID: `%s`\n"+
-		"ターン数: %d\n"+
-		"コスト: $%.6f USD",
+	text := fmt.Sprintf("✅ Session completed\n"+
+		"Session ID: `%s`\n"+
+		"Turns: %d\n"+
+		"Cost: $%.6f USD",
 		sessionID, turns, cost)
 
 	// Cost warning
 	if cost > 1.0 {
-		text += "\n⚠️ 高コストセッション"
+		text += "\n⚠️ High cost session"
 	}
 
 	return text
@@ -155,31 +155,31 @@ func FormatCompletionMessage(sessionID string, turns int, cost float64) string {
 
 // FormatErrorMessage formats the error completion message
 func FormatErrorMessage(sessionID string) string {
-	return fmt.Sprintf("❌ セッションがエラーで終了しました\n"+
-		"セッションID: `%s`", sessionID)
+	return fmt.Sprintf("❌ Session ended with error\n"+
+		"Session ID: `%s`", sessionID)
 }
 
 // FormatDuration converts duration to human-readable string
 // Examples:
-//   - 5s -> "5秒"
-//   - 2m5s -> "2分5秒"
-//   - 1h1m5s -> "1時間1分5秒"
+//   - 5s -> "5s"
+//   - 2m5s -> "2m5s"
+//   - 1h1m5s -> "1h1m5s"
 func FormatDuration(d time.Duration) string {
 	seconds := int(d.Seconds())
 
 	if seconds < 60 {
-		return fmt.Sprintf("%d秒", seconds)
+		return fmt.Sprintf("%ds", seconds)
 	}
 
 	minutes := seconds / 60
 	remainingSeconds := seconds % 60
 
 	if minutes < 60 {
-		return fmt.Sprintf("%d分%d秒", minutes, remainingSeconds)
+		return fmt.Sprintf("%dm%ds", minutes, remainingSeconds)
 	}
 
 	hours := minutes / 60
 	remainingMinutes := minutes % 60
 
-	return fmt.Sprintf("%d時間%d分%d秒", hours, remainingMinutes, remainingSeconds)
+	return fmt.Sprintf("%dh%dm%ds", hours, remainingMinutes, remainingSeconds)
 }

@@ -19,20 +19,20 @@ func TestFormatSessionStartMessage(t *testing.T) {
 			sessionID: "session-123",
 			cwd:       "/home/user/project",
 			model:     "claude-3.5-sonnet",
-			want: "🚀 Claude Code セッション開始\n" +
-				"セッションID: `session-123`\n" +
-				"作業ディレクトリ: /home/user/project\n" +
-				"モデル: claude-3.5-sonnet",
+			want: "🚀 Claude Code session started\n" +
+				"Session ID: `session-123`\n" +
+				"Working directory: /home/user/project\n" +
+				"Model: claude-3.5-sonnet",
 		},
 		{
 			name:      "with spaces in path",
 			sessionID: "session-456",
 			cwd:       "/Users/name/My Documents/project",
 			model:     "claude-3.5-sonnet",
-			want: "🚀 Claude Code セッション開始\n" +
-				"セッションID: `session-456`\n" +
-				"作業ディレクトリ: /Users/name/My Documents/project\n" +
-				"モデル: claude-3.5-sonnet",
+			want: "🚀 Claude Code session started\n" +
+				"Session ID: `session-456`\n" +
+				"Working directory: /Users/name/My Documents/project\n" +
+				"Model: claude-3.5-sonnet",
 		},
 	}
 
@@ -65,12 +65,12 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 			cost:         0.05,
 			inputTokens:  1000,
 			outputTokens: 500,
-			want: "✅ セッション完了\n" +
-				"セッションID: `session-123`\n" +
-				"実行時間: 5秒\n" +
-				"ターン数: 3\n" +
-				"コスト: $0.050000 USD\n" +
-				"使用トークン: 入力=1000, 出力=500",
+			want: "✅ Session completed\n" +
+				"Session ID: `session-123`\n" +
+				"Duration: 5s\n" +
+				"Turns: 3\n" +
+				"Cost: $0.050000 USD\n" +
+				"Tokens used: input=1000, output=500",
 		},
 		{
 			name:         "long session with high cost",
@@ -80,13 +80,13 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 			cost:         1.5,
 			inputTokens:  50000,
 			outputTokens: 25000,
-			want: "✅ セッション完了\n" +
-				"セッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
-				"実行時間: 2分5秒\n" +
-				"ターン数: 20\n" +
-				"コスト: $1.500000 USD\n" +
-				"使用トークン: 入力=50000, 出力=25000\n" +
-				"⚠️ 高コストセッション",
+			want: "✅ Session completed\n" +
+				"Session ID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
+				"Duration: 2m5s\n" +
+				"Turns: 20\n" +
+				"Cost: $1.500000 USD\n" +
+				"Tokens used: input=50000, output=25000\n" +
+				"⚠️ High cost session",
 		},
 		{
 			name:         "very long session",
@@ -96,12 +96,12 @@ func TestFormatSessionCompleteMessage(t *testing.T) {
 			cost:         0.8,
 			inputTokens:  100000,
 			outputTokens: 50000,
-			want: "✅ セッション完了\n" +
-				"セッションID: `5238c540-08c9-42e3-b7fa-7b74385e9c88`\n" +
-				"実行時間: 1時間1分5秒\n" +
-				"ターン数: 50\n" +
-				"コスト: $0.800000 USD\n" +
-				"使用トークン: 入力=100000, 出力=50000",
+			want: "✅ Session completed\n" +
+				"Session ID: `5238c540-08c9-42e3-b7fa-7b74385e9c88`\n" +
+				"Duration: 1h1m5s\n" +
+				"Turns: 50\n" +
+				"Cost: $0.800000 USD\n" +
+				"Tokens used: input=100000, output=50000",
 		},
 	}
 
@@ -126,19 +126,19 @@ func TestFormatTimeoutMessage(t *testing.T) {
 			name:        "short idle",
 			idleMinutes: 15,
 			sessionID:   "session-123",
-			want: "⏰ セッションがタイムアウトしました\n" +
-				"アイドル時間: 15分\n" +
-				"セッションID: `session-123`\n\n" +
-				"新しいセッションを開始するには、再度メンションしてください。",
+			want: "⏰ Session timed out\n" +
+				"Idle time: 15 minutes\n" +
+				"Session ID: `session-123`\n\n" +
+				"To start a new session, please mention me again.",
 		},
 		{
 			name:        "long idle",
 			idleMinutes: 120,
 			sessionID:   "session-456",
-			want: "⏰ セッションがタイムアウトしました\n" +
-				"アイドル時間: 120分\n" +
-				"セッションID: `session-456`\n\n" +
-				"新しいセッションを開始するには、再度メンションしてください。",
+			want: "⏰ Session timed out\n" +
+				"Idle time: 120 minutes\n" +
+				"Session ID: `session-456`\n\n" +
+				"To start a new session, please mention me again.",
 		},
 	}
 
@@ -489,31 +489,31 @@ func TestFormatCompletionMessage(t *testing.T) {
 			sessionID: "session-123",
 			turns:     5,
 			cost:      0.05,
-			want: "✅ セッション完了\n" +
-				"セッションID: `session-123`\n" +
-				"ターン数: 5\n" +
-				"コスト: $0.050000 USD",
+			want: "✅ Session completed\n" +
+				"Session ID: `session-123`\n" +
+				"Turns: 5\n" +
+				"Cost: $0.050000 USD",
 		},
 		{
 			name:      "high cost session",
 			sessionID: "session-456",
 			turns:     20,
 			cost:      1.5,
-			want: "✅ セッション完了\n" +
-				"セッションID: `session-456`\n" +
-				"ターン数: 20\n" +
-				"コスト: $1.500000 USD\n" +
-				"⚠️ 高コストセッション",
+			want: "✅ Session completed\n" +
+				"Session ID: `session-456`\n" +
+				"Turns: 20\n" +
+				"Cost: $1.500000 USD\n" +
+				"⚠️ High cost session",
 		},
 		{
 			name:      "UUID session ID",
 			sessionID: "d423f0ad-9ba7-46e4-8afb-869f70a89fff",
 			turns:     10,
 			cost:      0.25,
-			want: "✅ セッション完了\n" +
-				"セッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
-				"ターン数: 10\n" +
-				"コスト: $0.250000 USD",
+			want: "✅ Session completed\n" +
+				"Session ID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`\n" +
+				"Turns: 10\n" +
+				"Cost: $0.250000 USD",
 		},
 	}
 
@@ -536,12 +536,12 @@ func TestFormatErrorMessage(t *testing.T) {
 		{
 			name:      "simple session ID",
 			sessionID: "session-123",
-			want:      "❌ セッションがエラーで終了しました\nセッションID: `session-123`",
+			want:      "❌ Session ended with error\nSession ID: `session-123`",
 		},
 		{
 			name:      "UUID session ID",
 			sessionID: "d423f0ad-9ba7-46e4-8afb-869f70a89fff",
-			want:      "❌ セッションがエラーで終了しました\nセッションID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`",
+			want:      "❌ Session ended with error\nSession ID: `d423f0ad-9ba7-46e4-8afb-869f70a89fff`",
 		},
 	}
 
@@ -564,32 +564,32 @@ func TestFormatDuration(t *testing.T) {
 		{
 			name:     "seconds only",
 			duration: 5 * time.Second,
-			want:     "5秒",
+			want:     "5s",
 		},
 		{
 			name:     "minutes and seconds",
 			duration: 125 * time.Second,
-			want:     "2分5秒",
+			want:     "2m5s",
 		},
 		{
 			name:     "exact minute",
 			duration: 60 * time.Second,
-			want:     "1分0秒",
+			want:     "1m0s",
 		},
 		{
 			name:     "hours, minutes and seconds",
 			duration: 3665 * time.Second,
-			want:     "1時間1分5秒",
+			want:     "1h1m5s",
 		},
 		{
 			name:     "exact hour",
 			duration: 3600 * time.Second,
-			want:     "1時間0分0秒",
+			want:     "1h0m0s",
 		},
 		{
 			name:     "multiple hours",
 			duration: 7325 * time.Second,
-			want:     "2時間2分5秒",
+			want:     "2h2m5s",
 		},
 	}
 

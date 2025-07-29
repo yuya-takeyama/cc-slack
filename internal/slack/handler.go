@@ -251,7 +251,7 @@ func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text
 		if err != nil {
 			h.client.PostMessage(
 				event.Channel,
-				slack.MsgOptionText(fmt.Sprintf("メッセージ送信に失敗しました: %v", err), false),
+				slack.MsgOptionText(fmt.Sprintf("Failed to send message: %v", err), false),
 				slack.MsgOptionTS(event.ThreadTimeStamp),
 			)
 		}
@@ -300,7 +300,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	if err != nil {
 		h.client.PostMessage(
 			event.Channel,
-			slack.MsgOptionText(fmt.Sprintf("セッション作成に失敗しました: %v", err), false),
+			slack.MsgOptionText(fmt.Sprintf("Failed to create session: %v", err), false),
 			slack.MsgOptionTS(threadTS),
 		)
 		return
@@ -309,9 +309,9 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	// Post initial response based on whether session was resumed
 	var initialMessage string
 	if resumed {
-		initialMessage = fmt.Sprintf("前回のセッション `%s` を再開します...", previousSessionID)
+		initialMessage = fmt.Sprintf("Resuming previous session `%s`...", previousSessionID)
 	} else {
-		initialMessage = "Claude Code セッションを開始しています..."
+		initialMessage = "Starting Claude Code session..."
 	}
 
 	_, _, err = h.client.PostMessage(
@@ -533,12 +533,12 @@ func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID st
 				slack.NewButtonBlockElement(
 					fmt.Sprintf("approve_%s", requestID),
 					"approve",
-					slack.NewTextBlockObject(slack.PlainTextType, "承認", false, false),
+					slack.NewTextBlockObject(slack.PlainTextType, "Approve", false, false),
 				).WithStyle(slack.StylePrimary),
 				slack.NewButtonBlockElement(
 					fmt.Sprintf("deny_%s", requestID),
 					"deny",
-					slack.NewTextBlockObject(slack.PlainTextType, "拒否", false, false),
+					slack.NewTextBlockObject(slack.PlainTextType, "Deny", false, false),
 				).WithStyle(slack.StyleDanger),
 			),
 		),
@@ -565,25 +565,25 @@ type ApprovalInfo struct {
 // parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
 func parseApprovalMessage(message string) *ApprovalInfo {
 	// Parse the message format from mcp/server.go:
-	// For WebFetch: **ツール**: WebFetch \n **URL**: %s \n **内容**: %s
-	// For Bash: **ツール**: Bash \n **コマンド**: %s \n **説明**: %s
+	// For WebFetch: **Tool**: WebFetch \n **URL**: %s \n **Content**: %s
+	// For Bash: **Tool**: Bash \n **Command**: %s \n **Description**: %s
 
 	info := &ApprovalInfo{}
 	lines := strings.Split(message, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "**ツール**: ") {
-			info.ToolName = strings.TrimPrefix(line, "**ツール**: ")
+		if strings.HasPrefix(line, "**Tool**: ") {
+			info.ToolName = strings.TrimPrefix(line, "**Tool**: ")
 		} else if strings.HasPrefix(line, "**URL**: ") {
 			info.URL = strings.TrimPrefix(line, "**URL**: ")
-		} else if strings.HasPrefix(line, "**内容**: ") {
-			info.Prompt = strings.TrimPrefix(line, "**内容**: ")
-		} else if strings.HasPrefix(line, "**コマンド**: ") {
-			info.Command = strings.TrimPrefix(line, "**コマンド**: ")
-		} else if strings.HasPrefix(line, "**説明**: ") {
-			info.Description = strings.TrimPrefix(line, "**説明**: ")
-		} else if strings.HasPrefix(line, "**ファイルパス**: ") {
-			info.FilePath = strings.TrimPrefix(line, "**ファイルパス**: ")
+		} else if strings.HasPrefix(line, "**Content**: ") {
+			info.Prompt = strings.TrimPrefix(line, "**Content**: ")
+		} else if strings.HasPrefix(line, "**Command**: ") {
+			info.Command = strings.TrimPrefix(line, "**Command**: ")
+		} else if strings.HasPrefix(line, "**Description**: ") {
+			info.Description = strings.TrimPrefix(line, "**Description**: ")
+		} else if strings.HasPrefix(line, "**File path**: ") {
+			info.FilePath = strings.TrimPrefix(line, "**File path**: ")
 		}
 	}
 
@@ -595,10 +595,10 @@ func buildApprovalMarkdownText(info *ApprovalInfo) string {
 	var text strings.Builder
 
 	// Header
-	text.WriteString("*ツールの実行許可が必要です*\n\n")
+	text.WriteString("*Tool execution permission required*\n\n")
 
 	if info.ToolName != "" {
-		text.WriteString(fmt.Sprintf("*ツール:* %s\n", info.ToolName))
+		text.WriteString(fmt.Sprintf("*Tool:* %s\n", info.ToolName))
 	}
 
 	// Handle WebFetch tool
@@ -607,13 +607,13 @@ func buildApprovalMarkdownText(info *ApprovalInfo) string {
 	}
 
 	if info.Prompt != "" {
-		text.WriteString("*内容:*\n")
+		text.WriteString("*Content:*\n")
 		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Prompt))
 	}
 
 	// Handle Bash tool
 	if info.Command != "" {
-		text.WriteString("*コマンド:*\n")
+		text.WriteString("*Command:*\n")
 		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Command))
 	}
 
@@ -621,13 +621,13 @@ func buildApprovalMarkdownText(info *ApprovalInfo) string {
 		if info.Command != "" {
 			text.WriteString("\n")
 		}
-		text.WriteString("*説明:*\n")
+		text.WriteString("*Description:*\n")
 		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Description))
 	}
 
 	// Handle Write tool
 	if info.FilePath != "" {
-		text.WriteString(fmt.Sprintf("*ファイルパス:* `%s`", info.FilePath))
+		text.WriteString(fmt.Sprintf("*File path:* `%s`", info.FilePath))
 	}
 
 	return text.String()
@@ -683,10 +683,10 @@ func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
 	var statusEmoji, statusText string
 	if approved {
 		statusEmoji = ":white_check_mark:"
-		statusText = "承認されました"
+		statusText = "Approved"
 	} else {
 		statusEmoji = ":x:"
-		statusText = "拒否されました"
+		statusText = "Denied"
 	}
 
 	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)

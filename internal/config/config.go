@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// SlackワークスペースのSubdomain
-// TODO: 将来的に複数workspace対応時はDBに移行
+// Slack workspace subdomain
+// TODO: Migrate to DB when supporting multiple workspaces
 const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration

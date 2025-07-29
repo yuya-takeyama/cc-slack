@@ -570,7 +570,7 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 
 func (m *Manager) createErrorHandler(channelID, threadTS string) func(error) {
 	return func(err error) {
-		text := fmt.Sprintf("⚠️ エラー: %v", err)
+		text := fmt.Sprintf("⚠️ Error: %v", err)
 		m.slackHandler.PostToThread(channelID, threadTS, text)
 	}
 }

@@ -188,7 +188,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 		channelID, threadTS, exists := s.sessionLookup.GetSessionInfo(sessionID)
 		if exists {
 			// Build approval message based on tool name and input
-			message := fmt.Sprintf("🔐 **ツールの実行許可が必要です**\n\n**ツール**: %s", params.Arguments.ToolName)
+			message := fmt.Sprintf("🔐 **Tool execution permission required**\n\n**Tool**: %s", params.Arguments.ToolName)
 
 			// Add tool input details if available
 			if params.Arguments.Input != nil {
@@ -197,22 +197,22 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 					message += fmt.Sprintf("\n\n**URL**: %s", url)
 				}
 				if prompt, ok := params.Arguments.Input["prompt"].(string); ok && len(prompt) > 100 {
-					message += fmt.Sprintf("\n**内容**: %s...", prompt[:100])
+					message += fmt.Sprintf("\n**Content**: %s...", prompt[:100])
 				} else if prompt, ok := params.Arguments.Input["prompt"].(string); ok && prompt != "" {
-					message += fmt.Sprintf("\n**内容**: %s", prompt)
+					message += fmt.Sprintf("\n**Content**: %s", prompt)
 				}
 
 				// Handle Bash tool
 				if command, ok := params.Arguments.Input["command"].(string); ok {
-					message += fmt.Sprintf("\n\n**コマンド**: %s", command)
+					message += fmt.Sprintf("\n\n**Command**: %s", command)
 				}
 				if description, ok := params.Arguments.Input["description"].(string); ok && description != "" {
-					message += fmt.Sprintf("\n**説明**: %s", description)
+					message += fmt.Sprintf("\n**Description**: %s", description)
 				}
 
 				// Handle Write tool
 				if filePath, ok := params.Arguments.Input["file_path"].(string); ok {
-					message += fmt.Sprintf("\n\n**ファイルパス**: %s", filePath)
+					message += fmt.Sprintf("\n\n**File path**: %s", filePath)
 				}
 			}
 
