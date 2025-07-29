@@ -14,13 +14,12 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Slack      SlackConfig      `mapstructure:"slack"`
-	Claude     ClaudeConfig     `mapstructure:"claude"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Session    SessionConfig    `mapstructure:"session"`
-	Logging    LoggingConfig    `mapstructure:"logging"`
-	FileUpload FileUploadConfig `mapstructure:"file_upload"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Slack    SlackConfig    `mapstructure:"slack"`
+	Claude   ClaudeConfig   `mapstructure:"claude"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Session  SessionConfig  `mapstructure:"session"`
+	Logging  LoggingConfig  `mapstructure:"logging"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -31,10 +30,11 @@ type ServerConfig struct {
 
 // SlackConfig contains Slack-related settings
 type SlackConfig struct {
-	BotToken      string          `mapstructure:"bot_token"`
-	AppToken      string          `mapstructure:"app_token"`
-	SigningSecret string          `mapstructure:"signing_secret"`
-	Assistant     AssistantConfig `mapstructure:"assistant"`
+	BotToken      string           `mapstructure:"bot_token"`
+	AppToken      string           `mapstructure:"app_token"`
+	SigningSecret string           `mapstructure:"signing_secret"`
+	Assistant     AssistantConfig  `mapstructure:"assistant"`
+	FileUpload    FileUploadConfig `mapstructure:"file_upload"`
 }
 
 // AssistantConfig contains assistant display settings
@@ -98,6 +98,8 @@ func Load() (*Config, error) {
 	v.BindEnv("slack.assistant.username")
 	v.BindEnv("slack.assistant.icon_emoji")
 	v.BindEnv("slack.assistant.icon_url")
+	v.BindEnv("slack.file_upload.enabled")
+	v.BindEnv("slack.file_upload.images_dir")
 	v.BindEnv("server.port")
 	v.BindEnv("server.base_url")
 	v.BindEnv("database.path")
@@ -105,8 +107,6 @@ func Load() (*Config, error) {
 	v.BindEnv("session.timeout")
 	v.BindEnv("session.cleanup_interval")
 	v.BindEnv("session.resume_window")
-	v.BindEnv("file_upload.enabled")
-	v.BindEnv("file_upload.images_dir")
 
 	// Set defaults with the new viper instance
 	setDefaultsWithViper(v)
@@ -158,8 +158,8 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.output", "./logs")
 
 	// File upload defaults
-	v.SetDefault("file_upload.enabled", true)
-	v.SetDefault("file_upload.images_dir", "./tmp/uploaded_images")
+	v.SetDefault("slack.file_upload.enabled", true)
+	v.SetDefault("slack.file_upload.images_dir", "./tmp/uploaded_images")
 }
 
 // validate validates the configuration
