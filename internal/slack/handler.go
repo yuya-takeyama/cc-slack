@@ -744,7 +744,14 @@ func (h *Handler) downloadAndSaveImage(file slack.File) (string, error) {
 	if ext == "" {
 		ext = ".jpg" // Default extension
 	}
-	filename := fmt.Sprintf("%s-%s-%s%s", timeStr, file.ID, file.Name[:min(20, len(file.Name))], ext)
+
+	// Remove extension from original filename to avoid double extensions
+	baseName := strings.TrimSuffix(file.Name, ext)
+	if len(baseName) > 20 {
+		baseName = baseName[:20]
+	}
+
+	filename := fmt.Sprintf("%s-%s-%s%s", timeStr, file.ID, baseName, ext)
 	filePath := filepath.Join(h.imagesDir, filename)
 
 	// Download the file
