@@ -13,13 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
-	"golang.org/x/sync/errgroup"
 )
 
 // Re-export tool constants for backward compatibility
@@ -43,12 +41,6 @@ const (
 	// Special message types
 	MessageThinking       = tools.MessageThinking
 	MessageApprovalPrompt = tools.MessageApprovalPrompt
-)
-
-// Constants for image download
-const (
-	// MaxConcurrentDownloads is the maximum number of concurrent image downloads
-	MaxConcurrentDownloads = 4
 )
 
 // Handler handles Slack events and interactions
@@ -670,146 +662,6 @@ func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
 	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
 }
 
-// fetchAndSaveImages fetches message details and downloads attached images
-func (h *Handler) fetchAndSaveImages(channelID, timestamp, threadTS string) ([]string, error) {
-	var msg slack.Message
-
-	// Create session-specific directory structure
-	// Format: images/{thread_ts}/{uuid}/
-	sessionID := uuid.New().String()
-	sessionDir := threadTS
-	if threadTS == "" {
-		sessionDir = timestamp
-	}
-	sessionDir = strings.ReplaceAll(sessionDir, ".", "_")
-
-	imageDir := filepath.Join(h.imagesDir, sessionDir, sessionID)
-
-	// If we're in a thread, use GetConversationReplies to get the specific message
-	if threadTS != "" {
-		repliesParams := &slack.GetConversationRepliesParameters{
-			ChannelID: channelID,
-			Timestamp: threadTS,
-			Inclusive: true,
-		}
-
-		replies, _, _, err := h.client.GetConversationReplies(repliesParams)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get conversation replies: %w", err)
-		}
-
-		// Find the specific message by timestamp
-		found := false
-		for _, m := range replies {
-			if m.Timestamp == timestamp {
-				msg = m
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return nil, nil // No message found
-		}
-	} else {
-		// Not in a thread, use GetConversationHistory
-		params := &slack.GetConversationHistoryParameters{
-			ChannelID: channelID,
-			Latest:    timestamp,
-			Inclusive: true,
-			Limit:     1,
-		}
-
-		history, err := h.client.GetConversationHistory(params)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get conversation history: %w", err)
-		}
-
-		if len(history.Messages) == 0 {
-			return nil, nil // No message found
-		}
-
-		msg = history.Messages[0]
-	}
-	if len(msg.Files) == 0 {
-		return nil, nil // No files attached
-	}
-
-	// Create session-specific directory if it doesn't exist
-	if err := os.MkdirAll(imageDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create image directory: %w", err)
-	}
-
-	// Filter image files
-	var imageFiles []slack.File
-	for _, file := range msg.Files {
-		if strings.HasPrefix(file.Mimetype, "image/") {
-			imageFiles = append(imageFiles, file)
-		}
-	}
-
-	if len(imageFiles) == 0 {
-		return nil, nil // No image files
-	}
-
-	// Download images concurrently
-	type result struct {
-		path string
-		idx  int
-	}
-
-	resultChan := make(chan result, len(imageFiles))
-	errorChan := make(chan error, len(imageFiles))
-
-	// Create a worker pool with limited concurrency
-	ctx := context.Background()
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(MaxConcurrentDownloads)
-
-	// Start download goroutines
-	for i, file := range imageFiles {
-		i, file := i, file // Capture loop variables
-		g.Go(func() error {
-			path, err := h.downloadAndSaveImage(file, imageDir)
-			if err != nil {
-				errorChan <- fmt.Errorf("failed to download %s: %w", file.Name, err)
-				return nil // Don't fail the whole group
-			}
-			resultChan <- result{path: path, idx: i}
-			return nil
-		})
-	}
-
-	// Wait for all downloads to complete
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-
-	close(resultChan)
-	close(errorChan)
-
-	// Log any errors
-	for err := range errorChan {
-		fmt.Printf("Download error: %v\n", err)
-	}
-
-	// Collect results in order
-	results := make([]string, 0, len(imageFiles))
-	pathsByIdx := make(map[int]string)
-	for res := range resultChan {
-		pathsByIdx[res.idx] = res.path
-	}
-
-	// Sort by original order
-	for i := 0; i < len(imageFiles); i++ {
-		if path, ok := pathsByIdx[i]; ok {
-			results = append(results, path)
-		}
-	}
-
-	return results, nil
-}
-
 // downloadAndSaveImage downloads a Slack file and saves it locally
 func (h *Handler) downloadAndSaveImage(file slack.File, imageDir string) (string, error) {
 	// Generate unique filename
@@ -902,14 +754,6 @@ func (h *Handler) appendImagePaths(text string, imagePaths []string) string {
 	builder.WriteString("\n**IMPORTANT: Please read and analyze these images as they are part of the context for this message. Consider their content when formulating your response.**")
 
 	return builder.String()
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // shouldProcessMessage filters message events based on configuration
