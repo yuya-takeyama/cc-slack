@@ -5,34 +5,14 @@ Interact with Claude Code via Slack
 ## Prerequisites
 
 - Go 1.24.4+
-- Claude Code CLI
-- Slack Bot Token and Signing Secret
+- Claude Code CLI installed
+- Slack workspace where you can create apps
 
 ## Setup
 
-### Environment Variables
+### 1. Create Slack App
 
-```bash
-# Required
-export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
-export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
-
-# Optional
-export CC_SLACK_PORT=8080                              # default: 8080
-export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
-```
-
-### Build and Run
-
-```bash
-# Build
-go build -o cc-slack cmd/cc-slack/main.go
-
-# Run
-./cc-slack
-```
-
-### Slack App Configuration
+> **Note**: For local development, you'll need to expose your local server to Slack. See [Exposing Local Development](#exposing-local-development-to-slack) section below.
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
@@ -59,35 +39,51 @@ go build -o cc-slack cmd/cc-slack/main.go
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
 5. Create Slash Command:
-   - Command: `/claude` (or your preferred name)
+   - Command: `/cc` (recommended) or your preferred name
    - Request URL: `https://your-domain/slack/commands`
    - Short Description: Start a Claude Code session
    - Usage Hint: [prompt]
-6. Install the app to your workspace
+6. Install the app to your workspace and note down:
+   - Bot User OAuth Token (starts with `xoxb-`)
+   - Signing Secret (found in Basic Information)
+
+### 2. Configure Environment Variables
+
+Set the required environment variables with the values from your Slack App:
+
+```bash
+# Required
+export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
+export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
+
+# Optional
+export CC_SLACK_PORT=8080                              # default: 8080
+export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
+export CC_SLACK_SLACK_SLASH_COMMAND_NAME=/cc          # default: /claude
+```
+
+### 3. Build and Run
+
+```bash
+# Build
+go build -o cc-slack cmd/cc-slack/main.go
+
+# Run (make sure environment variables are set)
+./cc-slack
+```
 
 ### Exposing Local Development to Slack
 
-Since Slack requires HTTPS endpoints for webhooks, you need to expose your local cc-slack instance.
+For local development, Slack requires HTTPS endpoints for webhooks. You need to expose your local cc-slack instance:
 
-#### ngrok
+#### Using ngrok
 
 ```bash
+# In another terminal, expose your local server
 ngrok http 8080
 ```
 
-Use the provided HTTPS URL for Slack configuration.
-
-### Claude Code Configuration
-
-cc-slack runs an MCP server for approval prompts. Configure Claude Code to connect:
-
-```bash
-# Add the MCP server
-claude mcp add --transport http cc-slack http://localhost:8080/mcp
-
-# Or with custom base URL
-claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
-```
+Use the provided HTTPS URL (e.g., `https://abc123.ngrok.io`) for all Slack webhook URLs in your app configuration.
 
 ## Usage
 
@@ -111,7 +107,7 @@ Perfect for trying out cc-slack or when working with a single project:
 In this mode:
 - No configuration file needed
 - Claude sessions will use the specified directory
-- The `/claude` command shows only the prompt input (no directory selection)
+- The `/cc` command shows only the prompt input (no directory selection)
 
 ### Multi-Directory Mode (Full Features)
 
@@ -134,7 +130,7 @@ For teams working with multiple projects:
    ./cc-slack
    ```
 
-3. Use the `/claude` slash command to start a session:
+3. Use the `/cc` slash command to start a session:
    - A modal opens with directory selection
    - Choose your working directory
    - Enter your initial prompt
@@ -149,7 +145,7 @@ Once a session is started (via either mode):
    ```
    add error handling please
    ```
-3. Claude has full access to the selected working directory
+3. Claude has access to the selected working directory (as permitted by Claude Code configuration)
 4. Sessions automatically resume if you return within the resume window (default: 1 hour)
 
 ### Message Filtering
