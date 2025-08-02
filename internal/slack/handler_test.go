@@ -183,7 +183,7 @@ func createTestConfig() *config.Config {
 // createTestConfigWithWorkingDirs creates a config with working directories for testing
 func createTestConfigWithWorkingDirs(dirs []config.WorkingDirectoryConfig) *config.Config {
 	cfg := createTestConfig()
-	cfg.WorkingDirectories = dirs
+	cfg.WorkingDirs = dirs
 	return cfg
 }
 
@@ -332,7 +332,7 @@ func TestDetermineWorkDir(t *testing.T) {
 		{
 			name: "single directory mode",
 			config: &config.Config{
-				WorkingDirectories: []config.WorkingDirectoryConfig{
+				WorkingDirs: []config.WorkingDirectoryConfig{
 					{
 						Name: "default",
 						Path: "/home/user/project",
@@ -345,7 +345,7 @@ func TestDetermineWorkDir(t *testing.T) {
 		{
 			name: "multi-directory mode returns empty",
 			config: &config.Config{
-				WorkingDirectories: []config.WorkingDirectoryConfig{
+				WorkingDirs: []config.WorkingDirectoryConfig{
 					{
 						Name: "project1",
 						Path: "/home/user/project1",
@@ -362,7 +362,7 @@ func TestDetermineWorkDir(t *testing.T) {
 		{
 			name: "empty config returns empty in multi-directory mode",
 			config: &config.Config{
-				WorkingDirectories: []config.WorkingDirectoryConfig{},
+				WorkingDirs: []config.WorkingDirectoryConfig{},
 			},
 			channelID: "C12345",
 			expected:  "",

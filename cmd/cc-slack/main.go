@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,11 +23,27 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/web"
 )
 
+// stringSliceFlag implements flag.Value for string slice flags
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSliceFlag) Set(value string) error {
+	// Support both multiple calls and comma-separated values
+	if strings.Contains(value, ",") {
+		*s = append(*s, strings.Split(value, ",")...)
+	} else {
+		*s = append(*s, value)
+	}
+	return nil
+}
+
 func main() {
 	// Parse command-line flags
-	var workingDir string
-	flag.StringVar(&workingDir, "w", "", "Single working directory mode")
-	flag.StringVar(&workingDir, "working-dir", "", "Single working directory mode")
+	var workingDirs stringSliceFlag
+	flag.Var(&workingDirs, "working-dirs", "Working directories (can be specified multiple times)")
 	flag.Parse()
 
 	// Load configuration from environment variables and config file
@@ -35,10 +52,14 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Set single working directory if provided
-	if workingDir != "" {
-		cfg.SingleWorkingDir = workingDir
-		log.Printf("Running in single directory mode: %s", workingDir)
+	// Set working directories from command-line if provided
+	if len(workingDirs) > 0 {
+		cfg.WorkingDirFlags = []string(workingDirs)
+		if len(workingDirs) == 1 {
+			log.Printf("Running in single directory mode: %s", workingDirs[0])
+		} else {
+			log.Printf("Running with %d working directories from command line", len(workingDirs))
+		}
 	}
 
 	// Validate working directories
@@ -213,13 +234,22 @@ func main() {
 	log.Printf("Database path: %s", cfg.Database.Path)
 
 	// Log working directory mode
-	if cfg.SingleWorkingDir != "" {
-		log.Printf("Working directory mode: Single (%s)", cfg.SingleWorkingDir)
-	} else {
-		log.Printf("Working directory mode: Multi (%d configured)", len(cfg.WorkingDirectories))
-		for _, wd := range cfg.WorkingDirectories {
+	if len(cfg.WorkingDirFlags) > 0 {
+		if len(cfg.WorkingDirFlags) == 1 {
+			log.Printf("Working directory mode: Single (from command-line: %s)", cfg.WorkingDirFlags[0])
+		} else {
+			log.Printf("Working directory mode: Multi (from command-line: %d directories)", len(cfg.WorkingDirFlags))
+			for i, dir := range cfg.WorkingDirFlags {
+				log.Printf("  - [%d]: %s", i+1, dir)
+			}
+		}
+	} else if len(cfg.WorkingDirs) > 0 {
+		log.Printf("Working directory mode: Multi (%d configured)", len(cfg.WorkingDirs))
+		for _, wd := range cfg.WorkingDirs {
 			log.Printf("  - %s: %s", wd.Name, wd.Path)
 		}
+	} else {
+		log.Printf("Working directory mode: None configured")
 	}
 
 	if cfg.Slack.Assistant.Username != "" || cfg.Slack.Assistant.IconEmoji != "" || cfg.Slack.Assistant.IconURL != "" {

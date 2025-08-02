@@ -177,10 +177,10 @@ func TestIsSingleDirectoryMode(t *testing.T) {
 		expectedWorkDir  string
 	}{
 		{
-			name: "CLI flag set",
+			name: "CLI flag set single directory",
 			config: Config{
-				SingleWorkingDir: "/path/from/cli",
-				WorkingDirectories: []WorkingDirectoryConfig{
+				WorkingDirFlags: []string{"/path/from/cli"},
+				WorkingDirs: []WorkingDirectoryConfig{
 					{Name: "dir1", Path: "/path/1"},
 					{Name: "dir2", Path: "/path/2"},
 				},
@@ -191,8 +191,8 @@ func TestIsSingleDirectoryMode(t *testing.T) {
 		{
 			name: "Single working directory configured",
 			config: Config{
-				SingleWorkingDir: "",
-				WorkingDirectories: []WorkingDirectoryConfig{
+				WorkingDirFlags: []string{},
+				WorkingDirs: []WorkingDirectoryConfig{
 					{Name: "single-dir", Path: "/only/path"},
 				},
 			},
@@ -202,8 +202,8 @@ func TestIsSingleDirectoryMode(t *testing.T) {
 		{
 			name: "Multiple working directories configured",
 			config: Config{
-				SingleWorkingDir: "",
-				WorkingDirectories: []WorkingDirectoryConfig{
+				WorkingDirFlags: []string{},
+				WorkingDirs: []WorkingDirectoryConfig{
 					{Name: "dir1", Path: "/path/1"},
 					{Name: "dir2", Path: "/path/2"},
 				},
@@ -214,8 +214,17 @@ func TestIsSingleDirectoryMode(t *testing.T) {
 		{
 			name: "No configuration",
 			config: Config{
-				SingleWorkingDir:   "",
-				WorkingDirectories: []WorkingDirectoryConfig{},
+				WorkingDirFlags: []string{},
+				WorkingDirs:     []WorkingDirectoryConfig{},
+			},
+			expectedIsSingle: false,
+			expectedWorkDir:  "",
+		},
+		{
+			name: "CLI flag set multiple directories",
+			config: Config{
+				WorkingDirFlags: []string{"/path/1", "/path/2"},
+				WorkingDirs:     []WorkingDirectoryConfig{},
 			},
 			expectedIsSingle: false,
 			expectedWorkDir:  "",

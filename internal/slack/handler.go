@@ -1103,7 +1103,7 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 	var options []*slack.OptionBlockObject
 
 	// Add configured working directories
-	for _, wd := range h.config.WorkingDirectories {
+	for _, wd := range h.config.WorkingDirs {
 		descText := wd.Name
 		if wd.Description != "" {
 			descText = fmt.Sprintf("%s - %s", wd.Name, wd.Description)
@@ -1276,7 +1276,7 @@ func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID
 		} else {
 			// In multi directory mode, find the name from config
 			dirName := ""
-			for _, wd := range h.config.WorkingDirectories {
+			for _, wd := range h.config.WorkingDirs {
 				if wd.Path == workDir {
 					dirName = wd.Name
 					break

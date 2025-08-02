@@ -15,14 +15,14 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server             ServerConfig             `mapstructure:"server"`
-	Slack              SlackConfig              `mapstructure:"slack"`
-	Claude             ClaudeConfig             `mapstructure:"claude"`
-	Database           DatabaseConfig           `mapstructure:"database"`
-	Session            SessionConfig            `mapstructure:"session"`
-	Logging            LoggingConfig            `mapstructure:"logging"`
-	WorkingDirectories []WorkingDirectoryConfig `mapstructure:"working_directories"`
-	SingleWorkingDir   string                   // Set from command-line flag, not from config file
+	Server          ServerConfig             `mapstructure:"server"`
+	Slack           SlackConfig              `mapstructure:"slack"`
+	Claude          ClaudeConfig             `mapstructure:"claude"`
+	Database        DatabaseConfig           `mapstructure:"database"`
+	Session         SessionConfig            `mapstructure:"session"`
+	Logging         LoggingConfig            `mapstructure:"logging"`
+	WorkingDirs     []WorkingDirectoryConfig `mapstructure:"working_dirs"`
+	WorkingDirFlags []string                 // Set from command-line flags, not from config file
 }
 
 // ServerConfig contains HTTP server settings
@@ -192,7 +192,7 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("slack.message_filter.exclude_patterns", []string{})
 
 	// Working directories defaults
-	v.SetDefault("working_directories", []WorkingDirectoryConfig{})
+	v.SetDefault("working_dirs", []WorkingDirectoryConfig{})
 }
 
 // validate validates the configuration
@@ -221,23 +221,23 @@ func (c *Config) validate() error {
 		return fmt.Errorf("session.resume_window must be positive")
 	}
 
-	// In single working dir mode, no validation needed for WorkingDirectories
-	if c.SingleWorkingDir != "" {
+	// If working directories are specified via command-line, no validation needed for WorkingDirs
+	if len(c.WorkingDirFlags) > 0 {
 		return nil
 	}
 
 	// Validate working directories for multi-directory mode
-	if len(c.WorkingDirectories) == 0 {
+	if len(c.WorkingDirs) == 0 {
 		return fmt.Errorf("at least one working directory must be configured in multi-directory mode")
 	}
 
 	// Validate each configured working directory
-	for i, wd := range c.WorkingDirectories {
+	for i, wd := range c.WorkingDirs {
 		if wd.Name == "" {
-			return fmt.Errorf("working_directories[%d].name is required", i)
+			return fmt.Errorf("working_dirs[%d].name is required", i)
 		}
 		if wd.Path == "" {
-			return fmt.Errorf("working_directories[%d].path is required", i)
+			return fmt.Errorf("working_dirs[%d].path is required", i)
 		}
 	}
 
@@ -246,16 +246,18 @@ func (c *Config) validate() error {
 
 // ValidateWorkingDirectories validates that working directories exist
 func (c *Config) ValidateWorkingDirectories() error {
-	// Single working dir mode
-	if c.SingleWorkingDir != "" {
-		if _, err := os.Stat(c.SingleWorkingDir); os.IsNotExist(err) {
-			return fmt.Errorf("single working directory does not exist: %s", c.SingleWorkingDir)
+	// Command-line flag mode
+	if len(c.WorkingDirFlags) > 0 {
+		for _, dir := range c.WorkingDirFlags {
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				return fmt.Errorf("working directory does not exist: %s", dir)
+			}
 		}
 		return nil
 	}
 
 	// Multi-directory mode
-	for _, wd := range c.WorkingDirectories {
+	for _, wd := range c.WorkingDirs {
 		if _, err := os.Stat(wd.Path); os.IsNotExist(err) {
 			// Log warning but don't fail
 			fmt.Printf("Warning: configured working directory '%s' does not exist: %s\n", wd.Name, wd.Path)
@@ -267,23 +269,26 @@ func (c *Config) ValidateWorkingDirectories() error {
 
 // IsSingleDirectoryMode returns true if cc-slack is running in single directory mode
 // This is true when either:
-// - SingleWorkingDir is set (CLI flag)
+// - Exactly one working directory is provided via CLI flags
 // - Only one working directory is configured
 func (c *Config) IsSingleDirectoryMode() bool {
-	if c.SingleWorkingDir != "" {
+	if len(c.WorkingDirFlags) == 1 {
 		return true
 	}
-	return len(c.WorkingDirectories) == 1
+	if len(c.WorkingDirFlags) == 0 && len(c.WorkingDirs) == 1 {
+		return true
+	}
+	return false
 }
 
 // GetSingleWorkingDirectory returns the working directory for single directory mode
 // Returns empty string if not in single directory mode
 func (c *Config) GetSingleWorkingDirectory() string {
-	if c.SingleWorkingDir != "" {
-		return c.SingleWorkingDir
+	if len(c.WorkingDirFlags) == 1 {
+		return c.WorkingDirFlags[0]
 	}
-	if len(c.WorkingDirectories) == 1 {
-		return c.WorkingDirectories[0].Path
+	if len(c.WorkingDirFlags) == 0 && len(c.WorkingDirs) == 1 {
+		return c.WorkingDirs[0].Path
 	}
 	return ""
 }

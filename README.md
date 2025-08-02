@@ -99,10 +99,13 @@ Perfect for trying out cc-slack or when working with a single project:
 
 ```bash
 # Start cc-slack with a specific working directory
-./cc-slack -w /path/to/your/project
+./cc-slack --working-dirs /path/to/your/project
 
-# Or use the long form
-./cc-slack --working-dir /path/to/your/project
+# Or with multiple directories (comma-separated)
+./cc-slack --working-dirs /path/to/project1,/path/to/project2
+
+# Or specify multiple times
+./cc-slack --working-dirs /path/to/project1 --working-dirs /path/to/project2
 ```
 
 In this mode:
@@ -116,7 +119,7 @@ For teams working with multiple projects:
 
 1. Configure directories in `config.yaml`:
    ```yaml
-   working_directories:
+   working_dirs:
      - name: frontend
        path: /Users/you/projects/web-app
        description: React frontend application
@@ -126,7 +129,7 @@ For teams working with multiple projects:
        description: Node.js API server
    ```
 
-2. Start cc-slack without the `-w` flag:
+2. Start cc-slack without the `--working-dirs` flag:
    ```bash
    ./cc-slack
    ```

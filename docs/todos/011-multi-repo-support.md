@@ -1,6 +1,6 @@
 ---
 title: Multi-repository support with simple UI and single directory mode
-status: in_progress
+status: done
 ---
 
 # Multi-repository Support
@@ -45,7 +45,7 @@ This allows users to easily try cc-slack with a single directory, then upgrade t
 
 **For Multi-Directory Mode: Store in configuration file (config.yaml only)**
 ```yaml
-working_directories:
+working_dirs:
   - name: "cc-slack"
     path: "/Users/yuya/src/github.com/yuya-takeyama/cc-slack"
     description: "Claude Code Slack integration"
@@ -56,9 +56,7 @@ working_directories:
 
 **For Single Directory Mode: Command-line argument**
 ```bash
-./cc-slack --working-dir /Users/yuya/src/github.com/yuya-takeyama/cc-slack
-# or short form
-./cc-slack -w /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+./cc-slack --working-dirs /Users/yuya/src/github.com/yuya-takeyama/cc-slack
 ```
 
 **Why not database?**
@@ -89,11 +87,11 @@ working_directories:
 
 1. **Add command-line flag**
    - Use `flag` package or `cobra`/`viper` integration
-   - `--working-dir` / `-w` flag to specify single directory
+   - `--working-dirs` flag to specify directories (supports multiple)
    - Store in global config or context
 
 2. **Mode detection**
-   - If `-w` flag is provided → Single Directory Mode
+   - If `--working-dirs` flag is provided with single directory → Single Directory Mode
    - Otherwise → Multi-Directory Mode (use config.yaml)
 
 3. **Update modal logic**
@@ -400,8 +398,8 @@ The `threads` table already has a `working_directory` column, so no migration is
    - Updated validation logic for both modes
 
 2. **Implemented single directory mode**:
-   - Added `-w` / `--working-dir` command-line flag
-   - Stores path in `Config.SingleWorkingDir` field
+   - Added `--working-dirs` command-line flag (supports multiple directories)
+   - Stores paths in `Config.WorkingDirFlags` field
    - Mode detection based on flag presence
 
 3. **Updated modal logic**:
@@ -421,7 +419,7 @@ The `threads` table already has a `working_directory` column, so no migration is
 ### ✅ Phase 0-3 Complete! (2025-08-02)
 
 **Phase 0: Single Directory Mode** ✅
-- Command-line flag `-w` / `--working-dir` implemented
+- Command-line flag `--working-dirs` implemented (supports multiple)
 - Mode detection working correctly
 - Modal shows only prompt input in single mode
 
@@ -448,12 +446,9 @@ The `threads` table already has a `working_directory` column, so no migration is
 - Working directory shown in thread responses
 - Proper error handling for all edge cases
 
-### ⏳ Remaining Tasks
+### 🎉 All Tasks Complete!
 
-1. **README documentation** - Need to document:
-   - How to use single directory mode
-   - How to configure multi-directory mode
-   - Migration guide from single to multi
+All implementation and documentation tasks have been successfully completed on 2025-08-02.
 
 ### 📝 Implementation Details
 

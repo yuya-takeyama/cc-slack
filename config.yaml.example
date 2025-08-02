@@ -83,7 +83,7 @@ logging:
 
 # Working directories configuration (array of directory configs)
 # Each directory can be selected in Slack threads or web UI
-working_directories:
+working_dirs:
   # First directory configuration
   - name: cc-slack
     # Absolute path to the working directory
