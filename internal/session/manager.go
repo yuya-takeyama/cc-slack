@@ -544,18 +544,32 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 			}
 		}
 
-		// Get session info before cleanup
-		m.mu.Lock()
-		key := formatThreadKey(channelID, threadTS)
-		sessionID := m.threadToSession[key]
-		session, _ := m.sessions[sessionID]
+		// Get session info and ensure cleanup
 		var userID string
-		if session != nil {
-			userID = session.InitiatorUserID
+		var processToClose *process.ClaudeProcess
+
+		// Critical section: get session info and remove from maps
+		func() {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+
+			key := formatThreadKey(channelID, threadTS)
+			sessionID := m.threadToSession[key]
+			session, _ := m.sessions[sessionID]
+
+			if session != nil {
+				userID = session.InitiatorUserID
+				processToClose = session.Process
+			}
+
+			delete(m.sessions, sessionID)
+			delete(m.threadToSession, key)
+		}()
+
+		// Ensure process cleanup outside of mutex lock
+		if processToClose != nil {
+			defer processToClose.Close()
 		}
-		delete(m.sessions, sessionID)
-		delete(m.threadToSession, key)
-		m.mu.Unlock()
 
 		// Clean up uploaded images
 		if m.imagesDir != "" && threadTS != "" {
