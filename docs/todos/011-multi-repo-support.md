@@ -7,15 +7,15 @@ status: draft
 
 ## Overview
 
-Enable cc-slack to work with multiple repositories through a simple Slack modal interface. Users can select which repository to work with when starting a Claude session.
+Enable cc-slack to work with multiple working directories through a simple Slack modal interface. Users can select which working directory to work with when starting a Claude session.
 
 ## Design Decisions
 
-### Repository Selection Approach
+### Working Directory Selection Approach
 
 **Chosen: Modal UI with explicit selection**
 - Use Slack's Block Kit to create a modal when user types `/cc` command
-- User explicitly selects repository from dropdown
+- User explicitly selects working directory from dropdown
 - Initial prompt can be entered in the same modal
 
 **Why not LLM Router (from PR #37)?**
@@ -24,11 +24,11 @@ Enable cc-slack to work with multiple repositories through a simple Slack modal 
 - Requires significant prompt engineering
 - Can lead to unpredictable behavior
 
-### Repository Configuration
+### Working Directory Configuration
 
 **Store in configuration file (config.yaml only)**
 ```yaml
-repositories:
+working_directories:
   - name: "cc-slack"
     path: "/Users/yuya/src/github.com/yuya-takeyama/cc-slack"
     description: "Claude Code Slack integration"
@@ -38,17 +38,17 @@ repositories:
 ```
 
 **Why not database?**
-- Repository paths can change easily (user moves directories)
+- Directory paths can change easily (user moves directories)
 - Configuration is more transparent and version-controllable
 - Easier to manage in deployment scenarios
 - No need for complex migrations when paths change
 
-### Repository-Thread Relationship
+### Working Directory-Thread Relationship
 
-**1 Thread = 1 Repository**
-- Each Slack thread is bound to a single repository
-- Repository is selected when the thread is created (via `/cc` command)
-- To work with a different repository, users must create a new thread
+**1 Thread = 1 Working Directory**
+- Each Slack thread is bound to a single working directory
+- Working directory is selected when the thread is created (via `/cc` command)
+- To work with a different directory, users must create a new thread
 - This keeps the context clear and implementation simple
 
 ### Database References
@@ -66,15 +66,15 @@ repositories:
 1. **Create `/cc` slash command handler**
    - Add new route `/slack/commands` for slash commands
    - Use existing `/slack/interactive` for modal interactions
-   - Return modal with repository dropdown and text input
+   - Return modal with working directory dropdown and text input
 
 2. **Modal components**
-   - Repository dropdown (select_menu)
+   - Working directory dropdown (select_menu)
    - Initial prompt input (plain_text_input)
    - Submit/Cancel buttons
 
 3. **Modal submission handler**
-   - Extract selected directory path from repository config
+   - Extract selected directory path from working directory config
    - Extract initial prompt
    - Create new thread record with working directory
    - Start Claude process with selected path as pwd
@@ -82,9 +82,9 @@ repositories:
 
 ### Phase 2: Configuration Management
 
-1. **Repository configuration structure**
+1. **Working directory configuration structure**
    ```go
-   type RepositoryConfig struct {
+   type WorkingDirectoryConfig struct {
        Name        string
        Path        string
        Description string
@@ -114,13 +114,13 @@ repositories:
 
 3. **Session resume logic**
    - Use stored working directory from threads table when resuming
-   - Ensures sessions always resume in the same repository
-   - No need for repository selection on resume
+   - Ensures sessions always resume in the same working directory
+   - No need for directory selection on resume
 
 ### Phase 4: UI Polish
 
-1. **Better repository display**
-   - Show repository name in thread responses
+1. **Better working directory display**
+   - Show directory name in thread responses
    - Include in session status messages
 
 2. **Error handling**
@@ -131,7 +131,7 @@ repositories:
 
 ## Success Metrics
 
-- [ ] User can select repository via `/cc` command
+- [ ] User can select working directory via `/cc` command
 - [ ] Claude process starts in correct directory
 - [ ] Working directory persisted for session resume
 - [ ] Configuration is easy to understand and modify
@@ -140,23 +140,23 @@ repositories:
 ## Future Enhancements (Not in scope)
 
 - Multi-worktree support within repositories
-- Dynamic repository discovery
-- Repository-specific settings
+- Dynamic directory discovery
+- Directory-specific settings
 
 ## Integration with Existing Features
 
 ### Message Event Handling
 - Current implementation uses `MessageEvent` (not `app_mention`)
-- `/cc` command creates initial thread with repository selection
+- `/cc` command creates initial thread with working directory selection
 - Subsequent messages in thread use existing message event flow
 - No changes needed to existing message handling logic
 
 ### Thread Creation Flow
 1. User types `/cc` → Opens modal
-2. User selects repository and enters prompt → Submit
+2. User selects working directory and enters prompt → Submit
 3. Create thread record with `working_directory`
 4. Post initial message to new thread
-5. Start Claude process in selected repository
+5. Start Claude process in selected directory
 6. Continue with normal message event handling
 
 ## Technical Notes
@@ -223,14 +223,14 @@ func handleSlashCC(w http.ResponseWriter, r *http.Request) {
       "block_id": "repo_block",
       "label": {
         "type": "plain_text",
-        "text": "Select repository"
+        "text": "Select working directory"
       },
       "element": {
         "type": "static_select",
         "action_id": "repo_select",
         "placeholder": {
           "type": "plain_text",
-          "text": "Choose repository"
+          "text": "Choose directory"
         },
         "options": [
           {
@@ -277,7 +277,7 @@ func handleViewSubmission(callback slack.InteractionCallback) error {
     // Validation
     if repoPath == "" {
         return respondWithErrors(map[string]string{
-            "repo_block": "Please select a repository",
+            "repo_block": "Please select a working directory",
         })
     }
     
