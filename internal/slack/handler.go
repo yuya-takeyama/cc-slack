@@ -20,6 +20,7 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/richtext"
+	"github.com/yuya-takeyama/cc-slack/internal/slack/blocks"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
 	"golang.org/x/sync/errgroup"
 )
@@ -271,32 +272,11 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 		// For new threads, prevent mention-based start
 		if event.ThreadTimeStamp == "" {
 			// Post error message with guidance
-			blocks := []slack.Block{
-				slack.NewSectionBlock(
-					slack.NewTextBlockObject(
-						slack.MarkdownType,
-						":warning: *Multiple working directories are configured*\n\nPlease use the shortcut to select a working directory before starting a session.",
-						false,
-						false,
-					),
-					nil,
-					nil,
-				),
-				slack.NewSectionBlock(
-					slack.NewTextBlockObject(
-						slack.MarkdownType,
-						fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt", h.config.Slack.SlashCommandName),
-						false,
-						false,
-					),
-					nil,
-					nil,
-				),
-			}
+			blocksSlice := blocks.MultiDirectoryError(h.config.Slack.SlashCommandName)
 
 			_, _, err := h.client.PostMessage(
 				event.Channel,
-				slack.MsgOptionBlocks(blocks...),
+				slack.MsgOptionBlocks(blocksSlice...),
 				slack.MsgOptionTS(threadTS),
 			)
 			if err != nil {
@@ -565,127 +545,9 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 
 // PostApprovalRequest posts an approval request with buttons using markdown
 func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
-	// Parse the message to extract structured information
-	// This is a simple parser for the current format from mcp/server.go
-	info := parseApprovalMessage(message)
-
-	// Build markdown text for the approval request
-	markdownText := buildApprovalMarkdownText(info)
-
-	// Get tool display info for permission prompt
-	toolInfo := tools.GetToolInfo(MessageApprovalPrompt)
-
-	options := []slack.MsgOption{
-		slack.MsgOptionTS(threadTS),
-		slack.MsgOptionBlocks(
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(slack.MarkdownType, markdownText, false, false),
-				nil,
-				nil,
-			),
-			slack.NewActionBlock(
-				"approval_actions",
-				slack.NewButtonBlockElement(
-					fmt.Sprintf("approve_%s", requestID),
-					"approve",
-					slack.NewTextBlockObject(slack.PlainTextType, "Approve", false, false),
-				).WithStyle(slack.StylePrimary),
-				slack.NewButtonBlockElement(
-					fmt.Sprintf("deny_%s", requestID),
-					"deny",
-					slack.NewTextBlockObject(slack.PlainTextType, "Deny", false, false),
-				).WithStyle(slack.StyleDanger),
-			),
-		),
-	}
-
-	// Add username and icon
-	options = append(options, slack.MsgOptionUsername(toolInfo.Name))
-	options = append(options, slack.MsgOptionIconEmoji(toolInfo.SlackIcon))
-
+	options := blocks.ApprovalRequestOptions(channelID, threadTS, message, requestID)
 	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
-}
-
-// ApprovalInfo holds structured information about an approval request
-type ApprovalInfo struct {
-	ToolName    string
-	URL         string
-	Prompt      string
-	Command     string
-	Description string
-	FilePath    string
-}
-
-// parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
-func parseApprovalMessage(message string) *ApprovalInfo {
-	// Parse the message format from mcp/server.go:
-	// For WebFetch: **Tool**: WebFetch \n **URL**: %s \n **Content**: %s
-	// For Bash: **Tool**: Bash \n **Command**: %s \n **Description**: %s
-
-	info := &ApprovalInfo{}
-	lines := strings.Split(message, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "**Tool**: ") {
-			info.ToolName = strings.TrimPrefix(line, "**Tool**: ")
-		} else if strings.HasPrefix(line, "**URL**: ") {
-			info.URL = strings.TrimPrefix(line, "**URL**: ")
-		} else if strings.HasPrefix(line, "**Content**: ") {
-			info.Prompt = strings.TrimPrefix(line, "**Content**: ")
-		} else if strings.HasPrefix(line, "**Command**: ") {
-			info.Command = strings.TrimPrefix(line, "**Command**: ")
-		} else if strings.HasPrefix(line, "**Description**: ") {
-			info.Description = strings.TrimPrefix(line, "**Description**: ")
-		} else if strings.HasPrefix(line, "**File path**: ") {
-			info.FilePath = strings.TrimPrefix(line, "**File path**: ")
-		}
-	}
-
-	return info
-}
-
-// buildApprovalMarkdownText creates markdown text for approval request
-func buildApprovalMarkdownText(info *ApprovalInfo) string {
-	var text strings.Builder
-
-	// Header
-	text.WriteString("*Tool execution permission required*\n\n")
-
-	if info.ToolName != "" {
-		text.WriteString(fmt.Sprintf("*Tool:* %s\n", info.ToolName))
-	}
-
-	// Handle WebFetch tool
-	if info.URL != "" {
-		text.WriteString(fmt.Sprintf("*URL:* <%s>\n", info.URL))
-	}
-
-	if info.Prompt != "" {
-		text.WriteString("*Content:*\n")
-		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Prompt))
-	}
-
-	// Handle Bash tool
-	if info.Command != "" {
-		text.WriteString("*Command:*\n")
-		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Command))
-	}
-
-	if info.Description != "" {
-		if info.Command != "" {
-			text.WriteString("\n")
-		}
-		text.WriteString("*Description:*\n")
-		text.WriteString(fmt.Sprintf("```\n%s\n```", info.Description))
-	}
-
-	// Handle Write tool
-	if info.FilePath != "" {
-		text.WriteString(fmt.Sprintf("*File path:* `%s`", info.FilePath))
-	}
-
-	return text.String()
 }
 
 // updateApprovalMessage updates the approval message with status and user information
@@ -706,20 +568,8 @@ func (h *Handler) updateApprovalMessage(payload *slack.InteractionCallback, appr
 		}
 	}
 
-	// Create status markdown text
-	statusText := h.buildStatusMarkdownText(payload.User.ID, approved)
-
-	// Combine original text with status
-	fullText := originalText + "\n\n" + statusText
-
 	// Create new blocks with updated text
-	newBlocks := []slack.Block{
-		slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, fullText, false, false),
-			nil,
-			nil,
-		),
-	}
+	newBlocks := blocks.ApprovalMessageUpdate(originalText, payload.User.ID, approved)
 
 	// Update the message
 	_, _, _, err := h.client.UpdateMessage(
@@ -731,20 +581,6 @@ func (h *Handler) updateApprovalMessage(payload *slack.InteractionCallback, appr
 	if err != nil {
 		fmt.Printf("Failed to update message: %v\n", err)
 	}
-}
-
-// buildStatusMarkdownText creates markdown text for approval status
-func (h *Handler) buildStatusMarkdownText(userID string, approved bool) string {
-	var statusEmoji, statusText string
-	if approved {
-		statusEmoji = ":white_check_mark:"
-		statusText = "Approved"
-	} else {
-		statusEmoji = ":x:"
-		statusText = "Denied"
-	}
-
-	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
 }
 
 // downloadAndSaveImage downloads a Slack file and saves it locally
@@ -1060,27 +896,7 @@ func (h *Handler) HandleSlashCommand(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string) {
 	// In single directory mode, show modal with only prompt input
 	if h.config.IsSingleDirectoryMode() {
-		modal := slack.ModalViewRequest{
-			Type:            slack.VTModal,
-			CallbackID:      "repo_modal_single",
-			Title:           slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
-			Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
-			Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
-			PrivateMetadata: channelID, // Store channel ID for later use
-			Blocks: slack.Blocks{
-				BlockSet: []slack.Block{
-					slack.NewInputBlock(
-						"prompt_block",
-						slack.NewTextBlockObject(slack.PlainTextType, "Initial prompt", false, false),
-						nil,
-						slack.NewRichTextInputBlockElement(
-							slack.NewTextBlockObject(slack.PlainTextType, "What would you like to work on? You can use **bold**, `code`, lists, etc.", false, false),
-							"prompt_input",
-						),
-					),
-				},
-			},
-		}
+		modal := blocks.SessionStartModalSingle(channelID)
 
 		// Open modal
 		_, err := h.client.OpenView(triggerID, modal)
@@ -1090,55 +906,8 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 		return
 	}
 
-	// Multi-directory mode: Build options from configured working directories
-	var options []*slack.OptionBlockObject
-
-	// Add configured working directories
-	for _, wd := range h.config.WorkingDirs {
-		descText := wd.Name
-		if wd.Description != "" {
-			descText = fmt.Sprintf("%s - %s", wd.Name, wd.Description)
-		}
-		options = append(options, slack.NewOptionBlockObject(
-			wd.Path,
-			slack.NewTextBlockObject(slack.PlainTextType, descText, false, false),
-			nil,
-		))
-	}
-
-	// Create modal view
-	modal := slack.ModalViewRequest{
-		Type:            slack.VTModal,
-		CallbackID:      "repo_modal",
-		Title:           slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
-		Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
-		Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
-		PrivateMetadata: channelID, // Store channel ID for later use
-		Blocks: slack.Blocks{
-			BlockSet: []slack.Block{
-				slack.NewInputBlock(
-					"repo_block",
-					slack.NewTextBlockObject(slack.PlainTextType, "Select working directory", false, false),
-					nil,
-					slack.NewOptionsSelectBlockElement(
-						slack.OptTypeStatic,
-						slack.NewTextBlockObject(slack.PlainTextType, "Choose directory", false, false),
-						"repo_select",
-						options...,
-					),
-				),
-				slack.NewInputBlock(
-					"prompt_block",
-					slack.NewTextBlockObject(slack.PlainTextType, "Initial prompt", false, false),
-					nil,
-					slack.NewRichTextInputBlockElement(
-						slack.NewTextBlockObject(slack.PlainTextType, "What would you like to work on? You can use **bold**, `code`, lists, etc.", false, false),
-						"prompt_input",
-					),
-				),
-			},
-		},
-	}
+	// Multi-directory mode: Create modal view
+	modal := blocks.SessionStartModal(channelID, h.config.WorkingDirs)
 
 	// Set initial text if provided
 	if initialText != "" {
