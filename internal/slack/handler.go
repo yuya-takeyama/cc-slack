@@ -384,15 +384,6 @@ func (h *Handler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
 	// Verify token (or use signing secret verification)
 	// TODO: Implement proper verification
 
-	// Log structured payload for debugging (JSONL format)
-	if payload.Type == slack.InteractionTypeViewSubmission {
-		log.Info().
-			Str("type", "view_submission").
-			Str("callback_id", payload.View.CallbackID).
-			Interface("state_values", payload.View.State.Values).
-			Msg("received view submission")
-	}
-
 	switch payload.Type {
 	case slack.InteractionTypeBlockActions:
 		// Handle button clicks for approval_prompt
@@ -1326,10 +1317,5 @@ func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID
 			Str("previous_session_id", previousSessionID).
 			Msg("resumed previous Claude session")
 	} else {
-		log.Info().
-			Str("channel_id", channelID).
-			Str("thread_ts", threadTS).
-			Str("working_dir", workDir).
-			Msg("started new Claude session")
 	}
 }

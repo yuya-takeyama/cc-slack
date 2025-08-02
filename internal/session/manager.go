@@ -187,11 +187,17 @@ func (m *Manager) getOrCreateThread(ctx context.Context, channelID, threadTS, wo
 		return thread.ID, nil
 	}
 
+	// Convert working directory to absolute path
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get absolute path for working directory: %w", err)
+	}
+
 	// Create new thread
 	newThread, err := m.queries.CreateThread(ctx, db.CreateThreadParams{
 		ChannelID:        channelID,
 		ThreadTs:         threadTS,
-		WorkingDirectory: workDir,
+		WorkingDirectory: absWorkDir,
 	})
 	if err != nil {
 		return 0, err
