@@ -1144,7 +1144,7 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 						slack.NewTextBlockObject(slack.PlainTextType, "What would you like to work on? You can use **bold**, `code`, lists, etc.", false, false),
 						"prompt_input",
 					),
-				).WithOptional(true),
+				),
 			},
 		},
 	}

@@ -74,7 +74,11 @@ func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDi
 
 	// In multi-directory mode, working directory must be specified
 	if !m.config.IsSingleDirectoryMode() && workDir == "" {
-		return false, "", fmt.Errorf("working directory not specified for multi-directory mode")
+		slashCmd := m.config.Slack.SlashCommandName
+		if slashCmd == "" {
+			slashCmd = "/claude" // default fallback
+		}
+		return false, "", fmt.Errorf("working directory not specified for multi-directory mode. Use %s command to select a directory and start a session", slashCmd)
 	}
 
 	// Check if should resume

@@ -175,7 +175,6 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 
 	// Prepare command
 	args := []string{
-		"-w", opts.WorkDir, // Explicitly specify working directory
 		"--mcp-config", configPath,
 		"--permission-prompt-tool", opts.PermissionPromptTool,
 		"--print",
@@ -193,7 +192,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	}
 
 	cmd := exec.CommandContext(ctx, opts.ExecutablePath, args...)
-	// Don't set cmd.Dir when using -w option to avoid conflicts
+	cmd.Dir = opts.WorkDir // Set working directory
 
 	// Set up pipes
 	stdin, err := cmd.StdinPipe()
