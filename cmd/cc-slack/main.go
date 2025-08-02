@@ -55,11 +55,6 @@ func main() {
 	// Set working directories from command-line if provided
 	if len(workingDirs) > 0 {
 		cfg.WorkingDirFlags = []string(workingDirs)
-		if len(workingDirs) == 1 {
-			log.Printf("Running in single directory mode: %s", workingDirs[0])
-		} else {
-			log.Printf("Running with %d working directories from command line", len(workingDirs))
-		}
 	}
 
 	// Validate working directories
