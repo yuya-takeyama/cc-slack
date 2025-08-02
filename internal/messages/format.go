@@ -8,10 +8,10 @@ import (
 
 // FormatSessionStartMessage formats the session start message
 func FormatSessionStartMessage(sessionID, cwd, model string) string {
-	return fmt.Sprintf("🚀 Claude Code session started\n"+
+	return fmt.Sprintf("✨ Claude Code session started\n"+
 		"Session ID: `%s`\n"+
-		"Working directory: %s\n"+
-		"Model: %s",
+		"Working directory: `%s`\n"+
+		"Model: `%s`",
 		sessionID, cwd, model)
 }
 

@@ -1,0 +1,5 @@
+# Test configuration
+working_dirs:
+  - name: test
+    path: /tmp
+    description: Test directory

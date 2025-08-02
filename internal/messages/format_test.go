@@ -19,20 +19,20 @@ func TestFormatSessionStartMessage(t *testing.T) {
 			sessionID: "session-123",
 			cwd:       "/home/user/project",
 			model:     "claude-3.5-sonnet",
-			want: "🚀 Claude Code session started\n" +
+			want: "✨ Claude Code session started\n" +
 				"Session ID: `session-123`\n" +
-				"Working directory: /home/user/project\n" +
-				"Model: claude-3.5-sonnet",
+				"Working directory: `/home/user/project`\n" +
+				"Model: `claude-3.5-sonnet`",
 		},
 		{
 			name:      "with spaces in path",
 			sessionID: "session-456",
 			cwd:       "/Users/name/My Documents/project",
 			model:     "claude-3.5-sonnet",
-			want: "🚀 Claude Code session started\n" +
+			want: "✨ Claude Code session started\n" +
 				"Session ID: `session-456`\n" +
-				"Working directory: /Users/name/My Documents/project\n" +
-				"Model: claude-3.5-sonnet",
+				"Working directory: `/Users/name/My Documents/project`\n" +
+				"Model: `claude-3.5-sonnet`",
 		},
 	}
 
