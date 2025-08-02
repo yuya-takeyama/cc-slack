@@ -19,6 +19,7 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/mcp"
+	"github.com/yuya-takeyama/cc-slack/internal/richtext"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
 	"golang.org/x/sync/errgroup"
 )
@@ -1036,11 +1037,12 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 	// In single directory mode, show modal with only prompt input
 	if h.config.SingleWorkingDir != "" {
 		modal := slack.ModalViewRequest{
-			Type:       slack.VTModal,
-			CallbackID: "repo_modal_single",
-			Title:      slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
-			Submit:     slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
-			Close:      slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+			Type:            slack.VTModal,
+			CallbackID:      "repo_modal_single",
+			Title:           slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
+			Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
+			Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+			PrivateMetadata: channelID, // Store channel ID for later use
 			Blocks: slack.Blocks{
 				BlockSet: []slack.Block{
 					slack.NewInputBlock(
@@ -1082,11 +1084,12 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 
 	// Create modal view
 	modal := slack.ModalViewRequest{
-		Type:       slack.VTModal,
-		CallbackID: "repo_modal",
-		Title:      slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
-		Submit:     slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
-		Close:      slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+		Type:            slack.VTModal,
+		CallbackID:      "repo_modal",
+		Title:           slack.NewTextBlockObject(slack.PlainTextType, "Start Claude Session", false, false),
+		Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Start", false, false),
+		Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+		PrivateMetadata: channelID, // Store channel ID for later use
 		Blocks: slack.Blocks{
 			BlockSet: []slack.Block{
 				slack.NewInputBlock(
@@ -1143,12 +1146,6 @@ func (h *Handler) handleRepoModalSubmission(w http.ResponseWriter, payload *slac
 	var prompt string
 	if promptBlock, ok := values["prompt_block"]; ok {
 		if promptInput, ok := promptBlock["prompt_input"]; ok {
-			// Log the raw rich text data for analysis
-			log.Info().
-				Str("type", "rich_text_input_value").
-				Interface("rich_text_value", promptInput).
-				Msg("rich text input data")
-
 			// Extract text from rich text value
 			// The RichTextValue field contains the actual rich text data
 			if promptInput.RichTextValue.Elements != nil {
@@ -1180,8 +1177,15 @@ func (h *Handler) handleRepoModalSubmission(w http.ResponseWriter, payload *slac
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(successResponse)
 
+	// Get channel ID from private metadata (stored during modal creation)
+	channelID := payload.View.PrivateMetadata
+	if channelID == "" {
+		log.Error().Msg("channel ID not found in private metadata")
+		return
+	}
+
 	// Create thread and start session asynchronously
-	go h.createThreadAndStartSession(payload.Channel.ID, repoPath, prompt, payload.User.ID)
+	go h.createThreadAndStartSession(channelID, repoPath, prompt, payload.User.ID)
 }
 
 // handleSingleDirModalSubmission handles the modal submission in single directory mode
@@ -1192,12 +1196,6 @@ func (h *Handler) handleSingleDirModalSubmission(w http.ResponseWriter, payload 
 	var prompt string
 	if promptBlock, ok := values["prompt_block"]; ok {
 		if promptInput, ok := promptBlock["prompt_input"]; ok {
-			// Log the raw rich text data for analysis
-			log.Info().
-				Str("type", "rich_text_input_value_single").
-				Interface("rich_text_value", promptInput).
-				Msg("rich text input data (single mode)")
-
 			// Extract text from rich text value
 			if promptInput.RichTextValue.Elements != nil {
 				prompt = h.convertRichTextToString(&promptInput.RichTextValue)
@@ -1213,65 +1211,62 @@ func (h *Handler) handleSingleDirModalSubmission(w http.ResponseWriter, payload 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(successResponse)
 
+	// Get channel ID from private metadata (stored during modal creation)
+	channelID := payload.View.PrivateMetadata
+	if channelID == "" {
+		log.Error().Msg("channel ID not found in private metadata (single mode)")
+		return
+	}
+
 	// Use the configured single working directory
-	go h.createThreadAndStartSession(payload.Channel.ID, h.config.SingleWorkingDir, prompt, payload.User.ID)
+	go h.createThreadAndStartSession(channelID, h.config.SingleWorkingDir, prompt, payload.User.ID)
 }
 
 // convertRichTextToString converts Slack rich text to plain string
 func (h *Handler) convertRichTextToString(richText *slack.RichTextBlock) string {
-	// For now, just extract plain text
-	// TODO: Convert to markdown for better formatting preservation
-	var result strings.Builder
-
-	for _, element := range richText.Elements {
-		switch elem := element.(type) {
-		case *slack.RichTextSection:
-			for _, e := range elem.Elements {
-				switch textElem := e.(type) {
-				case *slack.RichTextSectionTextElement:
-					result.WriteString(textElem.Text)
-				case *slack.RichTextSectionChannelElement:
-					result.WriteString(fmt.Sprintf("<#%s>", textElem.ChannelID))
-				case *slack.RichTextSectionUserElement:
-					result.WriteString(fmt.Sprintf("<@%s>", textElem.UserID))
-				case *slack.RichTextSectionLinkElement:
-					if textElem.Text != "" {
-						result.WriteString(textElem.Text)
-					} else {
-						result.WriteString(textElem.URL)
-					}
-				}
-			}
-		case *slack.RichTextList:
-			for i, item := range elem.Elements {
-				if elem.Style == slack.RTEListOrdered {
-					result.WriteString(fmt.Sprintf("%d. ", i+1))
-				} else {
-					result.WriteString("- ")
-				}
-				// Handle list item based on its type
-				switch listItem := item.(type) {
-				case *slack.RichTextSection:
-					for _, e := range listItem.Elements {
-						if textElem, ok := e.(*slack.RichTextSectionTextElement); ok {
-							result.WriteString(textElem.Text)
-						}
-					}
-				}
-				result.WriteString("\n")
-			}
-		}
-	}
-
-	return strings.TrimSpace(result.String())
+	// Using the richtext package for conversion
+	// Import will be added automatically by goimports
+	return richtext.ConvertToString(richText)
 }
 
 // createThreadAndStartSession creates a new Slack thread and starts a Claude session
 func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID string) {
+	// Create initial message with working directory information
+	var initialText strings.Builder
+	initialText.WriteString("🚀 Starting Claude Code session\n")
+
+	// Add working directory info
+	if workDir != "" {
+		// In single directory mode, show only the directory name
+		if h.config.SingleWorkingDir != "" {
+			initialText.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", filepath.Base(workDir)))
+		} else {
+			// In multi directory mode, find the name from config
+			dirName := ""
+			for _, wd := range h.config.WorkingDirectories {
+				if wd.Path == workDir {
+					dirName = wd.Name
+					break
+				}
+			}
+			if dirName != "" {
+				initialText.WriteString(fmt.Sprintf("\n📁 Working directory: %s (`%s`)", dirName, workDir))
+			} else {
+				initialText.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", workDir))
+			}
+		}
+	}
+
+	// Add initial prompt if provided
+	if prompt != "" {
+		initialText.WriteString("\n💬 Initial prompt:\n")
+		initialText.WriteString(prompt)
+	}
+
 	// Post initial message to create thread
 	_, threadTS, err := h.client.PostMessage(
 		channelID,
-		slack.MsgOptionText("Starting Claude Code session...", false),
+		slack.MsgOptionText(initialText.String(), false),
 	)
 	if err != nil {
 		log.Error().Err(err).Msg("failed to create thread")
@@ -1290,24 +1285,18 @@ func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID
 		return
 	}
 
-	// Update initial message based on whether session was resumed
-	var initialMessage string
+	// Log session creation result
 	if resumed {
-		initialMessage = fmt.Sprintf("Resuming previous session `%s`...", previousSessionID)
+		log.Info().
+			Str("channel_id", channelID).
+			Str("thread_ts", threadTS).
+			Str("previous_session_id", previousSessionID).
+			Msg("resumed previous Claude session")
 	} else {
-		initialMessage = "Claude Code session started."
-	}
-
-	if prompt != "" {
-		initialMessage += fmt.Sprintf("\n\nInitial prompt: %s", prompt)
-	}
-
-	_, _, _, err = h.client.UpdateMessage(
-		channelID,
-		threadTS,
-		slack.MsgOptionText(initialMessage, false),
-	)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to update initial message")
+		log.Info().
+			Str("channel_id", channelID).
+			Str("thread_ts", threadTS).
+			Str("working_dir", workDir).
+			Msg("started new Claude session")
 	}
 }
