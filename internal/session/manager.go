@@ -72,6 +72,11 @@ func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDi
 		workDir = thread.WorkingDirectory
 	}
 
+	// In multi-directory mode, working directory must be specified
+	if !m.config.IsSingleDirectoryMode() && workDir == "" {
+		return false, "", fmt.Errorf("working directory not specified for multi-directory mode")
+	}
+
 	// Check if should resume
 	shouldResume, previousSessionID, err := m.ShouldResume(ctx, channelID, threadTS)
 	if err != nil {

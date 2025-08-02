@@ -44,6 +44,10 @@ func TestConfigDefaults(t *testing.T) {
 	if cfg.Session.ResumeWindow != time.Hour {
 		t.Errorf("expected default resume window 1h, got %v", cfg.Session.ResumeWindow)
 	}
+
+	if cfg.Slack.SlashCommandName != "/claude" {
+		t.Errorf("expected default slash command name /claude, got %s", cfg.Slack.SlashCommandName)
+	}
 }
 
 func TestConfigEnvironment(t *testing.T) {
@@ -58,6 +62,7 @@ func TestConfigEnvironment(t *testing.T) {
 	os.Setenv("CC_SLACK_SERVER_PORT", "9090")
 	os.Setenv("CC_SLACK_DATABASE_PATH", "/custom/path/db.sqlite")
 	os.Setenv("CC_SLACK_SESSION_RESUME_WINDOW", "2h")
+	os.Setenv("CC_SLACK_SLACK_SLASH_COMMAND_NAME", "/cc")
 
 	defer func() {
 		os.Unsetenv("CC_SLACK_SLACK_BOT_TOKEN")
@@ -65,6 +70,7 @@ func TestConfigEnvironment(t *testing.T) {
 		os.Unsetenv("CC_SLACK_SERVER_PORT")
 		os.Unsetenv("CC_SLACK_DATABASE_PATH")
 		os.Unsetenv("CC_SLACK_SESSION_RESUME_WINDOW")
+		os.Unsetenv("CC_SLACK_SLACK_SLASH_COMMAND_NAME")
 	}()
 
 	// Load config
@@ -84,6 +90,10 @@ func TestConfigEnvironment(t *testing.T) {
 
 	if cfg.Session.ResumeWindow != 2*time.Hour {
 		t.Errorf("expected resume window 2h from env, got %v", cfg.Session.ResumeWindow)
+	}
+
+	if cfg.Slack.SlashCommandName != "/cc" {
+		t.Errorf("expected slash command name /cc from env, got %s", cfg.Slack.SlashCommandName)
 	}
 }
 
@@ -154,6 +164,74 @@ func TestConfigValidation(t *testing.T) {
 			// Check error
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsSingleDirectoryMode(t *testing.T) {
+	tests := []struct {
+		name             string
+		config           Config
+		expectedIsSingle bool
+		expectedWorkDir  string
+	}{
+		{
+			name: "CLI flag set",
+			config: Config{
+				SingleWorkingDir: "/path/from/cli",
+				WorkingDirectories: []WorkingDirectoryConfig{
+					{Name: "dir1", Path: "/path/1"},
+					{Name: "dir2", Path: "/path/2"},
+				},
+			},
+			expectedIsSingle: true,
+			expectedWorkDir:  "/path/from/cli",
+		},
+		{
+			name: "Single working directory configured",
+			config: Config{
+				SingleWorkingDir: "",
+				WorkingDirectories: []WorkingDirectoryConfig{
+					{Name: "single-dir", Path: "/only/path"},
+				},
+			},
+			expectedIsSingle: true,
+			expectedWorkDir:  "/only/path",
+		},
+		{
+			name: "Multiple working directories configured",
+			config: Config{
+				SingleWorkingDir: "",
+				WorkingDirectories: []WorkingDirectoryConfig{
+					{Name: "dir1", Path: "/path/1"},
+					{Name: "dir2", Path: "/path/2"},
+				},
+			},
+			expectedIsSingle: false,
+			expectedWorkDir:  "",
+		},
+		{
+			name: "No configuration",
+			config: Config{
+				SingleWorkingDir:   "",
+				WorkingDirectories: []WorkingDirectoryConfig{},
+			},
+			expectedIsSingle: false,
+			expectedWorkDir:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			isSingle := tt.config.IsSingleDirectoryMode()
+			if isSingle != tt.expectedIsSingle {
+				t.Errorf("IsSingleDirectoryMode() = %v, want %v", isSingle, tt.expectedIsSingle)
+			}
+
+			workDir := tt.config.GetSingleWorkingDirectory()
+			if workDir != tt.expectedWorkDir {
+				t.Errorf("GetSingleWorkingDirectory() = %v, want %v", workDir, tt.expectedWorkDir)
 			}
 		})
 	}

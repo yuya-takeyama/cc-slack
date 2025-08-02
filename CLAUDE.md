@@ -367,6 +367,7 @@ Logs are written to `logs/` directory with timestamp:
 - `CC_SLACK_SLACK_BOT_TOKEN`: Slack bot user OAuth token
 - `CC_SLACK_SLACK_APP_TOKEN`: Slack app-level token for Socket Mode
 - `CC_SLACK_SLACK_SIGNING_SECRET`: For request verification
+- `CC_SLACK_SLACK_SLASH_COMMAND_NAME`: Slash command name (default: `/claude`)
 - `CC_SLACK_SLACK_ASSISTANT_USERNAME`: Claude response username (optional)
 - `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`: Claude response emoji (optional)
 - `CC_SLACK_SLACK_ASSISTANT_ICON_URL`: Claude response icon URL (optional)

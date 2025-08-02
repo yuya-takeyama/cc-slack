@@ -33,12 +33,13 @@ type ServerConfig struct {
 
 // SlackConfig contains Slack-related settings
 type SlackConfig struct {
-	BotToken      string              `mapstructure:"bot_token"`
-	AppToken      string              `mapstructure:"app_token"`
-	SigningSecret string              `mapstructure:"signing_secret"`
-	Assistant     AssistantConfig     `mapstructure:"assistant"`
-	FileUpload    FileUploadConfig    `mapstructure:"file_upload"`
-	MessageFilter MessageFilterConfig `mapstructure:"message_filter"`
+	BotToken         string              `mapstructure:"bot_token"`
+	AppToken         string              `mapstructure:"app_token"`
+	SigningSecret    string              `mapstructure:"signing_secret"`
+	SlashCommandName string              `mapstructure:"slash_command_name"`
+	Assistant        AssistantConfig     `mapstructure:"assistant"`
+	FileUpload       FileUploadConfig    `mapstructure:"file_upload"`
+	MessageFilter    MessageFilterConfig `mapstructure:"message_filter"`
 }
 
 // AssistantConfig contains assistant display settings
@@ -114,6 +115,7 @@ func Load() (*Config, error) {
 	v.BindEnv("slack.bot_token")
 	v.BindEnv("slack.signing_secret")
 	v.BindEnv("slack.app_token")
+	v.BindEnv("slack.slash_command_name")
 	v.BindEnv("slack.assistant.username")
 	v.BindEnv("slack.assistant.icon_emoji")
 	v.BindEnv("slack.assistant.icon_url")
@@ -175,6 +177,9 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "./logs")
+
+	// Slack defaults
+	v.SetDefault("slack.slash_command_name", "/claude")
 
 	// File upload defaults
 	v.SetDefault("slack.file_upload.enabled", true)
@@ -258,4 +263,27 @@ func (c *Config) ValidateWorkingDirectories() error {
 	}
 
 	return nil
+}
+
+// IsSingleDirectoryMode returns true if cc-slack is running in single directory mode
+// This is true when either:
+// - SingleWorkingDir is set (CLI flag)
+// - Only one working directory is configured
+func (c *Config) IsSingleDirectoryMode() bool {
+	if c.SingleWorkingDir != "" {
+		return true
+	}
+	return len(c.WorkingDirectories) == 1
+}
+
+// GetSingleWorkingDirectory returns the working directory for single directory mode
+// Returns empty string if not in single directory mode
+func (c *Config) GetSingleWorkingDirectory() string {
+	if c.SingleWorkingDir != "" {
+		return c.SingleWorkingDir
+	}
+	if len(c.WorkingDirectories) == 1 {
+		return c.WorkingDirectories[0].Path
+	}
+	return ""
 }

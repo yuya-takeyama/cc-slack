@@ -180,6 +180,13 @@ func createTestConfig() *config.Config {
 	}
 }
 
+// createTestConfigWithWorkingDirs creates a config with working directories for testing
+func createTestConfigWithWorkingDirs(dirs []config.WorkingDirectoryConfig) *config.Config {
+	cfg := createTestConfig()
+	cfg.WorkingDirectories = dirs
+	return cfg
+}
+
 func TestParseApprovalMessage(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -310,6 +317,66 @@ func TestBuildApprovalMarkdownText(t *testing.T) {
 			got := buildApprovalMarkdownText(tt.info)
 			if got != tt.expected {
 				t.Errorf("buildApprovalMarkdownText() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDetermineWorkDir(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    *config.Config
+		channelID string
+		expected  string
+	}{
+		{
+			name: "single directory mode",
+			config: &config.Config{
+				WorkingDirectories: []config.WorkingDirectoryConfig{
+					{
+						Name: "default",
+						Path: "/home/user/project",
+					},
+				},
+			},
+			channelID: "C12345",
+			expected:  "/home/user/project",
+		},
+		{
+			name: "multi-directory mode returns empty",
+			config: &config.Config{
+				WorkingDirectories: []config.WorkingDirectoryConfig{
+					{
+						Name: "project1",
+						Path: "/home/user/project1",
+					},
+					{
+						Name: "project2",
+						Path: "/home/user/project2",
+					},
+				},
+			},
+			channelID: "C12345",
+			expected:  "",
+		},
+		{
+			name: "empty config returns empty in multi-directory mode",
+			config: &config.Config{
+				WorkingDirectories: []config.WorkingDirectoryConfig{},
+			},
+			channelID: "C12345",
+			expected:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &Handler{
+				config: tt.config,
+			}
+			got := handler.determineWorkDir(tt.channelID)
+			if got != tt.expected {
+				t.Errorf("determineWorkDir() = %q, want %q", got, tt.expected)
 			}
 		})
 	}

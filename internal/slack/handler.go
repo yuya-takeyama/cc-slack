@@ -266,43 +266,47 @@ func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text
 
 // handleNewSessionFromMessage creates a new session or resumes one for message events
 func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, text string, threadTS string) {
-	// Check if multi-directory mode and prevent mention-based start ONLY for new threads
-	// If it's an existing thread (event.ThreadTimeStamp != ""), allow session creation/resume
-	// as the working directory will be retrieved from the thread's previous session
-	if !h.config.IsSingleDirectoryMode() && event.ThreadTimeStamp == "" {
-		// Post error message with guidance
-		blocks := []slack.Block{
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(
-					slack.MarkdownType,
-					":warning: *Multiple working directories are configured*\n\nPlease use the shortcut to select a working directory before starting a session.",
-					false,
-					false,
+	// In multi-directory mode, validate working directory availability
+	if !h.config.IsSingleDirectoryMode() {
+		// For new threads, prevent mention-based start
+		if event.ThreadTimeStamp == "" {
+			// Post error message with guidance
+			blocks := []slack.Block{
+				slack.NewSectionBlock(
+					slack.NewTextBlockObject(
+						slack.MarkdownType,
+						":warning: *Multiple working directories are configured*\n\nPlease use the shortcut to select a working directory before starting a session.",
+						false,
+						false,
+					),
+					nil,
+					nil,
 				),
-				nil,
-				nil,
-			),
-			slack.NewSectionBlock(
-				slack.NewTextBlockObject(
-					slack.MarkdownType,
-					fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt", h.config.Slack.SlashCommandName),
-					false,
-					false,
+				slack.NewSectionBlock(
+					slack.NewTextBlockObject(
+						slack.MarkdownType,
+						fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt", h.config.Slack.SlashCommandName),
+						false,
+						false,
+					),
+					nil,
+					nil,
 				),
-				nil,
-				nil,
-			),
+			}
+
+			_, _, err := h.client.PostMessage(
+				event.Channel,
+				slack.MsgOptionBlocks(blocks...),
+				slack.MsgOptionTS(threadTS),
+			)
+			if err != nil {
+				fmt.Printf("Failed to post error message: %v\n", err)
+			}
+			return
 		}
 
-		_, _, err := h.client.PostMessage(
-			event.Channel,
-			slack.MsgOptionBlocks(blocks...),
-			slack.MsgOptionTS(threadTS),
-		)
-		if err != nil {
-			fmt.Printf("Failed to post error message: %v\n", err)
-		}
-		return
+		// For existing threads, we'll let the session manager handle validation
+		// It will check if the thread has a working directory stored
 	}
 
 	// Determine working directory
@@ -480,19 +484,9 @@ func (h *Handler) determineWorkDir(channelID string) string {
 		return h.config.GetSingleWorkingDirectory()
 	}
 
-	// In multi-directory mode, this shouldn't be called (modal selection should be used)
-	// But as a fallback, use the first configured directory
-	if len(h.config.WorkingDirectories) > 0 {
-		return h.config.WorkingDirectories[0].Path
-	}
-
-	// If no default configured, use current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		// Fallback to /tmp if we can't get current directory
-		return "/tmp/cc-slack-workspace"
-	}
-	return cwd
+	// In multi-directory mode, return empty string to indicate
+	// that working directory must be explicitly selected
+	return ""
 }
 
 // PostToThread posts a message to a Slack thread

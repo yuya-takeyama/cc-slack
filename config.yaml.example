@@ -3,72 +3,100 @@
 
 # Server configuration
 server:
+  # Port for the HTTP server
   port: 8080
+  # Base URL for MCP connection (must be accessible by Claude Code)
   base_url: http://localhost:8080
 
 # Slack configuration
 slack:
+  # Bot user OAuth token (starts with xoxb-)
   bot_token: xoxb-your-bot-token
+  # Signing secret for request verification
   signing_secret: your-signing-secret
-  # app_token: xapp-your-app-token  # Optional, for Socket Mode
+  # App-level token for Socket Mode (optional, starts with xapp-)
+  # app_token: xapp-your-app-token
+  
+  # Slash command name to invoke Claude Code (default: /claude)
+  slash_command_name: /claude
   
   # Assistant display options (optional)
   assistant:
+    # Display name for Claude responses in Slack
     username: Claude Code
+    # Emoji icon for Claude responses (takes precedence over icon_url)
     icon_emoji: ":robot_face:"
+    # URL to an image for Claude responses (used if icon_emoji is not set)
     # icon_url: https://example.com/icon.png
   
   # File upload settings
   file_upload:
+    # Enable file upload feature
     enabled: true
+    # Directory to store uploaded images
     images_dir: ./tmp/uploaded_images
   
   # Message filtering settings
   message_filter:
+    # Enable message filtering
     enabled: true
+    # Only respond to messages that mention the bot
     require_mention: true
+    # Patterns to include (regex, empty means include all)
     # include_patterns: []
+    # Patterns to exclude (regex)
     # exclude_patterns: []
 
 # Claude configuration
 claude:
+  # Path to Claude CLI executable
   executable: claude
+  # Default options to pass to Claude CLI
   # default_options: []
+  # Tool name for permission prompts
   permission_prompt_tool: mcp__cc-slack__approval_prompt
 
 # Database configuration
 database:
+  # Path to SQLite database file
   path: ./data/cc-slack.db
+  # Path to database migrations directory
   migrations_path: ./migrations
 
 # Session configuration
 session:
+  # Session timeout (duration string, e.g., 30m, 1h, 2h30m)
   timeout: 30m
+  # Interval for cleaning up expired sessions
   cleanup_interval: 5m
+  # Window for resuming previous sessions (must be longer than timeout)
   resume_window: 1h
 
 # Logging configuration
 logging:
+  # Log level (debug, info, warn, error)
   level: info
+  # Log format (json or text)
   format: json
+  # Directory for log files
   output: ./logs
 
-# Working directories configuration
+# Working directories configuration (array of directory configs)
+# Each directory can be selected in Slack threads or web UI
 working_directories:
-  # Default directory if none is selected or configured
-  default: .
+  # First directory configuration
+  - name: cc-slack
+    # Absolute path to the working directory
+    path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+    # Human-readable description
+    description: Claude Code Slack integration
   
-  # List of configured working directories
-  configured:
-    - name: cc-slack
-      path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
-      description: Claude Code Slack integration
-    
-    - name: my-project
-      path: /Users/yuya/src/github.com/yuya-takeyama/my-project
-      description: My awesome project
-    
-    # Add more directories as needed
-    # - name: another-project
-    #   path: /path/to/another/project
-    #   description: Another project description
+  # Second directory configuration
+  - name: my-project
+    path: /Users/yuya/src/github.com/yuya-takeyama/my-project
+    description: My awesome project
+  
+  # Add more directories as needed
+  # - name: another-project
+  #   path: /path/to/another/project
+  #   description: Another project description
