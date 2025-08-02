@@ -26,7 +26,7 @@ Enable cc-slack to work with multiple repositories through a simple Slack modal 
 
 ### Repository Configuration
 
-**Store in configuration file (config.yaml or environment)**
+**Store in configuration file (config.yaml only)**
 ```yaml
 repositories:
   - name: "cc-slack"
@@ -53,18 +53,19 @@ repositories:
 
 ### Database References
 
-- Repository path stored in `threads` table
-- Always store absolute repository path
+- Working directory stored in `threads.working_directory` column
+- Always store absolute path
 - No foreign keys to repositories table
 - Path acts as the stable identifier
-- Once set, repository path is immutable for the thread's lifetime
+- Once set, working directory is immutable for the thread's lifetime
 
 ## Implementation Plan
 
 ### Phase 1: Slash Command Modal ✨
 
 1. **Create `/cc` slash command handler**
-   - Register new route for slash commands
+   - Add new route `/slack/commands` for slash commands
+   - Use existing `/slack/interactive` for modal interactions
    - Return modal with repository dropdown and text input
 
 2. **Modal components**
@@ -73,11 +74,11 @@ repositories:
    - Submit/Cancel buttons
 
 3. **Modal submission handler**
-   - Extract selected repository path
+   - Extract selected directory path from repository config
    - Extract initial prompt
-   - Create new thread record with repository path
+   - Create new thread record with working directory
    - Start Claude process with selected path as pwd
-   - Repository path is now fixed for this thread
+   - Working directory is now fixed for this thread
 
 ### Phase 2: Configuration Management
 
@@ -92,25 +93,27 @@ repositories:
 
 2. **Load from config**
    - Add to existing Viper configuration
-   - Support both config.yaml and environment variables
+   - Read configuration at startup only
+   - Support config.yaml only (no environment variables)
 
 3. **Validation**
-   - Check if repository paths exist
-   - Warn on startup if paths are invalid
+   - Check if configured directory paths exist at startup
+   - **Fail to start if no repositories configured**
+   - Clear error message explaining how to configure repositories
+   - Warn if some paths are invalid but allow startup
 
 ### Phase 3: Process Management Updates
 
 1. **Update Claude process creation**
-   - Accept repository path parameter
+   - Accept working directory parameter
    - Set as working directory for process
 
-2. **Update database schema**
-   ```sql
-   ALTER TABLE threads ADD COLUMN repository_path TEXT;
-   ```
+2. **Note on database schema**
+   - No schema changes needed! Already have `working_directory` column
+   - Just need to populate it from modal selection
 
 3. **Session resume logic**
-   - Use stored repository path from threads table when resuming
+   - Use stored working directory from threads table when resuming
    - Ensures sessions always resume in the same repository
    - No need for repository selection on resume
 
@@ -121,14 +124,16 @@ repositories:
    - Include in session status messages
 
 2. **Error handling**
-   - Clear error when repository not found
-   - Helpful message when no repositories configured
+   - Modal submission errors: Show validation errors in modal
+   - Working directory invalid: Send ephemeral message (consider prompt loss)
+   - Modal cancelled: Send ephemeral \"Cancelled\" message
+   - No repositories configured: Fail at startup with helpful message
 
 ## Success Metrics
 
 - [ ] User can select repository via `/cc` command
 - [ ] Claude process starts in correct directory
-- [ ] Repository path persisted for session resume
+- [ ] Working directory persisted for session resume
 - [ ] Configuration is easy to understand and modify
 - [ ] Clear error messages for misconfiguration
 
@@ -137,6 +142,22 @@ repositories:
 - Multi-worktree support within repositories
 - Dynamic repository discovery
 - Repository-specific settings
+
+## Integration with Existing Features
+
+### Message Event Handling
+- Current implementation uses `MessageEvent` (not `app_mention`)
+- `/cc` command creates initial thread with repository selection
+- Subsequent messages in thread use existing message event flow
+- No changes needed to existing message handling logic
+
+### Thread Creation Flow
+1. User types `/cc` → Opens modal
+2. User selects repository and enters prompt → Submit
+3. Create thread record with `working_directory`
+4. Post initial message to new thread
+5. Start Claude process in selected repository
+6. Continue with normal message event handling
 
 ## Technical Notes
 
@@ -192,14 +213,5 @@ repositories:
 }
 ```
 
-### Migration SQL
-```sql
--- migrations/XXXXXX_add_repository_path.up.sql
-ALTER TABLE threads ADD COLUMN repository_path TEXT;
-
--- Set default for existing threads (current working directory)
-UPDATE threads SET repository_path = '/Users/yuya/src/github.com/yuya-takeyama/cc-slack' WHERE repository_path IS NULL;
-
--- migrations/XXXXXX_add_repository_path.down.sql
-ALTER TABLE threads DROP COLUMN repository_path;
-```
+### Database Note
+The `threads` table already has a `working_directory` column, so no migration is needed! We just need to ensure it's populated when creating threads via the modal.
