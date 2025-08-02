@@ -29,6 +29,7 @@ type ClaudeProcess struct {
 	handlers   MessageHandlers
 	logger     zerolog.Logger
 	logFile    *os.File
+	wg         sync.WaitGroup
 }
 
 // MessageHandlers contains callback functions for different message types
@@ -246,6 +247,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	}
 
 	// Start reading stdout and stderr
+	p.wg.Add(2)
 	go p.readStdout()
 	go p.readStderr()
 
@@ -298,6 +300,7 @@ func (p *ClaudeProcess) SendMessage(message string) error {
 
 // readStdout reads and processes stdout messages
 func (p *ClaudeProcess) readStdout() {
+	defer p.wg.Done()
 	for p.stdout.Scan() {
 		line := p.stdout.Bytes()
 		if err := p.processJSONLine(line); err != nil {
@@ -314,6 +317,7 @@ func (p *ClaudeProcess) readStdout() {
 
 // readStderr reads and logs stderr messages
 func (p *ClaudeProcess) readStderr() {
+	defer p.wg.Done()
 	for p.stderr.Scan() {
 		line := p.stderr.Text()
 		// Log stderr output
@@ -406,6 +410,9 @@ func (p *ClaudeProcess) Close() error {
 
 	// Wait for process to exit
 	err := p.cmd.Wait()
+
+	// Wait for goroutines to finish reading stdout/stderr
+	p.wg.Wait()
 
 	// Clean up config file
 	if p.configPath != "" {
