@@ -59,7 +59,7 @@ export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
 # Optional
 export CC_SLACK_PORT=8080                              # default: 8080
 export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
-export CC_SLACK_SLACK_SLASH_COMMAND_NAME=/cc          # default: /claude
+export CC_SLACK_SLACK_SLASH_COMMAND_NAME=/cc          # default: /cc
 ```
 
 ### 3. Build and Run

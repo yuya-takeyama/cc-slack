@@ -179,7 +179,7 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.output", "./logs")
 
 	// Slack defaults
-	v.SetDefault("slack.slash_command_name", "/claude")
+	v.SetDefault("slack.slash_command_name", "/cc")
 
 	// File upload defaults
 	v.SetDefault("slack.file_upload.enabled", true)

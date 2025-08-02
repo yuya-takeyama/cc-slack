@@ -45,8 +45,8 @@ func TestConfigDefaults(t *testing.T) {
 		t.Errorf("expected default resume window 1h, got %v", cfg.Session.ResumeWindow)
 	}
 
-	if cfg.Slack.SlashCommandName != "/claude" {
-		t.Errorf("expected default slash command name /claude, got %s", cfg.Slack.SlashCommandName)
+	if cfg.Slack.SlashCommandName != "/cc" {
+		t.Errorf("expected default slash command name /cc, got %s", cfg.Slack.SlashCommandName)
 	}
 }
 

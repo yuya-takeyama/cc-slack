@@ -17,8 +17,8 @@ slack:
   # App-level token for Socket Mode (optional, starts with xapp-)
   # app_token: xapp-your-app-token
   
-  # Slash command name to invoke Claude Code (default: /claude)
-  slash_command_name: /claude
+  # Slash command name to invoke Claude Code (default: /cc)
+  slash_command_name: /cc
   
   # Assistant display options (optional)
   assistant:
