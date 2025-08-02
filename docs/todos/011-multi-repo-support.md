@@ -43,11 +43,21 @@ repositories:
 - Easier to manage in deployment scenarios
 - No need for complex migrations when paths change
 
+### Repository-Thread Relationship
+
+**1 Thread = 1 Repository**
+- Each Slack thread is bound to a single repository
+- Repository is selected when the thread is created (via `/cc` command)
+- To work with a different repository, users must create a new thread
+- This keeps the context clear and implementation simple
+
 ### Database References
 
-- Always store absolute repository path in database
+- Repository path stored in `threads` table
+- Always store absolute repository path
 - No foreign keys to repositories table
 - Path acts as the stable identifier
+- Once set, repository path is immutable for the thread's lifetime
 
 ## Implementation Plan
 
@@ -65,8 +75,9 @@ repositories:
 3. **Modal submission handler**
    - Extract selected repository path
    - Extract initial prompt
+   - Create new thread record with repository path
    - Start Claude process with selected path as pwd
-   - Store repository path in threads table
+   - Repository path is now fixed for this thread
 
 ### Phase 2: Configuration Management
 
@@ -99,7 +110,9 @@ repositories:
    ```
 
 3. **Session resume logic**
-   - Use stored repository path when resuming
+   - Use stored repository path from threads table when resuming
+   - Ensures sessions always resume in the same repository
+   - No need for repository selection on resume
 
 ### Phase 4: UI Polish
 
@@ -124,7 +137,6 @@ repositories:
 - Multi-worktree support within repositories
 - Dynamic repository discovery
 - Repository-specific settings
-- Quick switch between repositories in thread
 
 ## Technical Notes
 
