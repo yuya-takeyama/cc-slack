@@ -285,7 +285,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 			slack.NewSectionBlock(
 				slack.NewTextBlockObject(
 					slack.MarkdownType,
-					fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt (optional)", h.config.Slack.SlashCommandName),
+					fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt", h.config.Slack.SlashCommandName),
 					false,
 					false,
 				),
@@ -1092,7 +1092,7 @@ func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string
 							slack.NewTextBlockObject(slack.PlainTextType, "What would you like to work on? You can use **bold**, `code`, lists, etc.", false, false),
 							"prompt_input",
 						),
-					).WithOptional(true),
+					),
 				},
 			},
 		}

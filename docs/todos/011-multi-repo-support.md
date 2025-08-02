@@ -300,8 +300,7 @@ func handleSlashCC(w http.ResponseWriter, r *http.Request) {
           "type": "plain_text",
           "text": "What would you like to work on? You can use **bold**, `code`, lists, etc."
         }
-      },
-      "optional": true
+      }
     }
   ]
 }

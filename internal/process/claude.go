@@ -116,7 +116,7 @@ type Options struct {
 	// Must follow pattern: mcp__<serverName>__<toolName>
 	ResumeSessionID string // Session ID to resume from (optional)
 	ExecutablePath  string // Path to Claude executable (default: claude)
-	InitialPrompt   string // Initial prompt to send after process starts (optional)
+	InitialPrompt   string // Initial prompt to send after process starts
 	Handlers        MessageHandlers
 }
 
