@@ -356,7 +356,7 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	if resumed {
 		initialMessage = fmt.Sprintf("Resuming previous session `%s`...", previousSessionID)
 	} else {
-		initialMessage = "Starting Claude Code session..."
+		initialMessage = "🚀 Starting Claude Code session..."
 	}
 
 	_, _, err = h.client.PostMessage(

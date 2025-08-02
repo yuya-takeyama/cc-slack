@@ -58,7 +58,12 @@ go build -o cc-slack cmd/cc-slack/main.go
    Note: Only subscribe to the message events for the channel types you actually plan to use. For example, if you only use cc-slack in public channels, you only need `message.channels`.
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
-5. Install the app to your workspace
+5. Create Slash Command:
+   - Command: `/claude` (or your preferred name)
+   - Request URL: `https://your-domain/slack/commands`
+   - Short Description: Start a Claude Code session
+   - Usage Hint: [prompt]
+6. Install the app to your workspace
 
 ### Exposing Local Development to Slack
 
@@ -86,19 +91,63 @@ claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
 
 ## Usage
 
-1. Mention the bot in any channel:
-   ```
-   @cc-slack create a hello world script
+cc-slack supports two modes of operation:
+
+### Single Directory Mode (Quick Start)
+
+Perfect for trying out cc-slack or when working with a single project:
+
+```bash
+# Start cc-slack with a specific working directory
+./cc-slack -w /path/to/your/project
+
+# Or use the long form
+./cc-slack --working-dir /path/to/your/project
+```
+
+In this mode:
+- No configuration file needed
+- Claude sessions will use the specified directory
+- The `/claude` command shows only the prompt input (no directory selection)
+
+### Multi-Directory Mode (Full Features)
+
+For teams working with multiple projects:
+
+1. Configure directories in `config.yaml`:
+   ```yaml
+   working_directories:
+     - name: frontend
+       path: /Users/you/projects/web-app
+       description: React frontend application
+     
+     - name: backend
+       path: /Users/you/projects/api-server
+       description: Node.js API server
    ```
 
-2. Claude Code will start a new session in a thread
+2. Start cc-slack without the `-w` flag:
+   ```bash
+   ./cc-slack
+   ```
 
-3. Continue the conversation in the thread:
+3. Use the `/claude` slash command to start a session:
+   - A modal opens with directory selection
+   - Choose your working directory
+   - Enter your initial prompt
+   - Claude starts in the selected directory
+
+### Interacting with Claude
+
+Once a session is started (via either mode):
+
+1. The bot creates a new thread with your initial prompt
+2. Continue the conversation in the thread:
    ```
    add error handling please
    ```
-
-Note: Claude Code sessions use the current working directory where cc-slack is running.
+3. Claude has full access to the selected working directory
+4. Sessions automatically resume if you return within the resume window (default: 1 hour)
 
 ### Message Filtering
 

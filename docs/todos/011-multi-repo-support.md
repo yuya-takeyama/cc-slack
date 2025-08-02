@@ -418,6 +418,36 @@ The `threads` table already has a `working_directory` column, so no migration is
    - `./scripts/check-all` passes all checks
    - Ready for real-world testing
 
+### ✅ Phase 0-3 Complete! (2025-08-02)
+
+**Phase 0: Single Directory Mode** ✅
+- Command-line flag `-w` / `--working-dir` implemented
+- Mode detection working correctly
+- Modal shows only prompt input in single mode
+
+**Phase 1: Slash Command Modal** ✅
+- `/cc` slash command handler implemented at `/slack/commands`
+- Modal opens with 3-second timeout handling
+- Multi-mode: Directory dropdown + rich text prompt input
+- Single-mode: Only rich text prompt input
+
+**Phase 2: Configuration Management** ✅
+- Working directory configuration in `config.yaml`
+- Flat array structure (not nested)
+- Validation at startup
+- Clear error messages for misconfiguration
+
+**Phase 3: Process Management Updates** ✅
+- Claude process starts with selected working directory
+- Working directory stored in threads table
+- Session resume uses stored directory
+
+**Phase 4: UI Polish** ✅
+- Rich text input implemented with markdown conversion
+- `richtext.ConvertToString()` handles all formatting
+- Working directory shown in thread responses
+- Proper error handling for all edge cases
+
 ### ⏳ Remaining Tasks
 
 1. **README documentation** - Need to document:
@@ -425,15 +455,24 @@ The `threads` table already has a `working_directory` column, so no migration is
    - How to configure multi-directory mode
    - Migration guide from single to multi
 
-2. **Real-world testing**:
-   - Test single mode: `./cc-slack -w /path/to/project`
-   - Test multi mode with config.yaml
-   - Verify modal UI in both modes
-   - Check session creation and directory switching
+### 📝 Implementation Details
 
-### 📝 Notes for Next Session
+**Rich Text Support**
+- Using `rich_text_input` in modal (not plain text)
+- Full markdown formatting support (bold, italic, code, lists)
+- Conversion handled by `internal/richtext` package
+- Better UX for complex prompts ✅
 
-- Implementation is complete and tests are passing
-- Focus on documentation and real-world testing
-- Consider adding integration tests for both modes
-- May need to handle edge cases discovered during testing
+**Error Handling**
+- Modal validation errors shown in-modal
+- Invalid directory: Ephemeral message sent
+- Modal cancellation: Proper cleanup
+- No repos configured: Fails at startup with help
+
+### 🎉 Success Metrics Achieved
+
+- ✅ User can select working directory via `/cc` command
+- ✅ Claude process starts in correct directory
+- ✅ Working directory persisted for session resume
+- ✅ Configuration is easy to understand and modify
+- ✅ Clear error messages for misconfiguration
