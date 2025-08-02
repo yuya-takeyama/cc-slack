@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -14,12 +15,14 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Slack    SlackConfig    `mapstructure:"slack"`
-	Claude   ClaudeConfig   `mapstructure:"claude"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Session  SessionConfig  `mapstructure:"session"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
+	Server             ServerConfig             `mapstructure:"server"`
+	Slack              SlackConfig              `mapstructure:"slack"`
+	Claude             ClaudeConfig             `mapstructure:"claude"`
+	Database           DatabaseConfig           `mapstructure:"database"`
+	Session            SessionConfig            `mapstructure:"session"`
+	Logging            LoggingConfig            `mapstructure:"logging"`
+	WorkingDirectories []WorkingDirectoryConfig `mapstructure:"working_directories"`
+	SingleWorkingDir   string                   // Set from command-line flag, not from config file
 }
 
 // ServerConfig contains HTTP server settings
@@ -84,6 +87,13 @@ type MessageFilterConfig struct {
 	IncludePatterns []string `mapstructure:"include_patterns"`
 	ExcludePatterns []string `mapstructure:"exclude_patterns"`
 	RequireMention  bool     `mapstructure:"require_mention"`
+}
+
+// WorkingDirectoryConfig represents a single working directory configuration
+type WorkingDirectoryConfig struct {
+	Name        string `mapstructure:"name"`
+	Path        string `mapstructure:"path"`
+	Description string `mapstructure:"description"`
 }
 
 // Load loads configuration from file and environment variables
@@ -175,6 +185,9 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("slack.message_filter.require_mention", true)
 	v.SetDefault("slack.message_filter.include_patterns", []string{})
 	v.SetDefault("slack.message_filter.exclude_patterns", []string{})
+
+	// Working directories defaults
+	v.SetDefault("working_directories", []WorkingDirectoryConfig{})
 }
 
 // validate validates the configuration
@@ -201,6 +214,47 @@ func (c *Config) validate() error {
 	}
 	if c.Session.ResumeWindow <= 0 {
 		return fmt.Errorf("session.resume_window must be positive")
+	}
+
+	// In single working dir mode, no validation needed for WorkingDirectories
+	if c.SingleWorkingDir != "" {
+		return nil
+	}
+
+	// Validate working directories for multi-directory mode
+	if len(c.WorkingDirectories) == 0 {
+		return fmt.Errorf("at least one working directory must be configured in multi-directory mode")
+	}
+
+	// Validate each configured working directory
+	for i, wd := range c.WorkingDirectories {
+		if wd.Name == "" {
+			return fmt.Errorf("working_directories[%d].name is required", i)
+		}
+		if wd.Path == "" {
+			return fmt.Errorf("working_directories[%d].path is required", i)
+		}
+	}
+
+	return nil
+}
+
+// ValidateWorkingDirectories validates that working directories exist
+func (c *Config) ValidateWorkingDirectories() error {
+	// Single working dir mode
+	if c.SingleWorkingDir != "" {
+		if _, err := os.Stat(c.SingleWorkingDir); os.IsNotExist(err) {
+			return fmt.Errorf("single working directory does not exist: %s", c.SingleWorkingDir)
+		}
+		return nil
+	}
+
+	// Multi-directory mode
+	for _, wd := range c.WorkingDirectories {
+		if _, err := os.Stat(wd.Path); os.IsNotExist(err) {
+			// Log warning but don't fail
+			fmt.Printf("Warning: configured working directory '%s' does not exist: %s\n", wd.Name, wd.Path)
+		}
 	}
 
 	return nil

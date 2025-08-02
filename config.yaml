@@ -1,0 +1,20 @@
+# cc-slack Configuration
+# working_directories 以外は環境変数で設定してください
+
+# Working directories configuration
+working_directories:
+  - name: cc-slack
+    path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+    description: Claude Code Slack integration project
+  
+  - name: cchh
+    path: /Users/yuya/src/github.com/yuya-takeyama/cchh
+    description: CCHH project
+  
+  - name: claude-settings
+    path: /Users/yuya/.claude
+    description: Claude global settings directory
+  
+  - name: strict-s3-sync
+    path: /Users/yuya/src/github.com/yuya-takeyama/strict-s3-sync
+    description: Strict S3 sync utility

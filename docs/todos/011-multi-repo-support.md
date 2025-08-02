@@ -1,19 +1,36 @@
 ---
-title: Multi-repository support with simple UI
-status: draft
+title: Multi-repository support with simple UI and single directory mode
+status: in_progress
 ---
 
 # Multi-repository Support
 
 ## Overview
 
-Enable cc-slack to work with multiple working directories through a simple Slack modal interface. Users can select which working directory to work with when starting a Claude session.
+Enable cc-slack to work with multiple working directories through two modes:
+1. **Single Directory Mode** - Zero-config mode with command-line argument
+2. **Multi-Directory Mode** - Select from configured directories via Slack modal
+
+This allows users to easily try cc-slack with a single directory, then upgrade to multi-directory configuration if needed.
 
 ## Design Decisions
 
+### Two Modes of Operation
+
+**1. Single Directory Mode (Zero-config)**
+- Start cc-slack with command-line argument: `./cc-slack -w /path/to/project`
+- No configuration file needed
+- Modal shows only initial prompt input (no directory selection)
+- Perfect for trying cc-slack or single-project teams
+
+**2. Multi-Directory Mode (Configured)**
+- Configure multiple directories in `config.yaml`
+- Modal shows directory selection dropdown
+- Full feature set as originally designed
+
 ### Working Directory Selection Approach
 
-**Chosen: Modal UI with explicit selection**
+**For Multi-Directory Mode: Modal UI with explicit selection**
 - Use Slack's Block Kit to create a modal when user types `/cc` command
 - User explicitly selects working directory from dropdown
 - Initial prompt can be entered in the same modal
@@ -26,7 +43,7 @@ Enable cc-slack to work with multiple working directories through a simple Slack
 
 ### Working Directory Configuration
 
-**Store in configuration file (config.yaml only)**
+**For Multi-Directory Mode: Store in configuration file (config.yaml only)**
 ```yaml
 working_directories:
   - name: "cc-slack"
@@ -35,6 +52,13 @@ working_directories:
   - name: "my-project"
     path: "/Users/yuya/src/github.com/yuya-takeyama/my-project"
     description: "Another project"
+```
+
+**For Single Directory Mode: Command-line argument**
+```bash
+./cc-slack --working-dir /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+# or short form
+./cc-slack -w /Users/yuya/src/github.com/yuya-takeyama/cc-slack
 ```
 
 **Why not database?**
@@ -60,6 +84,25 @@ working_directories:
 - Once set, working directory is immutable for the thread's lifetime
 
 ## Implementation Plan
+
+### Phase 0: Single Directory Mode 🚀
+
+1. **Add command-line flag**
+   - Use `flag` package or `cobra`/`viper` integration
+   - `--working-dir` / `-w` flag to specify single directory
+   - Store in global config or context
+
+2. **Mode detection**
+   - If `-w` flag is provided → Single Directory Mode
+   - Otherwise → Multi-Directory Mode (use config.yaml)
+
+3. **Update modal logic**
+   - Single Directory Mode: Only show prompt input
+   - Multi-Directory Mode: Show directory selection + prompt input
+
+4. **Benefits**
+   - Zero configuration needed to try cc-slack
+   - Easy migration path: try single → configure multiple
 
 ### Phase 1: Slash Command Modal ✨
 
@@ -347,3 +390,51 @@ func convertRichTextToMarkdown(richTextData map[string]interface{}) string {
 
 ### Database Note
 The `threads` table already has a `working_directory` column, so no migration is needed! We just need to ensure it's populated when creating threads via the modal.
+
+## Implementation Progress
+
+### ✅ Completed (2025-08-02)
+
+1. **Fixed config format** - Changed from nested structure to flat array:
+   - Removed `WorkingDirectoriesConfig` with `Default` and `Configured` fields
+   - Changed to direct `[]WorkingDirectoryConfig` array
+   - Updated validation logic for both modes
+
+2. **Implemented single directory mode**:
+   - Added `-w` / `--working-dir` command-line flag
+   - Stores path in `Config.SingleWorkingDir` field
+   - Mode detection based on flag presence
+
+3. **Updated modal logic**:
+   - Single mode: Shows only prompt input (no directory selection)
+   - Multi mode: Shows directory dropdown + prompt input
+   - Added `handleSingleDirModalSubmission` for single mode
+
+4. **Fixed config tests**:
+   - Created `testdata/config.yaml` for tests
+   - Updated all test functions to use test config
+   - All tests passing
+
+5. **Tested implementation**:
+   - `./scripts/check-all` passes all checks
+   - Ready for real-world testing
+
+### ⏳ Remaining Tasks
+
+1. **README documentation** - Need to document:
+   - How to use single directory mode
+   - How to configure multi-directory mode
+   - Migration guide from single to multi
+
+2. **Real-world testing**:
+   - Test single mode: `./cc-slack -w /path/to/project`
+   - Test multi mode with config.yaml
+   - Verify modal UI in both modes
+   - Check session creation and directory switching
+
+### 📝 Notes for Next Session
+
+- Implementation is complete and tests are passing
+- Focus on documentation and real-world testing
+- Consider adding integration tests for both modes
+- May need to handle edge cases discovered during testing

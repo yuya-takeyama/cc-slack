@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -22,10 +23,27 @@ import (
 )
 
 func main() {
+	// Parse command-line flags
+	var workingDir string
+	flag.StringVar(&workingDir, "w", "", "Single working directory mode")
+	flag.StringVar(&workingDir, "working-dir", "", "Single working directory mode")
+	flag.Parse()
+
 	// Load configuration from environment variables and config file
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Set single working directory if provided
+	if workingDir != "" {
+		cfg.SingleWorkingDir = workingDir
+		log.Printf("Running in single directory mode: %s", workingDir)
+	}
+
+	// Validate working directories
+	if err := cfg.ValidateWorkingDirectories(); err != nil {
+		log.Fatalf("Invalid working directory configuration: %v", err)
 	}
 
 	// Open database connection
@@ -81,6 +99,7 @@ func main() {
 	// Slack endpoints
 	router.HandleFunc("/slack/events", slackHandler.HandleEvent).Methods(http.MethodPost)
 	router.HandleFunc("/slack/interactive", slackHandler.HandleInteraction).Methods(http.MethodPost)
+	router.HandleFunc("/slack/commands", slackHandler.HandleSlashCommand).Methods(http.MethodPost)
 
 	// MCP endpoints
 	router.PathPrefix("/mcp").HandlerFunc(mcpServer.Handle)
@@ -192,6 +211,17 @@ func main() {
 	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
 	log.Printf("Resume window: %v", cfg.Session.ResumeWindow)
 	log.Printf("Database path: %s", cfg.Database.Path)
+
+	// Log working directory mode
+	if cfg.SingleWorkingDir != "" {
+		log.Printf("Working directory mode: Single (%s)", cfg.SingleWorkingDir)
+	} else {
+		log.Printf("Working directory mode: Multi (%d configured)", len(cfg.WorkingDirectories))
+		for _, wd := range cfg.WorkingDirectories {
+			log.Printf("  - %s: %s", wd.Name, wd.Path)
+		}
+	}
+
 	if cfg.Slack.Assistant.Username != "" || cfg.Slack.Assistant.IconEmoji != "" || cfg.Slack.Assistant.IconURL != "" {
 		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
 			cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)

@@ -1,69 +1,74 @@
 # cc-slack Configuration Example
+# Copy this file to config.yaml and update with your values
 
-# Server settings
+# Server configuration
 server:
   port: 8080
-  base_url: "http://localhost:8080"
+  base_url: http://localhost:8080
 
-# Slack settings
+# Slack configuration
 slack:
-  # Required: Bot OAuth Token (xoxb-...)
-  bot_token: "xoxb-your-bot-token"
-  # Required: App-level token (xapp-...) - only if using Socket Mode
-  app_token: "xapp-your-app-token"
-  # Required: Signing secret for request verification
-  signing_secret: "your-signing-secret"
+  bot_token: xoxb-your-bot-token
+  signing_secret: your-signing-secret
+  # app_token: xapp-your-app-token  # Optional, for Socket Mode
   
-  # Assistant display settings
+  # Assistant display options (optional)
   assistant:
-    username: "Claude Code"
+    username: Claude Code
     icon_emoji: ":robot_face:"
-    # icon_url: "https://example.com/icon.png"  # Alternative to icon_emoji
+    # icon_url: https://example.com/icon.png
   
   # File upload settings
   file_upload:
     enabled: true
-    images_dir: "./tmp/uploaded_images"
+    images_dir: ./tmp/uploaded_images
   
-  # Message filter settings (new feature)
+  # Message filtering settings
   message_filter:
     enabled: true
-    # When true, only processes messages that mention the bot
     require_mention: true
-    # Optional: Only process messages that match these patterns (regex)
-    # include_patterns:
-    #   - "analyze"
-    #   - "help"
-    #   - "^!claude"
-    # Optional: Skip messages that match these patterns (regex)
-    # exclude_patterns:
-    #   - "^#"
-    #   - "ignore"
+    # include_patterns: []
+    # exclude_patterns: []
 
-# Claude settings
+# Claude configuration
 claude:
-  executable: "claude"
-  permission_prompt_tool: "mcp__cc-slack__approval_prompt"
-  # default_options:
-  #   - "--verbose"
+  executable: claude
+  # default_options: []
+  permission_prompt_tool: mcp__cc-slack__approval_prompt
 
-# Database settings
+# Database configuration
 database:
-  path: "./data/cc-slack.db"
-  migrations_path: "./migrations"
+  path: ./data/cc-slack.db
+  migrations_path: ./migrations
 
-# Session settings
+# Session configuration
 session:
-  timeout: "30m"
-  cleanup_interval: "5m"
-  resume_window: "1h"
+  timeout: 30m
+  cleanup_interval: 5m
+  resume_window: 1h
 
-# Logging settings
+# Logging configuration
 logging:
-  level: "info"
-  format: "json"
-  output: "./logs"
+  level: info
+  format: json
+  output: ./logs
 
-# Working directories settings (not shown in current config)
-# working_directories:
-#   default: "/tmp/claude-workspace"
+# Working directories configuration
+working_directories:
+  # Default directory if none is selected or configured
+  default: .
+  
+  # List of configured working directories
+  configured:
+    - name: cc-slack
+      path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+      description: Claude Code Slack integration
+    
+    - name: my-project
+      path: /Users/yuya/src/github.com/yuya-takeyama/my-project
+      description: My awesome project
+    
+    # Add more directories as needed
+    # - name: another-project
+    #   path: /path/to/another/project
+    #   description: Another project description
