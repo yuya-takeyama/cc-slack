@@ -266,6 +266,45 @@ func (h *Handler) handleThreadMessageEvent(event *slackevents.MessageEvent, text
 
 // handleNewSessionFromMessage creates a new session or resumes one for message events
 func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, text string, threadTS string) {
+	// Check if multi-directory mode and prevent mention-based start ONLY for new threads
+	// If it's an existing thread (event.ThreadTimeStamp != ""), allow session creation/resume
+	// as the working directory will be retrieved from the thread's previous session
+	if !h.config.IsSingleDirectoryMode() && event.ThreadTimeStamp == "" {
+		// Post error message with guidance
+		blocks := []slack.Block{
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(
+					slack.MarkdownType,
+					":warning: *Multiple working directories are configured*\n\nPlease use the shortcut to select a working directory before starting a session.",
+					false,
+					false,
+				),
+				nil,
+				nil,
+			),
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(
+					slack.MarkdownType,
+					fmt.Sprintf("*How to start a session:*\n1. Type `%s` or use the shortcut menu\n2. Select a working directory\n3. Enter your initial prompt (optional)", h.config.Slack.SlashCommandName),
+					false,
+					false,
+				),
+				nil,
+				nil,
+			),
+		}
+
+		_, _, err := h.client.PostMessage(
+			event.Channel,
+			slack.MsgOptionBlocks(blocks...),
+			slack.MsgOptionTS(threadTS),
+		)
+		if err != nil {
+			fmt.Printf("Failed to post error message: %v\n", err)
+		}
+		return
+	}
+
 	// Determine working directory
 	workDir := h.determineWorkDir(event.Channel)
 
@@ -437,8 +476,8 @@ func RemoveBotMentionFromText(text string, botUserID string) string {
 // determineWorkDir determines the working directory for a channel
 func (h *Handler) determineWorkDir(channelID string) string {
 	// In single directory mode, use that directory
-	if h.config.SingleWorkingDir != "" {
-		return h.config.SingleWorkingDir
+	if h.config.IsSingleDirectoryMode() {
+		return h.config.GetSingleWorkingDirectory()
 	}
 
 	// In multi-directory mode, this shouldn't be called (modal selection should be used)
@@ -1035,7 +1074,7 @@ func (h *Handler) HandleSlashCommand(w http.ResponseWriter, r *http.Request) {
 // openRepoModal opens the working directory selection modal
 func (h *Handler) openRepoModal(triggerID, channelID, userID, initialText string) {
 	// In single directory mode, show modal with only prompt input
-	if h.config.SingleWorkingDir != "" {
+	if h.config.IsSingleDirectoryMode() {
 		modal := slack.ModalViewRequest{
 			Type:            slack.VTModal,
 			CallbackID:      "repo_modal_single",
@@ -1219,7 +1258,7 @@ func (h *Handler) handleSingleDirModalSubmission(w http.ResponseWriter, payload 
 	}
 
 	// Use the configured single working directory
-	go h.createThreadAndStartSession(channelID, h.config.SingleWorkingDir, prompt, payload.User.ID)
+	go h.createThreadAndStartSession(channelID, h.config.GetSingleWorkingDirectory(), prompt, payload.User.ID)
 }
 
 // convertRichTextToString converts Slack rich text to plain string
@@ -1238,7 +1277,7 @@ func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID
 	// Add working directory info
 	if workDir != "" {
 		// In single directory mode, show only the directory name
-		if h.config.SingleWorkingDir != "" {
+		if h.config.IsSingleDirectoryMode() {
 			initialText.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", filepath.Base(workDir)))
 		} else {
 			// In multi directory mode, find the name from config
