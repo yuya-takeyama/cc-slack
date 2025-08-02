@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,11 +23,43 @@ import (
 	"github.com/yuya-takeyama/cc-slack/internal/web"
 )
 
+// stringSliceFlag implements flag.Value for string slice flags
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSliceFlag) Set(value string) error {
+	// Support both multiple calls and comma-separated values
+	if strings.Contains(value, ",") {
+		*s = append(*s, strings.Split(value, ",")...)
+	} else {
+		*s = append(*s, value)
+	}
+	return nil
+}
+
 func main() {
+	// Parse command-line flags
+	var workingDirs stringSliceFlag
+	flag.Var(&workingDirs, "working-dirs", "Working directories (can be specified multiple times)")
+	flag.Parse()
+
 	// Load configuration from environment variables and config file
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Set working directories from command-line if provided
+	if len(workingDirs) > 0 {
+		cfg.WorkingDirFlags = []string(workingDirs)
+	}
+
+	// Validate working directories
+	if err := cfg.ValidateWorkingDirectories(); err != nil {
+		log.Fatalf("Invalid working directory configuration: %v", err)
 	}
 
 	// Open database connection
@@ -81,6 +115,7 @@ func main() {
 	// Slack endpoints
 	router.HandleFunc("/slack/events", slackHandler.HandleEvent).Methods(http.MethodPost)
 	router.HandleFunc("/slack/interactive", slackHandler.HandleInteraction).Methods(http.MethodPost)
+	router.HandleFunc("/slack/commands", slackHandler.HandleSlashCommand).Methods(http.MethodPost)
 
 	// MCP endpoints
 	router.PathPrefix("/mcp").HandlerFunc(mcpServer.Handle)
@@ -192,6 +227,26 @@ func main() {
 	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
 	log.Printf("Resume window: %v", cfg.Session.ResumeWindow)
 	log.Printf("Database path: %s", cfg.Database.Path)
+
+	// Log working directory mode
+	if len(cfg.WorkingDirFlags) > 0 {
+		if len(cfg.WorkingDirFlags) == 1 {
+			log.Printf("Working directory mode: Single (from command-line: %s)", cfg.WorkingDirFlags[0])
+		} else {
+			log.Printf("Working directory mode: Multi (from command-line: %d directories)", len(cfg.WorkingDirFlags))
+			for i, dir := range cfg.WorkingDirFlags {
+				log.Printf("  - [%d]: %s", i+1, dir)
+			}
+		}
+	} else if len(cfg.WorkingDirs) > 0 {
+		log.Printf("Working directory mode: Multi (%d configured)", len(cfg.WorkingDirs))
+		for _, wd := range cfg.WorkingDirs {
+			log.Printf("  - %s: %s", wd.Name, wd.Path)
+		}
+	} else {
+		log.Printf("Working directory mode: None configured")
+	}
+
 	if cfg.Slack.Assistant.Username != "" || cfg.Slack.Assistant.IconEmoji != "" || cfg.Slack.Assistant.IconURL != "" {
 		log.Printf("Assistant display options: username=%s, icon_emoji=%s, icon_url=%s",
 			cfg.Slack.Assistant.Username, cfg.Slack.Assistant.IconEmoji, cfg.Slack.Assistant.IconURL)

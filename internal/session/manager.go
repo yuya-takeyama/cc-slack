@@ -72,6 +72,11 @@ func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDi
 		workDir = thread.WorkingDirectory
 	}
 
+	// In multi-directory mode, working directory must be specified
+	if !m.config.IsSingleDirectoryMode() && workDir == "" {
+		return false, "", fmt.Errorf("working directory not specified for multi-directory mode. Use %s command to select a directory and start a session", m.config.Slack.SlashCommandName)
+	}
+
 	// Check if should resume
 	shouldResume, previousSessionID, err := m.ShouldResume(ctx, channelID, threadTS)
 	if err != nil {
@@ -178,11 +183,17 @@ func (m *Manager) getOrCreateThread(ctx context.Context, channelID, threadTS, wo
 		return thread.ID, nil
 	}
 
+	// Convert working directory to absolute path
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get absolute path for working directory: %w", err)
+	}
+
 	// Create new thread
 	newThread, err := m.queries.CreateThread(ctx, db.CreateThreadParams{
 		ChannelID:        channelID,
 		ThreadTs:         threadTS,
-		WorkingDirectory: workDir,
+		WorkingDirectory: absWorkDir,
 	})
 	if err != nil {
 		return 0, err

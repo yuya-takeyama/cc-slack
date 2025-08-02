@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -14,12 +15,14 @@ const SLACK_WORKSPACE_SUBDOMAIN = "yuyat"
 
 // Config represents the complete configuration
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Slack    SlackConfig    `mapstructure:"slack"`
-	Claude   ClaudeConfig   `mapstructure:"claude"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Session  SessionConfig  `mapstructure:"session"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
+	Server          ServerConfig             `mapstructure:"server"`
+	Slack           SlackConfig              `mapstructure:"slack"`
+	Claude          ClaudeConfig             `mapstructure:"claude"`
+	Database        DatabaseConfig           `mapstructure:"database"`
+	Session         SessionConfig            `mapstructure:"session"`
+	Logging         LoggingConfig            `mapstructure:"logging"`
+	WorkingDirs     []WorkingDirectoryConfig `mapstructure:"working_dirs"`
+	WorkingDirFlags []string                 // Set from command-line flags, not from config file
 }
 
 // ServerConfig contains HTTP server settings
@@ -30,12 +33,13 @@ type ServerConfig struct {
 
 // SlackConfig contains Slack-related settings
 type SlackConfig struct {
-	BotToken      string              `mapstructure:"bot_token"`
-	AppToken      string              `mapstructure:"app_token"`
-	SigningSecret string              `mapstructure:"signing_secret"`
-	Assistant     AssistantConfig     `mapstructure:"assistant"`
-	FileUpload    FileUploadConfig    `mapstructure:"file_upload"`
-	MessageFilter MessageFilterConfig `mapstructure:"message_filter"`
+	BotToken         string              `mapstructure:"bot_token"`
+	AppToken         string              `mapstructure:"app_token"`
+	SigningSecret    string              `mapstructure:"signing_secret"`
+	SlashCommandName string              `mapstructure:"slash_command_name"`
+	Assistant        AssistantConfig     `mapstructure:"assistant"`
+	FileUpload       FileUploadConfig    `mapstructure:"file_upload"`
+	MessageFilter    MessageFilterConfig `mapstructure:"message_filter"`
 }
 
 // AssistantConfig contains assistant display settings
@@ -86,6 +90,13 @@ type MessageFilterConfig struct {
 	RequireMention  bool     `mapstructure:"require_mention"`
 }
 
+// WorkingDirectoryConfig represents a single working directory configuration
+type WorkingDirectoryConfig struct {
+	Name        string `mapstructure:"name"`
+	Path        string `mapstructure:"path"`
+	Description string `mapstructure:"description"`
+}
+
 // Load loads configuration from file and environment variables
 func Load() (*Config, error) {
 	v := viper.New()
@@ -104,6 +115,7 @@ func Load() (*Config, error) {
 	v.BindEnv("slack.bot_token")
 	v.BindEnv("slack.signing_secret")
 	v.BindEnv("slack.app_token")
+	v.BindEnv("slack.slash_command_name")
 	v.BindEnv("slack.assistant.username")
 	v.BindEnv("slack.assistant.icon_emoji")
 	v.BindEnv("slack.assistant.icon_url")
@@ -166,6 +178,9 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("logging.format", "json")
 	v.SetDefault("logging.output", "./logs")
 
+	// Slack defaults
+	v.SetDefault("slack.slash_command_name", "/cc")
+
 	// File upload defaults
 	v.SetDefault("slack.file_upload.enabled", true)
 	v.SetDefault("slack.file_upload.images_dir", "./tmp/uploaded_images")
@@ -175,6 +190,9 @@ func setDefaultsWithViper(v *viper.Viper) {
 	v.SetDefault("slack.message_filter.require_mention", true)
 	v.SetDefault("slack.message_filter.include_patterns", []string{})
 	v.SetDefault("slack.message_filter.exclude_patterns", []string{})
+
+	// Working directories defaults
+	v.SetDefault("working_dirs", []WorkingDirectoryConfig{})
 }
 
 // validate validates the configuration
@@ -203,5 +221,74 @@ func (c *Config) validate() error {
 		return fmt.Errorf("session.resume_window must be positive")
 	}
 
+	// If working directories are specified via command-line, no validation needed for WorkingDirs
+	if len(c.WorkingDirFlags) > 0 {
+		return nil
+	}
+
+	// Validate working directories for multi-directory mode
+	if len(c.WorkingDirs) == 0 {
+		return fmt.Errorf("at least one working directory must be configured in multi-directory mode")
+	}
+
+	// Validate each configured working directory
+	for i, wd := range c.WorkingDirs {
+		if wd.Name == "" {
+			return fmt.Errorf("working_dirs[%d].name is required", i)
+		}
+		if wd.Path == "" {
+			return fmt.Errorf("working_dirs[%d].path is required", i)
+		}
+	}
+
 	return nil
+}
+
+// ValidateWorkingDirectories validates that working directories exist
+func (c *Config) ValidateWorkingDirectories() error {
+	// Command-line flag mode
+	if len(c.WorkingDirFlags) > 0 {
+		for _, dir := range c.WorkingDirFlags {
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				return fmt.Errorf("working directory does not exist: %s", dir)
+			}
+		}
+		return nil
+	}
+
+	// Multi-directory mode
+	for _, wd := range c.WorkingDirs {
+		if _, err := os.Stat(wd.Path); os.IsNotExist(err) {
+			// Log warning but don't fail
+			fmt.Printf("Warning: configured working directory '%s' does not exist: %s\n", wd.Name, wd.Path)
+		}
+	}
+
+	return nil
+}
+
+// IsSingleDirectoryMode returns true if cc-slack is running in single directory mode
+// This is true when either:
+// - Exactly one working directory is provided via CLI flags
+// - Only one working directory is configured
+func (c *Config) IsSingleDirectoryMode() bool {
+	if len(c.WorkingDirFlags) == 1 {
+		return true
+	}
+	if len(c.WorkingDirFlags) == 0 && len(c.WorkingDirs) == 1 {
+		return true
+	}
+	return false
+}
+
+// GetSingleWorkingDirectory returns the working directory for single directory mode
+// Returns empty string if not in single directory mode
+func (c *Config) GetSingleWorkingDirectory() string {
+	if len(c.WorkingDirFlags) == 1 {
+		return c.WorkingDirFlags[0]
+	}
+	if len(c.WorkingDirFlags) == 0 && len(c.WorkingDirs) == 1 {
+		return c.WorkingDirs[0].Path
+	}
+	return ""
 }

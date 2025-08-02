@@ -1,69 +1,102 @@
 # cc-slack Configuration Example
+# Copy this file to config.yaml and update with your values
 
-# Server settings
+# Server configuration
 server:
+  # Port for the HTTP server
   port: 8080
-  base_url: "http://localhost:8080"
+  # Base URL for MCP connection (must be accessible by Claude Code)
+  base_url: http://localhost:8080
 
-# Slack settings
+# Slack configuration
 slack:
-  # Required: Bot OAuth Token (xoxb-...)
-  bot_token: "xoxb-your-bot-token"
-  # Required: App-level token (xapp-...) - only if using Socket Mode
-  app_token: "xapp-your-app-token"
-  # Required: Signing secret for request verification
-  signing_secret: "your-signing-secret"
+  # Bot user OAuth token (starts with xoxb-)
+  bot_token: xoxb-your-bot-token
+  # Signing secret for request verification
+  signing_secret: your-signing-secret
+  # App-level token for Socket Mode (optional, starts with xapp-)
+  # app_token: xapp-your-app-token
   
-  # Assistant display settings
+  # Slash command name to invoke Claude Code (default: /cc)
+  slash_command_name: /cc
+  
+  # Assistant display options (optional)
   assistant:
-    username: "Claude Code"
+    # Display name for Claude responses in Slack
+    username: Claude Code
+    # Emoji icon for Claude responses (takes precedence over icon_url)
     icon_emoji: ":robot_face:"
-    # icon_url: "https://example.com/icon.png"  # Alternative to icon_emoji
+    # URL to an image for Claude responses (used if icon_emoji is not set)
+    # icon_url: https://example.com/icon.png
   
   # File upload settings
   file_upload:
+    # Enable file upload feature
     enabled: true
-    images_dir: "./tmp/uploaded_images"
+    # Directory to store uploaded images
+    images_dir: ./tmp/uploaded_images
   
-  # Message filter settings (new feature)
+  # Message filtering settings
   message_filter:
+    # Enable message filtering
     enabled: true
-    # When true, only processes messages that mention the bot
+    # Only respond to messages that mention the bot
     require_mention: true
-    # Optional: Only process messages that match these patterns (regex)
-    # include_patterns:
-    #   - "analyze"
-    #   - "help"
-    #   - "^!claude"
-    # Optional: Skip messages that match these patterns (regex)
-    # exclude_patterns:
-    #   - "^#"
-    #   - "ignore"
+    # Patterns to include (regex, empty means include all)
+    # include_patterns: []
+    # Patterns to exclude (regex)
+    # exclude_patterns: []
 
-# Claude settings
+# Claude configuration
 claude:
-  executable: "claude"
-  permission_prompt_tool: "mcp__cc-slack__approval_prompt"
-  # default_options:
-  #   - "--verbose"
+  # Path to Claude CLI executable
+  executable: claude
+  # Default options to pass to Claude CLI
+  # default_options: []
+  # Tool name for permission prompts
+  permission_prompt_tool: mcp__cc-slack__approval_prompt
 
-# Database settings
+# Database configuration
 database:
-  path: "./data/cc-slack.db"
-  migrations_path: "./migrations"
+  # Path to SQLite database file
+  path: ./data/cc-slack.db
+  # Path to database migrations directory
+  migrations_path: ./migrations
 
-# Session settings
+# Session configuration
 session:
-  timeout: "30m"
-  cleanup_interval: "5m"
-  resume_window: "1h"
+  # Session timeout (duration string, e.g., 30m, 1h, 2h30m)
+  timeout: 30m
+  # Interval for cleaning up expired sessions
+  cleanup_interval: 5m
+  # Window for resuming previous sessions (must be longer than timeout)
+  resume_window: 1h
 
-# Logging settings
+# Logging configuration
 logging:
-  level: "info"
-  format: "json"
-  output: "./logs"
+  # Log level (debug, info, warn, error)
+  level: info
+  # Log format (json or text)
+  format: json
+  # Directory for log files
+  output: ./logs
 
-# Working directories settings (not shown in current config)
-# working_directories:
-#   default: "/tmp/claude-workspace"
+# Working directories configuration (array of directory configs)
+# Each directory can be selected in Slack threads or web UI
+working_dirs:
+  # First directory configuration
+  - name: cc-slack
+    # Absolute path to the working directory
+    path: /Users/yuya/src/github.com/yuya-takeyama/cc-slack
+    # Human-readable description
+    description: Claude Code Slack integration
+  
+  # Second directory configuration
+  - name: my-project
+    path: /Users/yuya/src/github.com/yuya-takeyama/my-project
+    description: My awesome project
+  
+  # Add more directories as needed
+  # - name: another-project
+  #   path: /path/to/another/project
+  #   description: Another project description

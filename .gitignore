@@ -48,6 +48,9 @@ logs/
 # Database files
 data/
 
+# Configuration files (keep example only)
+config.yaml
+
 # Frontend
 web/node_modules/
 web/dist/

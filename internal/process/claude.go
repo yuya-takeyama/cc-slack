@@ -116,7 +116,7 @@ type Options struct {
 	// Must follow pattern: mcp__<serverName>__<toolName>
 	ResumeSessionID string // Session ID to resume from (optional)
 	ExecutablePath  string // Path to Claude executable (default: claude)
-	InitialPrompt   string // Initial prompt to send after process starts (optional)
+	InitialPrompt   string // Initial prompt to send after process starts
 	Handlers        MessageHandlers
 }
 
@@ -132,6 +132,11 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	// Set default executable path if not specified
 	if opts.ExecutablePath == "" {
 		opts.ExecutablePath = "claude"
+	}
+
+	// Validate working directory
+	if opts.WorkDir == "" {
+		return nil, fmt.Errorf("working directory must be specified")
 	}
 
 	// Create logs directory
@@ -187,7 +192,7 @@ func NewClaudeProcess(ctx context.Context, opts Options) (*ClaudeProcess, error)
 	}
 
 	cmd := exec.CommandContext(ctx, opts.ExecutablePath, args...)
-	cmd.Dir = opts.WorkDir
+	cmd.Dir = opts.WorkDir // Set working directory
 
 	// Set up pipes
 	stdin, err := cmd.StdinPipe()

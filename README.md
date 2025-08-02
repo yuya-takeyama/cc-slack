@@ -5,34 +5,14 @@ Interact with Claude Code via Slack
 ## Prerequisites
 
 - Go 1.24.4+
-- Claude Code CLI
-- Slack Bot Token and Signing Secret
+- Claude Code CLI installed
+- Slack workspace where you can create apps
 
 ## Setup
 
-### Environment Variables
+### 1. Create Slack App
 
-```bash
-# Required
-export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
-export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
-
-# Optional
-export CC_SLACK_PORT=8080                              # default: 8080
-export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
-```
-
-### Build and Run
-
-```bash
-# Build
-go build -o cc-slack cmd/cc-slack/main.go
-
-# Run
-./cc-slack
-```
-
-### Slack App Configuration
+> **Note**: For local development, you'll need to expose your local server to Slack. See [Exposing Local Development](#exposing-local-development-to-slack) section below.
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
@@ -58,47 +38,115 @@ go build -o cc-slack cmd/cc-slack/main.go
    Note: Only subscribe to the message events for the channel types you actually plan to use. For example, if you only use cc-slack in public channels, you only need `message.channels`.
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
-5. Install the app to your workspace
+5. Create Slash Command:
+   - Command: `/cc` (recommended) or your preferred name
+   - Request URL: `https://your-domain/slack/commands`
+   - Short Description: Start a Claude Code session
+   - Usage Hint: [prompt]
+6. Install the app to your workspace and note down:
+   - Bot User OAuth Token (starts with `xoxb-`)
+   - Signing Secret (found in Basic Information)
+
+### 2. Configure Environment Variables
+
+Set the required environment variables with the values from your Slack App:
+
+```bash
+# Required
+export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
+export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
+
+# Optional
+export CC_SLACK_PORT=8080                              # default: 8080
+export CC_SLACK_BASE_URL=http://localhost:8080         # default: http://localhost:8080
+export CC_SLACK_SLACK_SLASH_COMMAND_NAME=/cc          # default: /cc
+```
+
+### 3. Build and Run
+
+```bash
+# Build
+go build -o cc-slack cmd/cc-slack/main.go
+
+# Run (make sure environment variables are set)
+./cc-slack
+```
 
 ### Exposing Local Development to Slack
 
-Since Slack requires HTTPS endpoints for webhooks, you need to expose your local cc-slack instance.
+For local development, Slack requires HTTPS endpoints for webhooks. You need to expose your local cc-slack instance:
 
-#### ngrok
+#### Using ngrok
 
 ```bash
+# In another terminal, expose your local server
 ngrok http 8080
 ```
 
-Use the provided HTTPS URL for Slack configuration.
-
-### Claude Code Configuration
-
-cc-slack runs an MCP server for approval prompts. Configure Claude Code to connect:
-
-```bash
-# Add the MCP server
-claude mcp add --transport http cc-slack http://localhost:8080/mcp
-
-# Or with custom base URL
-claude mcp add --transport http cc-slack ${CC_SLACK_BASE_URL}/mcp
-```
+Use the provided HTTPS URL (e.g., `https://abc123.ngrok.io`) for all Slack webhook URLs in your app configuration.
 
 ## Usage
 
-1. Mention the bot in any channel:
-   ```
-   @cc-slack create a hello world script
+cc-slack supports two modes of operation:
+
+### Single Directory Mode (Quick Start)
+
+Perfect for trying out cc-slack or when working with a single project:
+
+```bash
+# Start cc-slack with a specific working directory
+./cc-slack --working-dirs /path/to/your/project
+
+# Or with multiple directories (comma-separated)
+./cc-slack --working-dirs /path/to/project1,/path/to/project2
+
+# Or specify multiple times
+./cc-slack --working-dirs /path/to/project1 --working-dirs /path/to/project2
+```
+
+In this mode:
+- No configuration file needed
+- Claude sessions will use the specified directory
+- The `/cc` command shows only the prompt input (no directory selection)
+
+### Multi-Directory Mode (Full Features)
+
+For teams working with multiple projects:
+
+1. Configure directories in `config.yaml`:
+   ```yaml
+   working_dirs:
+     - name: frontend
+       path: /Users/you/projects/web-app
+       description: React frontend application
+     
+     - name: backend
+       path: /Users/you/projects/api-server
+       description: Node.js API server
    ```
 
-2. Claude Code will start a new session in a thread
+2. Start cc-slack without the `--working-dirs` flag:
+   ```bash
+   ./cc-slack
+   ```
 
-3. Continue the conversation in the thread:
+3. Use the `/cc` slash command to start a session:
+   - A modal opens with directory selection
+   - Choose your working directory
+   - Enter your initial prompt
+   - Claude starts in the selected directory
+
+### Interacting with Claude
+
+Once a session is started (via either mode):
+
+1. The bot creates a new thread with your initial prompt
+2. Continue the conversation in the thread:
    ```
    add error handling please
    ```
-
-Note: Claude Code sessions use the current working directory where cc-slack is running.
+3. Claude has access to the selected working directory (as permitted by Claude Code configuration)
+4. Sessions automatically resume if you return within the resume window (default: 1 hour)
 
 ### Message Filtering
 
