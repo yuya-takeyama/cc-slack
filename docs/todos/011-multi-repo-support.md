@@ -70,7 +70,7 @@ working_directories:
 
 2. **Modal components**
    - Working directory dropdown (select_menu)
-   - Initial prompt input (plain_text_input)
+   - Initial prompt input (rich_text_input - allows formatting, code blocks, lists)
    - Submit/Cancel buttons
 
 3. **Modal submission handler**
@@ -251,12 +251,11 @@ func handleSlashCC(w http.ResponseWriter, r *http.Request) {
         "text": "Initial prompt"
       },
       "element": {
-        "type": "plain_text_input",
+        "type": "rich_text_input",
         "action_id": "prompt_input",
-        "multiline": true,
         "placeholder": {
           "type": "plain_text",
-          "text": "What would you like to work on?"
+          "text": "What would you like to work on? You can use **bold**, `code`, lists, etc."
         }
       },
       "optional": true
@@ -272,7 +271,20 @@ func handleViewSubmission(callback slack.InteractionCallback) error {
     
     // Extract values
     repoPath := values["repo_block"]["repo_select"].SelectedOption.Value
-    prompt := values["prompt_block"]["prompt_input"].Value
+    
+    // Rich text input handling - need to extract from raw JSON
+    // Note: slack-go may not have direct support yet
+    promptBlock := values["prompt_block"]["prompt_input"]
+    var prompt string
+    
+    // Check if RichTextValue exists (may need type assertion)
+    if richTextData, ok := promptBlock.Value.(map[string]interface{}); ok {
+        // Parse the rich_text JSON structure
+        prompt = convertRichTextToMarkdown(richTextData)
+    } else {
+        // Fallback or error handling
+        prompt = ""
+    }
     
     // Validation
     if repoPath == "" {
@@ -287,7 +299,51 @@ func handleViewSubmission(callback slack.InteractionCallback) error {
     
     return nil
 }
+
+// convertRichTextToMarkdown converts Slack rich_text to Markdown
+// Preserves formatting: **bold**, *italic*, `code`, lists, links
+func convertRichTextToMarkdown(richTextData map[string]interface{}) string {
+    // Parse rich_text JSON structure and convert:
+    // - text with style.bold → **text**
+    // - text with style.italic → *text*
+    // - text with style.code → `text`
+    // - link elements → [text](url)
+    // - list elements → - item or 1. item
+    // This provides best UX: rich input → markdown for Claude
+}
 ```
+
+### Implementation Notes for Rich Text Input
+
+1. **slack-go/slack library support**
+   - May not have direct RichTextValue field yet
+   - Need to investigate actual JSON structure in view.State.Values
+   - May require custom unmarshaling or type assertions
+
+2. **Rich Text JSON Structure** (from ChatGPT research)
+   ```json
+   {
+     "type": "rich_text",
+     "elements": [
+       {
+         "type": "rich_text_section",
+         "elements": [
+           {"type": "text", "text": "Hello "},
+           {"type": "text", "text": "world", "style": {"bold": true}}
+         ]
+       }
+     ]
+   }
+   ```
+
+3. **Benefits of rich_text_input**
+   - Better UX for complex prompts
+   - Support for code blocks, lists, emphasis
+   - Familiar Slack editing experience
+
+4. **Fallback strategy**
+   - If implementation proves complex, can start with plain_text_input
+   - Upgrade to rich_text_input in later iteration
 
 ### Database Note
 The `threads` table already has a `working_directory` column, so no migration is needed! We just need to ensure it's populated when creating threads via the modal.
