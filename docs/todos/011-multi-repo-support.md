@@ -161,25 +161,73 @@ repositories:
 
 ## Technical Notes
 
-### Slack Block Kit Modal Example
+### Critical Implementation Points (from ChatGPT research)
+
+1. **3-Second Rule for Slash Commands**
+   - Must respond within 3 seconds or Slack will timeout
+   - Solution: Return 200 OK immediately, open modal asynchronously
+   ```go
+   go openRepoModal(slackClient, cmd.TriggerID, repoConfigs)
+   w.WriteHeader(http.StatusOK)
+   ```
+
+2. **Block ID vs Action ID**
+   - Error responses use `block_id` (NOT `action_id`)
+   - Keep consistent naming: `repo_block`/`repo_select`, `prompt_block`/`prompt_input`
+
+3. **View Submission Response**
+   - Must return JSON with `response_action`
+   - Options: `"errors"` (keep modal open) or `"clear"` (close modal)
+   - Heavy processing should be done asynchronously after responding
+
+4. **Endpoint Structure**
+   - `/slack/commands` - New endpoint for slash commands
+   - `/slack/interactive` - Existing endpoint for modal interactions
+   - Share signing secret verification logic
+
+### Slash Command Handler Flow
+```go
+func handleSlashCC(w http.ResponseWriter, r *http.Request) {
+    // 1. Verify signature
+    // 2. Parse slash command
+    cmd, _ := slack.SlashCommandParse(r)
+    
+    // 3. Open modal asynchronously
+    go openRepoModal(api, cmd.TriggerID, repos)
+    
+    // 4. Return 200 immediately
+    w.WriteHeader(http.StatusOK)
+}
+```
+
+### Slack Block Kit Modal Example (Updated)
 ```json
 {
   "type": "modal",
+  "callback_id": "repo_modal",
   "title": {
     "type": "plain_text",
     "text": "Start Claude Session"
   },
+  "submit": {
+    "type": "plain_text",
+    "text": "Start"
+  },
+  "close": {
+    "type": "plain_text",
+    "text": "Cancel"
+  },
   "blocks": [
     {
-      "type": "section",
-      "block_id": "repository_select",
-      "text": {
-        "type": "mrkdwn",
-        "text": "Select a repository to work with:"
+      "type": "input",
+      "block_id": "repo_block",
+      "label": {
+        "type": "plain_text",
+        "text": "Select repository"
       },
-      "accessory": {
+      "element": {
         "type": "static_select",
-        "action_id": "repository",
+        "action_id": "repo_select",
         "placeholder": {
           "type": "plain_text",
           "text": "Choose repository"
@@ -197,19 +245,47 @@ repositories:
     },
     {
       "type": "input",
-      "block_id": "initial_prompt",
+      "block_id": "prompt_block",
       "label": {
         "type": "plain_text",
-        "text": "Initial prompt (optional)"
+        "text": "Initial prompt"
       },
       "element": {
         "type": "plain_text_input",
-        "action_id": "prompt",
-        "multiline": true
+        "action_id": "prompt_input",
+        "multiline": true,
+        "placeholder": {
+          "type": "plain_text",
+          "text": "What would you like to work on?"
+        }
       },
       "optional": true
     }
   ]
+}
+```
+
+### View Submission Handler Example
+```go
+func handleViewSubmission(callback slack.InteractionCallback) error {
+    values := callback.View.State.Values
+    
+    // Extract values
+    repoPath := values["repo_block"]["repo_select"].SelectedOption.Value
+    prompt := values["prompt_block"]["prompt_input"].Value
+    
+    // Validation
+    if repoPath == "" {
+        return respondWithErrors(map[string]string{
+            "repo_block": "Please select a repository",
+        })
+    }
+    
+    // Success - close modal and create thread
+    respondWithClear()
+    go createThreadAndStartSession(repoPath, prompt, callback.User.ID)
+    
+    return nil
 }
 ```
 
