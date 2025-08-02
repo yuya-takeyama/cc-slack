@@ -1,6 +1,8 @@
 package slack
 
 import (
+	"fmt"
+
 	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/slack/blocks"
 	"github.com/yuya-takeyama/cc-slack/internal/tools"
@@ -90,7 +92,11 @@ func (h *Handler) PostToolRichTextMessage(channelID, threadTS string, elements [
 }
 
 // PostApprovalRequest posts an approval request with buttons using markdown
-func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID string) error {
+func (h *Handler) PostApprovalRequest(channelID, threadTS, message, requestID, userID string) error {
+	// Add user mention at the beginning of the message if userID is provided
+	if userID != "" {
+		message = fmt.Sprintf("<@%s> %s", userID, message)
+	}
 	options := blocks.ApprovalRequestOptions(channelID, threadTS, message, requestID)
 	_, _, err := h.client.PostMessage(channelID, options...)
 	return err
