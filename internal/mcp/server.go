@@ -17,12 +17,12 @@ import (
 
 // SlackPoster interface for posting to Slack
 type SlackPoster interface {
-	PostApprovalRequest(channelID, threadTS, message, requestID string) error
+	PostApprovalRequest(channelID, threadTS, message, requestID, userID string) error
 }
 
 // SessionLookup interface for finding session information
 type SessionLookup interface {
-	GetSessionInfo(sessionID string) (channelID, threadTS string, exists bool)
+	GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool)
 }
 
 // Server wraps the MCP server and HTTP handler
@@ -185,7 +185,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 		sessionID := ""
 
 		// Get Slack channel and thread information
-		channelID, threadTS, exists := s.sessionLookup.GetSessionInfo(sessionID)
+		channelID, threadTS, userID, exists := s.sessionLookup.GetSessionInfo(sessionID)
 		if exists {
 			// Build approval message based on tool name and input
 			message := fmt.Sprintf("🔐 **Tool execution permission required**\n\n**Tool**: %s", params.Arguments.ToolName)
@@ -216,7 +216,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				}
 			}
 
-			err := s.slackPoster.PostApprovalRequest(channelID, threadTS, message, requestID)
+			err := s.slackPoster.PostApprovalRequest(channelID, threadTS, message, requestID, userID)
 			if err != nil {
 				// Log error but continue with timeout fallback
 				s.logger.Error().

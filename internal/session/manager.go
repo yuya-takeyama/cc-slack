@@ -35,12 +35,13 @@ type Manager struct {
 
 // Session represents an active Claude session
 type Session struct {
-	ID         string
-	Process    *process.ClaudeProcess
-	ChannelID  string
-	ThreadTS   string
-	WorkDir    string
-	LastActive time.Time
+	ID              string
+	Process         *process.ClaudeProcess
+	ChannelID       string
+	ThreadTS        string
+	WorkDir         string
+	LastActive      time.Time
+	InitiatorUserID string
 }
 
 // NewManager creates a new session manager
@@ -61,7 +62,7 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 
 // CreateSession creates a new session or resumes an existing one
 // Returns: resumed, previousSessionID, error
-func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error) {
+func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt, userID string) (bool, string, error) {
 	// Check if thread exists and get working directory
 	thread, err := m.queries.GetThread(ctx, db.GetThreadParams{
 		ChannelID: channelID,
@@ -93,12 +94,12 @@ func (m *Manager) CreateSession(ctx context.Context, channelID, threadTS, workDi
 		return false, "", fmt.Errorf("already has an active session for this thread")
 	}
 
-	resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, initialPrompt, shouldResume, previousSessionID)
+	resumed, err := m.createSessionInternal(ctx, channelID, threadTS, workDir, initialPrompt, userID, shouldResume, previousSessionID)
 	return resumed, previousSessionID, err
 }
 
 // createSessionInternal handles the actual session creation
-func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir, initialPrompt string, shouldResume bool, previousSessionID string) (bool, error) {
+func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS, workDir, initialPrompt, userID string, shouldResume bool, previousSessionID string) (bool, error) {
 	// Get or create thread ID
 	threadID, err := m.getOrCreateThread(ctx, channelID, threadTS, workDir)
 	if err != nil {
@@ -153,12 +154,13 @@ func (m *Manager) createSessionInternal(ctx context.Context, channelID, threadTS
 
 	// Create session object
 	session := &Session{
-		ID:         tempSessionID,
-		Process:    claudeProcess,
-		ChannelID:  channelID,
-		ThreadTS:   threadTS,
-		WorkDir:    workDir,
-		LastActive: time.Now(),
+		ID:              tempSessionID,
+		Process:         claudeProcess,
+		ChannelID:       channelID,
+		ThreadTS:        threadTS,
+		WorkDir:         workDir,
+		LastActive:      time.Now(),
+		InitiatorUserID: userID,
 	}
 
 	// Store session
@@ -542,10 +544,15 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 			}
 		}
 
-		// Clean up session
+		// Get session info before cleanup
 		m.mu.Lock()
 		key := formatThreadKey(channelID, threadTS)
 		sessionID := m.threadToSession[key]
+		session, _ := m.sessions[sessionID]
+		var userID string
+		if session != nil {
+			userID = session.InitiatorUserID
+		}
 		delete(m.sessions, sessionID)
 		delete(m.threadToSession, key)
 		m.mu.Unlock()
@@ -573,6 +580,11 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 			// Convert milliseconds to time.Duration
 			duration := time.Duration(msg.DurationMS) * time.Millisecond
 			text = messages.FormatSessionCompleteMessage(actualSessionID, duration, msg.NumTurns, msg.TotalCostUSD, msg.Usage.InputTokens, msg.Usage.OutputTokens)
+		}
+
+		// Add user mention if userID is available
+		if userID != "" {
+			text = fmt.Sprintf("<@%s> %s", userID, text)
 		}
 
 		return m.slackHandler.PostToThread(channelID, threadTS, text)
@@ -778,7 +790,7 @@ func (m *Manager) GetSessionByThreadInternal(channelID, threadTS string) (*Sessi
 }
 
 // GetSessionInfo implements mcp.SessionLookup interface
-func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, exists bool) {
+func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -789,10 +801,10 @@ func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS string, 
 
 	session, exists := m.sessions[sessionID]
 	if !exists {
-		return "", "", false
+		return "", "", "", false
 	}
 
-	return session.ChannelID, session.ThreadTS, true
+	return session.ChannelID, session.ThreadTS, session.InitiatorUserID, true
 }
 
 // Cleanup closes all active sessions

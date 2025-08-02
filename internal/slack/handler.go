@@ -61,7 +61,7 @@ type Handler struct {
 // SessionManager interface for managing Claude Code sessions
 type SessionManager interface {
 	GetSessionByThread(channelID, threadTS string) (*Session, error)
-	CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt string) (bool, string, error)
+	CreateSession(ctx context.Context, channelID, threadTS, workDir, initialPrompt, userID string) (bool, string, error)
 	SendMessage(sessionID, message string) error
 }
 
@@ -188,7 +188,7 @@ func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID
 
 	// Create session with the selected working directory
 	ctx := context.Background()
-	resumed, previousSessionID, err := h.sessionMgr.CreateSession(ctx, channelID, threadTS, workDir, prompt)
+	resumed, previousSessionID, err := h.sessionMgr.CreateSession(ctx, channelID, threadTS, workDir, prompt, userID)
 	if err != nil {
 		h.client.PostMessage(
 			channelID,
