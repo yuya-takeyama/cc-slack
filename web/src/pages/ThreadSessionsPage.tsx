@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatDateTime } from "../utils/dateFormatter";
-import { getSessionStatusColor, truncatePrompt, truncateSessionId } from "../utils/sessionUtils";
+import {
+  getSessionStatusColor,
+  truncatePrompt,
+  truncateSessionId,
+} from "../utils/sessionUtils";
 import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 interface Thread {
