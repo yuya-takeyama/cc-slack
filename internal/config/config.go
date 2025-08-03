@@ -66,7 +66,6 @@ type DatabaseConfig struct {
 type SessionConfig struct {
 	Timeout         time.Duration `mapstructure:"timeout"`
 	CleanupInterval time.Duration `mapstructure:"cleanup_interval"`
-	ResumeWindow    time.Duration `mapstructure:"resume_window"`
 }
 
 // LoggingConfig contains logging settings
@@ -127,7 +126,6 @@ func Load() (*Config, error) {
 	v.BindEnv("database.migrations_path")
 	v.BindEnv("session.timeout")
 	v.BindEnv("session.cleanup_interval")
-	v.BindEnv("session.resume_window")
 
 	// Set defaults with the new viper instance
 	setDefaultsWithViper(v)
@@ -171,7 +169,6 @@ func setDefaultsWithViper(v *viper.Viper) {
 	// Session defaults
 	v.SetDefault("session.timeout", "30m")
 	v.SetDefault("session.cleanup_interval", "5m")
-	v.SetDefault("session.resume_window", "1h")
 
 	// Logging defaults
 	v.SetDefault("logging.level", "info")
@@ -216,9 +213,6 @@ func (c *Config) validate() error {
 	}
 	if c.Session.CleanupInterval <= 0 {
 		return fmt.Errorf("session.cleanup_interval must be positive")
-	}
-	if c.Session.ResumeWindow <= 0 {
-		return fmt.Errorf("session.resume_window must be positive")
 	}
 
 	// If working directories are specified via command-line, no validation needed for WorkingDirs

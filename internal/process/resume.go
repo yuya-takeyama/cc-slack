@@ -4,22 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/yuya-takeyama/cc-slack/internal/db"
 )
 
 // ResumeManager manages session resume functionality
 type ResumeManager struct {
-	queries      *db.Queries
-	resumeWindow time.Duration
+	queries *db.Queries
 }
 
 // NewResumeManager creates a new ResumeManager
-func NewResumeManager(queries *db.Queries, resumeWindow time.Duration) *ResumeManager {
+func NewResumeManager(queries *db.Queries) *ResumeManager {
 	return &ResumeManager{
-		queries:      queries,
-		resumeWindow: resumeWindow,
+		queries: queries,
 	}
 }
 
@@ -62,17 +59,13 @@ func (rm *ResumeManager) ShouldResume(ctx context.Context, channelID, threadTS s
 		return false, "", fmt.Errorf("failed to get session details: %w", err)
 	}
 
-	// Check if session ended within resume window
+	// Check if session has ended (active sessions should not be resumed)
 	if !session.EndedAt.Valid {
 		return false, "", nil
 	}
 
-	timeSinceEnd := time.Since(session.EndedAt.Time)
-	if timeSinceEnd <= rm.resumeWindow {
-		return true, sessionID, nil
-	}
-
-	return false, "", nil
+	// Always resume if a previous session exists, regardless of time
+	return true, sessionID, nil
 }
 
 // CheckActiveSession checks if there's already an active session for the thread

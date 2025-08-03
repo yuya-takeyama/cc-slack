@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
@@ -37,7 +36,7 @@ func TestResumeManager_GetLatestSessionID(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -84,7 +83,7 @@ func TestResumeManager_GetLatestSessionID_NoThread(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Test with non-existent thread
 	_, err := rm.GetLatestSessionID(ctx, "C999999", "9999999999.999999")
@@ -98,7 +97,7 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, 30*time.Minute)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -129,7 +128,7 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 		t.Fatalf("failed to update session: %v", err)
 	}
 
-	// Should resume (within window)
+	// Should resume
 	shouldResume, sessionID, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -144,12 +143,12 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 	}
 }
 
-func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
+func TestResumeManager_ShouldResume_LongElapsedTime(t *testing.T) {
 	sqlDB, queries, cleanup := setupTestDB(t)
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, 30*time.Minute)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -180,14 +179,18 @@ func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
 		t.Fatalf("failed to update session: %v", err)
 	}
 
-	// Should not resume (outside window)
-	shouldResume, _, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
+	// Should always resume regardless of elapsed time
+	shouldResume, sessionID, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if shouldResume {
-		t.Error("expected shouldResume to be false")
+	if !shouldResume {
+		t.Error("expected shouldResume to be true regardless of elapsed time")
+	}
+
+	if sessionID != "test-session-old" {
+		t.Errorf("expected session ID %s, got %s", "test-session-old", sessionID)
 	}
 }
 
@@ -196,7 +199,7 @@ func TestResumeManager_CheckActiveSession(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{

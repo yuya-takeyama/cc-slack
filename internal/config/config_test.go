@@ -41,10 +41,6 @@ func TestConfigDefaults(t *testing.T) {
 		t.Errorf("expected default timeout 30m, got %v", cfg.Session.Timeout)
 	}
 
-	if cfg.Session.ResumeWindow != time.Hour {
-		t.Errorf("expected default resume window 1h, got %v", cfg.Session.ResumeWindow)
-	}
-
 	if cfg.Slack.SlashCommandName != "/cc" {
 		t.Errorf("expected default slash command name /cc, got %s", cfg.Slack.SlashCommandName)
 	}
@@ -61,7 +57,6 @@ func TestConfigEnvironment(t *testing.T) {
 	os.Setenv("CC_SLACK_SLACK_SIGNING_SECRET", "test-secret")
 	os.Setenv("CC_SLACK_SERVER_PORT", "9090")
 	os.Setenv("CC_SLACK_DATABASE_PATH", "/custom/path/db.sqlite")
-	os.Setenv("CC_SLACK_SESSION_RESUME_WINDOW", "2h")
 	os.Setenv("CC_SLACK_SLACK_SLASH_COMMAND_NAME", "/cc")
 
 	defer func() {
@@ -69,7 +64,6 @@ func TestConfigEnvironment(t *testing.T) {
 		os.Unsetenv("CC_SLACK_SLACK_SIGNING_SECRET")
 		os.Unsetenv("CC_SLACK_SERVER_PORT")
 		os.Unsetenv("CC_SLACK_DATABASE_PATH")
-		os.Unsetenv("CC_SLACK_SESSION_RESUME_WINDOW")
 		os.Unsetenv("CC_SLACK_SLACK_SLASH_COMMAND_NAME")
 	}()
 
@@ -86,10 +80,6 @@ func TestConfigEnvironment(t *testing.T) {
 
 	if cfg.Database.Path != "/custom/path/db.sqlite" {
 		t.Errorf("expected database path from env, got %s", cfg.Database.Path)
-	}
-
-	if cfg.Session.ResumeWindow != 2*time.Hour {
-		t.Errorf("expected resume window 2h from env, got %v", cfg.Session.ResumeWindow)
 	}
 
 	if cfg.Slack.SlashCommandName != "/cc" {

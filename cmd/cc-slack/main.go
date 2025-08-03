@@ -234,7 +234,6 @@ func main() {
 	log.Printf("Slack webhook endpoint: %s/slack/events", cfg.Server.BaseURL)
 	log.Printf("Session timeout: %v", cfg.Session.Timeout)
 	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
-	log.Printf("Resume window: %v", cfg.Session.ResumeWindow)
 	log.Printf("Database path: %s", cfg.Database.Path)
 
 	// Log working directory mode
