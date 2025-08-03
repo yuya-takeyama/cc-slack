@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { formatDateRange, formatDuration } from "../utils/dateFormatter";
 import {
   getSessionStatusColor,
@@ -80,7 +81,13 @@ function SessionList() {
                     ID: {truncateSessionId(session.session_id)}
                   </p>
                   <p className="text-sm text-gray-500">
-                    Thread: {session.thread_ts}
+                    Thread:{" "}
+                    <Link
+                      to={`/threads/${session.thread_ts}/sessions`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {session.thread_ts}
+                    </Link>
                   </p>
                   <p className="text-sm text-gray-500">
                     {formatDateRange(session.started_at, session.ended_at, {
