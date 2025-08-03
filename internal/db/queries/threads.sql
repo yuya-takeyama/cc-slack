@@ -29,3 +29,8 @@ ORDER BY updated_at DESC;
 SELECT * FROM threads
 WHERE thread_ts = ?
 LIMIT 1;
+
+-- name: ListThreadsPaginated :many
+SELECT * FROM threads
+ORDER BY updated_at DESC
+LIMIT ? OFFSET ?;

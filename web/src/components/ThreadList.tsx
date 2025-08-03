@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 interface Thread {
@@ -14,21 +14,28 @@ interface Thread {
 
 interface ThreadsResponse {
   threads: Thread[];
+  has_more: boolean;
+  page: number;
 }
 
 function ThreadList() {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
 
-  const fetchThreads = async () => {
+  const fetchThreads = async (page: number) => {
     try {
-      const response = await fetch("/api/threads");
+      setLoading(true);
+      const response = await fetch(`/api/threads?page=${page}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data: ThreadsResponse = await response.json();
       setThreads(data.threads || []);
+      setHasMore(data.has_more || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -36,10 +43,19 @@ function ThreadList() {
     }
   };
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchThreads should only run on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchThreads depends on currentPage
   useEffect(() => {
-    fetchThreads();
-  }, []);
+    fetchThreads(currentPage);
+  }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    if (page === 1) {
+      searchParams.delete("page");
+    } else {
+      searchParams.set("page", page.toString());
+    }
+    setSearchParams(searchParams);
+  };
 
   if (loading) {
     return (
@@ -57,9 +73,40 @@ function ThreadList() {
     );
   }
 
+  const PaginationControls = () => (
+    <div className="flex justify-between items-center py-3">
+      <button
+        type="button"
+        onClick={() => goToPage(currentPage - 1)}
+        disabled={currentPage === 1}
+        className={`px-4 py-2 text-sm font-medium rounded-md ${
+          currentPage === 1
+            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+            : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+        }`}
+      >
+        ← Previous
+      </button>
+      <span className="text-sm text-gray-700">Page {currentPage}</span>
+      <button
+        type="button"
+        onClick={() => goToPage(currentPage + 1)}
+        disabled={!hasMore}
+        className={`px-4 py-2 text-sm font-medium rounded-md ${
+          !hasMore
+            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+            : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
+        }`}
+      >
+        Next →
+      </button>
+    </div>
+  );
+
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Threads</h2>
+      {threads.length > 0 && <PaginationControls />}
       <div className="space-y-4">
         {threads.length === 0 ? (
           <div className="bg-white shadow rounded-lg p-6">
@@ -119,6 +166,7 @@ function ThreadList() {
           ))
         )}
       </div>
+      {threads.length > 0 && <PaginationControls />}
     </div>
   );
 }

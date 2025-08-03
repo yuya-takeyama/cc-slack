@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -44,23 +45,61 @@ type ThreadResponse struct {
 // ThreadsResponse represents the threads API response
 type ThreadsResponse struct {
 	Threads []ThreadResponse `json:"threads"`
+	HasMore bool             `json:"has_more"`
+	Page    int              `json:"page"`
+}
+
+// PaginationParams extracts pagination parameters from request
+func getPaginationParams(r *http.Request) (limit, offset, page int) {
+	// Default pagination values
+	const defaultLimit = 50
+	limit = defaultLimit
+	offset = 0
+	page = 1
+
+	// Get page from query params (1-indexed)
+	pageStr := r.URL.Query().Get("page")
+	if pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+			offset = (page - 1) * limit
+		}
+	}
+
+	// For checking if there's a next page, we fetch one extra item
+	return limit + 1, offset, page
 }
 
 // GetThreads handles GET /api/threads
 func GetThreads(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	// Get all threads
-	threads, err := queries.ListThreads(ctx)
+	// Get pagination parameters
+	limit, offset, page := getPaginationParams(r)
+
+	// Get threads with pagination
+	threads, err := queries.ListThreadsPaginated(ctx, db.ListThreadsPaginatedParams{
+		Limit:  int64(limit),
+		Offset: int64(offset),
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list threads")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	// Check if there are more threads (for next page)
+	hasMore := len(threads) > limit-1
+	if hasMore {
+		// Remove the extra thread we fetched
+		threads = threads[:limit-1]
+	}
+
 	// Build response
 	response := ThreadsResponse{
 		Threads: make([]ThreadResponse, 0, len(threads)),
+		HasMore: hasMore,
+		Page:    page,
 	}
 
 	for _, thread := range threads {
@@ -127,23 +166,40 @@ type SessionResponse struct {
 // SessionsResponse represents the sessions API response
 type SessionsResponse struct {
 	Sessions []SessionResponse `json:"sessions"`
+	HasMore  bool              `json:"has_more"`
+	Page     int               `json:"page"`
 }
 
 // GetSessions handles GET /api/sessions
 func GetSessions(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	// Get all sessions
-	sessions, err := queries.ListSessions(ctx)
+	// Get pagination parameters
+	limit, offset, page := getPaginationParams(r)
+
+	// Get sessions with pagination
+	sessions, err := queries.ListSessionsPaginated(ctx, db.ListSessionsPaginatedParams{
+		Limit:  int64(limit),
+		Offset: int64(offset),
+	})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to list sessions")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	// Check if there are more sessions (for next page)
+	hasMore := len(sessions) > limit-1
+	if hasMore {
+		// Remove the extra session we fetched
+		sessions = sessions[:limit-1]
+	}
+
 	// Build response
 	response := SessionsResponse{
 		Sessions: make([]SessionResponse, 0, len(sessions)),
+		HasMore:  hasMore,
+		Page:     page,
 	}
 
 	for _, session := range sessions {

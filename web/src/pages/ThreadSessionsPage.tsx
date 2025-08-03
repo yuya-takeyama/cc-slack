@@ -30,23 +30,25 @@ function ThreadSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchThreadSessions = async () => {
-      try {
-        const response = await fetch(`/api/threads/${threadId}/sessions`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch thread sessions");
-        }
-        const data: ThreadSessionsResponse = await response.json();
-        setThread(data.thread);
-        setSessions(data.sessions);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
+  const fetchThreadSessions = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/threads/${threadId}/sessions`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch thread sessions");
       }
-    };
+      const data: ThreadSessionsResponse = await response.json();
+      setThread(data.thread);
+      setSessions(data.sessions);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchThreadSessions is not memoized
+  useEffect(() => {
     fetchThreadSessions();
   }, [threadId]);
 

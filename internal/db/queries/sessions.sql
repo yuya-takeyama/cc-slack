@@ -83,3 +83,14 @@ ORDER BY started_at DESC;
 SELECT * FROM sessions
 WHERE thread_id = ?
 ORDER BY started_at DESC;
+
+-- name: ListSessionsPaginated :many
+SELECT * FROM sessions
+ORDER BY started_at DESC
+LIMIT ? OFFSET ?;
+
+-- name: ListSessionsByThreadIDPaginated :many
+SELECT * FROM sessions
+WHERE thread_id = ?
+ORDER BY started_at DESC
+LIMIT ? OFFSET ?;
