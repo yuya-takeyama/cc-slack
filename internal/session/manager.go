@@ -13,6 +13,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
+	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/messages"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
 	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
@@ -20,10 +21,11 @@ import (
 
 // Manager manages Claude sessions with database persistence
 type Manager struct {
-	sessions        map[string]*Session
-	threadToSession map[string]string
-	lastActiveID    string
-	mu              sync.RWMutex
+	sessions         map[string]*Session
+	threadToSession  map[string]string
+	toolUseToSession map[string]string // tool_use_id -> session_id
+	lastActiveID     string
+	mu               sync.RWMutex
 
 	db           *sql.DB
 	queries      *db.Queries
@@ -49,14 +51,15 @@ func NewManager(database *sql.DB, cfg *config.Config, slackHandler *ccslack.Hand
 	queries := db.New(database)
 
 	return &Manager{
-		sessions:        make(map[string]*Session),
-		threadToSession: make(map[string]string),
-		db:              database,
-		queries:         queries,
-		config:          cfg,
-		slackHandler:    slackHandler,
-		mcpBaseURL:      mcpBaseURL,
-		imagesDir:       imagesDir,
+		sessions:         make(map[string]*Session),
+		threadToSession:  make(map[string]string),
+		toolUseToSession: make(map[string]string),
+		db:               database,
+		queries:          queries,
+		config:           cfg,
+		slackHandler:     slackHandler,
+		mcpBaseURL:       mcpBaseURL,
+		imagesDir:        imagesDir,
 	}
 }
 
@@ -280,6 +283,18 @@ func (m *Manager) createSystemHandler(channelID, threadTS, tempSessionID string)
 
 func (m *Manager) createAssistantHandler(channelID, threadTS string) func(process.AssistantMessage) error {
 	return func(msg process.AssistantMessage) error {
+		// Store tool_use_id to sessionID mapping
+		sessionID := msg.SessionID
+		if sessionID != "" {
+			for _, content := range msg.Message.Content {
+				if content.Type == "tool_use" && content.ID != "" {
+					m.mu.Lock()
+					m.toolUseToSession[content.ID] = sessionID
+					m.mu.Unlock()
+				}
+			}
+		}
+
 		var text string
 
 		for _, content := range msg.Message.Content {
@@ -562,6 +577,13 @@ func (m *Manager) createResultHandler(channelID, threadTS, tempSessionID string)
 				processToClose = session.Process
 			}
 
+			// Clean up tool_use_id mappings for this session
+			for toolUseID, sid := range m.toolUseToSession {
+				if sid == sessionID {
+					delete(m.toolUseToSession, toolUseID)
+				}
+			}
+
 			delete(m.sessions, sessionID)
 			delete(m.threadToSession, key)
 		}()
@@ -686,6 +708,14 @@ func (m *Manager) CleanupIdleSessions(maxIdleTime time.Duration) {
 
 			m.mu.Lock()
 			key := fmt.Sprintf("%s:%s", session.ChannelID, session.ThreadTS)
+
+			// Clean up tool_use_id mappings for this session
+			for toolUseID, sid := range m.toolUseToSession {
+				if sid == sessionID {
+					delete(m.toolUseToSession, toolUseID)
+				}
+			}
+
 			delete(m.sessions, sessionID)
 			delete(m.threadToSession, key)
 			if m.lastActiveID == sessionID {
@@ -803,22 +833,26 @@ func (m *Manager) GetSessionByThreadInternal(channelID, threadTS string) (*Sessi
 	return session, exists
 }
 
-// GetSessionInfo implements mcp.SessionLookup interface
-func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool) {
+// GetSessionInfoByToolUseID returns session info by tool_use_id
+func (m *Manager) GetSessionInfoByToolUseID(toolUseID string) (*mcp.SessionInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// If sessionID is empty, use the last active session
-	if sessionID == "" && m.lastActiveID != "" {
-		sessionID = m.lastActiveID
+	sessionID, ok := m.toolUseToSession[toolUseID]
+	if !ok {
+		return nil, fmt.Errorf("tool_use_id not found: %s", toolUseID)
 	}
 
 	session, exists := m.sessions[sessionID]
 	if !exists {
-		return "", "", "", false
+		return nil, fmt.Errorf("session not found for tool_use_id: %s (session_id: %s)", toolUseID, sessionID)
 	}
 
-	return session.ChannelID, session.ThreadTS, session.InitiatorUserID, true
+	return &mcp.SessionInfo{
+		ChannelID: session.ChannelID,
+		ThreadTS:  session.ThreadTS,
+		UserID:    session.InitiatorUserID,
+	}, nil
 }
 
 // Cleanup closes all active sessions

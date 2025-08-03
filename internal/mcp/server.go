@@ -20,9 +20,16 @@ type SlackPoster interface {
 	PostApprovalRequest(channelID, threadTS, message, requestID, userID string) error
 }
 
+// SessionInfo represents information about a session
+type SessionInfo struct {
+	ChannelID string
+	ThreadTS  string
+	UserID    string
+}
+
 // SessionLookup interface for finding session information
 type SessionLookup interface {
-	GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool)
+	GetSessionInfoByToolUseID(toolUseID string) (*SessionInfo, error)
 }
 
 // Server wraps the MCP server and HTTP handler
@@ -48,11 +55,11 @@ type Server struct {
 // According to Claude Code docs, permission prompt receives:
 // - tool_name: Name of the tool requesting permission
 // - input: Input for the tool
-// - tool_use_id: Unique tool use request ID (optional)
+// - tool_use_id: Unique tool use request ID (required)
 type ApprovalRequest struct {
 	ToolName  string                 `json:"tool_name"`
-	Input     map[string]interface{} `json:"input,omitempty"`       // Tool input parameters
-	ToolUseID string                 `json:"tool_use_id,omitempty"` // Tool use identifier
+	Input     map[string]interface{} `json:"input,omitempty"` // Tool input parameters
+	ToolUseID string                 `json:"tool_use_id"`     // Tool use identifier (required)
 }
 
 // ApprovalResponse represents the approval response
@@ -126,7 +133,7 @@ func NewServer() (*Server, error) {
 					Description: "Unique tool use request ID",
 				},
 			},
-			Required: []string{"tool_name"},
+			Required: []string{"tool_name", "tool_use_id"},
 		},
 	}, s.HandleApprovalPrompt)
 
@@ -180,13 +187,56 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 
 	// Send approval request to Slack
 	if s.slackPoster != nil && s.sessionLookup != nil {
-		// MCP SDK doesn't provide direct access to session ID
-		// Use empty string to trigger lastActiveID fallback in GetSessionInfo
-		sessionID := ""
+		// tool_use_id is required for proper session identification
+		if params.Arguments.ToolUseID == "" {
+			s.logger.Error().
+				Str("method", "HandleApprovalPrompt").
+				Str("request_id", requestID).
+				Msg("tool_use_id is missing in approval request")
 
-		// Get Slack channel and thread information
-		channelID, threadTS, userID, exists := s.sessionLookup.GetSessionInfo(sessionID)
-		if exists {
+			// Return deny response for missing tool_use_id
+			promptResp := PermissionPromptResponse{
+				Behavior: "deny",
+				Message:  "tool_use_id is required for approval requests",
+			}
+			jsonData, _ := json.Marshal(promptResp)
+
+			return &mcpsdk.CallToolResultFor[PermissionPromptResponse]{
+				Content: []mcpsdk.Content{
+					&mcpsdk.TextContent{
+						Text: string(jsonData),
+					},
+				},
+			}, nil
+		}
+
+		// Get session info using tool_use_id
+		sessionInfo, err := s.sessionLookup.GetSessionInfoByToolUseID(params.Arguments.ToolUseID)
+		if err != nil {
+			s.logger.Error().
+				Err(err).
+				Str("method", "HandleApprovalPrompt").
+				Str("request_id", requestID).
+				Str("tool_use_id", params.Arguments.ToolUseID).
+				Msg("Failed to get session info by tool_use_id")
+
+			// Return deny response for session lookup failure
+			promptResp := PermissionPromptResponse{
+				Behavior: "deny",
+				Message:  fmt.Sprintf("Failed to identify session: %v", err),
+			}
+			jsonData, _ := json.Marshal(promptResp)
+
+			return &mcpsdk.CallToolResultFor[PermissionPromptResponse]{
+				Content: []mcpsdk.Content{
+					&mcpsdk.TextContent{
+						Text: string(jsonData),
+					},
+				},
+			}, nil
+		}
+
+		if sessionInfo != nil {
 			// Build approval message based on tool name and input
 			message := fmt.Sprintf("🔐 **Tool execution permission required**\n\n**Tool**: %s", params.Arguments.ToolName)
 
@@ -216,15 +266,15 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				}
 			}
 
-			err := s.slackPoster.PostApprovalRequest(channelID, threadTS, message, requestID, userID)
+			err := s.slackPoster.PostApprovalRequest(sessionInfo.ChannelID, sessionInfo.ThreadTS, message, requestID, sessionInfo.UserID)
 			if err != nil {
 				// Log error but continue with timeout fallback
 				s.logger.Error().
 					Err(err).
 					Str("method", "HandleApprovalPrompt").
 					Str("request_id", requestID).
-					Str("channel_id", channelID).
-					Str("thread_ts", threadTS).
+					Str("channel_id", sessionInfo.ChannelID).
+					Str("thread_ts", sessionInfo.ThreadTS).
 					Msg("Failed to post approval request to Slack")
 			}
 		}
