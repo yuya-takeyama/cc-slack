@@ -37,8 +37,14 @@ func MultiDirectoryError(slashCommand string) []slack.Block {
 
 // ApprovalRequest creates blocks for tool approval request
 func ApprovalRequest(message, requestID string) []slack.Block {
+	return ApprovalRequestWithUser(message, requestID, "")
+}
+
+// ApprovalRequestWithUser creates blocks for tool approval request with user mention
+func ApprovalRequestWithUser(message, requestID, userID string) []slack.Block {
 	// Parse the message to extract structured information
 	info := parseApprovalMessage(message)
+	info.UserID = userID
 
 	// Build markdown text for the approval request
 	markdownText := buildApprovalMarkdownText(info)
@@ -159,11 +165,11 @@ func SessionStartModalSingle(channelID string) slack.ModalViewRequest {
 }
 
 // ApprovalRequestOptions returns message options for approval request
-func ApprovalRequestOptions(channelID, threadTS, message, requestID string) []slack.MsgOption {
+func ApprovalRequestOptions(channelID, threadTS, message, requestID, userID string) []slack.MsgOption {
 	// Get tool display info for permission prompt
 	toolInfo := tools.GetToolInfo(tools.MessageApprovalPrompt)
 
-	blocks := ApprovalRequest(message, requestID)
+	blocks := ApprovalRequestWithUser(message, requestID, userID)
 
 	return []slack.MsgOption{
 		slack.MsgOptionTS(threadTS),
@@ -183,6 +189,7 @@ type ApprovalInfo struct {
 	Command     string
 	Description string
 	FilePath    string
+	UserID      string
 }
 
 // parseApprovalMessage parses the approval message from mcp/server.go to extract structured information
@@ -214,7 +221,11 @@ func buildApprovalMarkdownText(info *ApprovalInfo) string {
 	var text strings.Builder
 
 	// Header
-	text.WriteString("*Tool execution permission required*\n\n")
+	if info.UserID != "" {
+		text.WriteString(fmt.Sprintf("<@%s> *Tool execution permission required*\n\n", info.UserID))
+	} else {
+		text.WriteString("*Tool execution permission required*\n\n")
+	}
 
 	if info.ToolName != "" {
 		text.WriteString(fmt.Sprintf("*Tool:* %s\n", info.ToolName))
