@@ -60,8 +60,17 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.listSessionsByThreadIDStmt, err = db.PrepareContext(ctx, listSessionsByThreadID); err != nil {
 		return nil, fmt.Errorf("error preparing query ListSessionsByThreadID: %w", err)
 	}
+	if q.listSessionsByThreadIDPaginatedStmt, err = db.PrepareContext(ctx, listSessionsByThreadIDPaginated); err != nil {
+		return nil, fmt.Errorf("error preparing query ListSessionsByThreadIDPaginated: %w", err)
+	}
+	if q.listSessionsPaginatedStmt, err = db.PrepareContext(ctx, listSessionsPaginated); err != nil {
+		return nil, fmt.Errorf("error preparing query ListSessionsPaginated: %w", err)
+	}
 	if q.listThreadsStmt, err = db.PrepareContext(ctx, listThreads); err != nil {
 		return nil, fmt.Errorf("error preparing query ListThreads: %w", err)
+	}
+	if q.listThreadsPaginatedStmt, err = db.PrepareContext(ctx, listThreadsPaginated); err != nil {
+		return nil, fmt.Errorf("error preparing query ListThreadsPaginated: %w", err)
 	}
 	if q.updateSessionEndTimeStmt, err = db.PrepareContext(ctx, updateSessionEndTime); err != nil {
 		return nil, fmt.Errorf("error preparing query UpdateSessionEndTime: %w", err)
@@ -146,9 +155,24 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing listSessionsByThreadIDStmt: %w", cerr)
 		}
 	}
+	if q.listSessionsByThreadIDPaginatedStmt != nil {
+		if cerr := q.listSessionsByThreadIDPaginatedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listSessionsByThreadIDPaginatedStmt: %w", cerr)
+		}
+	}
+	if q.listSessionsPaginatedStmt != nil {
+		if cerr := q.listSessionsPaginatedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listSessionsPaginatedStmt: %w", cerr)
+		}
+	}
 	if q.listThreadsStmt != nil {
 		if cerr := q.listThreadsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing listThreadsStmt: %w", cerr)
+		}
+	}
+	if q.listThreadsPaginatedStmt != nil {
+		if cerr := q.listThreadsPaginatedStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing listThreadsPaginatedStmt: %w", cerr)
 		}
 	}
 	if q.updateSessionEndTimeStmt != nil {
@@ -218,51 +242,57 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                 DBTX
-	tx                                 *sql.Tx
-	countActiveSessionsByThreadStmt    *sql.Stmt
-	createSessionWithInitialPromptStmt *sql.Stmt
-	createThreadStmt                   *sql.Stmt
-	getActiveSessionByThreadStmt       *sql.Stmt
-	getLatestSessionByThreadStmt       *sql.Stmt
-	getSessionStmt                     *sql.Stmt
-	getThreadStmt                      *sql.Stmt
-	getThreadByIDStmt                  *sql.Stmt
-	getThreadByThreadTsStmt            *sql.Stmt
-	listActiveSessionsStmt             *sql.Stmt
-	listSessionsStmt                   *sql.Stmt
-	listSessionsByThreadIDStmt         *sql.Stmt
-	listThreadsStmt                    *sql.Stmt
-	updateSessionEndTimeStmt           *sql.Stmt
-	updateSessionIDStmt                *sql.Stmt
-	updateSessionModelStmt             *sql.Stmt
-	updateSessionOnCompleteStmt        *sql.Stmt
-	updateSessionStatusStmt            *sql.Stmt
-	updateThreadTimestampStmt          *sql.Stmt
+	db                                  DBTX
+	tx                                  *sql.Tx
+	countActiveSessionsByThreadStmt     *sql.Stmt
+	createSessionWithInitialPromptStmt  *sql.Stmt
+	createThreadStmt                    *sql.Stmt
+	getActiveSessionByThreadStmt        *sql.Stmt
+	getLatestSessionByThreadStmt        *sql.Stmt
+	getSessionStmt                      *sql.Stmt
+	getThreadStmt                       *sql.Stmt
+	getThreadByIDStmt                   *sql.Stmt
+	getThreadByThreadTsStmt             *sql.Stmt
+	listActiveSessionsStmt              *sql.Stmt
+	listSessionsStmt                    *sql.Stmt
+	listSessionsByThreadIDStmt          *sql.Stmt
+	listSessionsByThreadIDPaginatedStmt *sql.Stmt
+	listSessionsPaginatedStmt           *sql.Stmt
+	listThreadsStmt                     *sql.Stmt
+	listThreadsPaginatedStmt            *sql.Stmt
+	updateSessionEndTimeStmt            *sql.Stmt
+	updateSessionIDStmt                 *sql.Stmt
+	updateSessionModelStmt              *sql.Stmt
+	updateSessionOnCompleteStmt         *sql.Stmt
+	updateSessionStatusStmt             *sql.Stmt
+	updateThreadTimestampStmt           *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 	return &Queries{
-		db:                                 tx,
-		tx:                                 tx,
-		countActiveSessionsByThreadStmt:    q.countActiveSessionsByThreadStmt,
-		createSessionWithInitialPromptStmt: q.createSessionWithInitialPromptStmt,
-		createThreadStmt:                   q.createThreadStmt,
-		getActiveSessionByThreadStmt:       q.getActiveSessionByThreadStmt,
-		getLatestSessionByThreadStmt:       q.getLatestSessionByThreadStmt,
-		getSessionStmt:                     q.getSessionStmt,
-		getThreadStmt:                      q.getThreadStmt,
-		getThreadByIDStmt:                  q.getThreadByIDStmt,
-		getThreadByThreadTsStmt:            q.getThreadByThreadTsStmt,
-		listActiveSessionsStmt:             q.listActiveSessionsStmt,
-		listSessionsStmt:                   q.listSessionsStmt,
-		listSessionsByThreadIDStmt:         q.listSessionsByThreadIDStmt,
-		listThreadsStmt:                    q.listThreadsStmt,
-		updateSessionEndTimeStmt:           q.updateSessionEndTimeStmt,
-		updateSessionIDStmt:                q.updateSessionIDStmt,
-		updateSessionModelStmt:             q.updateSessionModelStmt,
-		updateSessionOnCompleteStmt:        q.updateSessionOnCompleteStmt,
-		updateSessionStatusStmt:            q.updateSessionStatusStmt,
-		updateThreadTimestampStmt:          q.updateThreadTimestampStmt,
+		db:                                  tx,
+		tx:                                  tx,
+		countActiveSessionsByThreadStmt:     q.countActiveSessionsByThreadStmt,
+		createSessionWithInitialPromptStmt:  q.createSessionWithInitialPromptStmt,
+		createThreadStmt:                    q.createThreadStmt,
+		getActiveSessionByThreadStmt:        q.getActiveSessionByThreadStmt,
+		getLatestSessionByThreadStmt:        q.getLatestSessionByThreadStmt,
+		getSessionStmt:                      q.getSessionStmt,
+		getThreadStmt:                       q.getThreadStmt,
+		getThreadByIDStmt:                   q.getThreadByIDStmt,
+		getThreadByThreadTsStmt:             q.getThreadByThreadTsStmt,
+		listActiveSessionsStmt:              q.listActiveSessionsStmt,
+		listSessionsStmt:                    q.listSessionsStmt,
+		listSessionsByThreadIDStmt:          q.listSessionsByThreadIDStmt,
+		listSessionsByThreadIDPaginatedStmt: q.listSessionsByThreadIDPaginatedStmt,
+		listSessionsPaginatedStmt:           q.listSessionsPaginatedStmt,
+		listThreadsStmt:                     q.listThreadsStmt,
+		listThreadsPaginatedStmt:            q.listThreadsPaginatedStmt,
+		updateSessionEndTimeStmt:            q.updateSessionEndTimeStmt,
+		updateSessionIDStmt:                 q.updateSessionIDStmt,
+		updateSessionModelStmt:              q.updateSessionModelStmt,
+		updateSessionOnCompleteStmt:         q.updateSessionOnCompleteStmt,
+		updateSessionStatusStmt:             q.updateSessionStatusStmt,
+		updateThreadTimestampStmt:           q.updateThreadTimestampStmt,
 	}
 }

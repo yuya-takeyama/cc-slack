@@ -280,6 +280,104 @@ func (q *Queries) ListSessionsByThreadID(ctx context.Context, threadID int64) ([
 	return items, nil
 }
 
+const listSessionsByThreadIDPaginated = `-- name: ListSessionsByThreadIDPaginated :many
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
+WHERE thread_id = ?
+ORDER BY started_at DESC
+LIMIT ? OFFSET ?
+`
+
+type ListSessionsByThreadIDPaginatedParams struct {
+	ThreadID int64 `json:"thread_id"`
+	Limit    int64 `json:"limit"`
+	Offset   int64 `json:"offset"`
+}
+
+func (q *Queries) ListSessionsByThreadIDPaginated(ctx context.Context, arg ListSessionsByThreadIDPaginatedParams) ([]Session, error) {
+	rows, err := q.query(ctx, q.listSessionsByThreadIDPaginatedStmt, listSessionsByThreadIDPaginated, arg.ThreadID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.ThreadID,
+			&i.SessionID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Status,
+			&i.Model,
+			&i.TotalCostUsd,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.DurationMs,
+			&i.NumTurns,
+			&i.InitialPrompt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionsPaginated = `-- name: ListSessionsPaginated :many
+SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
+ORDER BY started_at DESC
+LIMIT ? OFFSET ?
+`
+
+type ListSessionsPaginatedParams struct {
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
+}
+
+func (q *Queries) ListSessionsPaginated(ctx context.Context, arg ListSessionsPaginatedParams) ([]Session, error) {
+	rows, err := q.query(ctx, q.listSessionsPaginatedStmt, listSessionsPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.ThreadID,
+			&i.SessionID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Status,
+			&i.Model,
+			&i.TotalCostUsd,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.DurationMs,
+			&i.NumTurns,
+			&i.InitialPrompt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSessionEndTime = `-- name: UpdateSessionEndTime :exec
 UPDATE sessions
 SET status = ?,
