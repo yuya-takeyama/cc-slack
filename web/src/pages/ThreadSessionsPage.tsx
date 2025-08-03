@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatDateTime } from "../utils/dateFormatter";
-import { getSessionStatusColor, truncatePrompt } from "../utils/sessionUtils";
+import {
+  getSessionStatusColor,
+  truncatePrompt,
+  truncateSessionId,
+} from "../utils/sessionUtils";
 import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 interface Thread {
@@ -125,7 +129,7 @@ function ThreadSessionsPage() {
               {sessions.map((session) => (
                 <tr key={session.session_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {session.session_id}
+                    {truncateSessionId(session.session_id)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
                     {session.initial_prompt ? (

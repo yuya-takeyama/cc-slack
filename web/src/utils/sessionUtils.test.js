@@ -73,7 +73,7 @@ describe("sessionUtils", () => {
   describe("truncateSessionId", () => {
     it("should truncate long session ID", () => {
       const longId = "12345678901234567890";
-      expect(truncateSessionId(longId)).toBe("12345678...");
+      expect(truncateSessionId(longId)).toBe("12345678");
     });
 
     it("should not truncate short session ID", () => {
@@ -83,7 +83,7 @@ describe("sessionUtils", () => {
 
     it("should handle custom length", () => {
       const id = "1234567890";
-      expect(truncateSessionId(id, 4)).toBe("1234...");
+      expect(truncateSessionId(id, 4)).toBe("1234");
     });
 
     it("should return empty string for null", () => {
@@ -111,7 +111,7 @@ describe("sessionUtils", () => {
         status: "active",
       };
       const summary = getSessionSummary(session);
-      expect(summary.displayId).toBe("12345678...");
+      expect(summary.displayId).toBe("12345678");
       expect(summary.status).toBe("active");
       expect(summary.statusColor).toBe("text-green-600 bg-green-100");
     });
@@ -121,7 +121,7 @@ describe("sessionUtils", () => {
         session_id: "1234567890abcdef",
       };
       const summary = getSessionSummary(session);
-      expect(summary.displayId).toBe("12345678...");
+      expect(summary.displayId).toBe("12345678");
       expect(summary.status).toBe("unknown");
       expect(summary.statusColor).toBe("text-gray-600 bg-gray-100");
     });

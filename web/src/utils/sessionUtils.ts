@@ -58,7 +58,7 @@ export const truncateSessionId = (
     return sessionId;
   }
 
-  return `${sessionId.substring(0, length)}...`;
+  return sessionId.substring(0, length);
 };
 
 export const truncatePrompt = (
