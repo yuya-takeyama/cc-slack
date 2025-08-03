@@ -112,22 +112,26 @@ func main() {
 	// Create HTTP router
 	router := mux.NewRouter()
 
-	// Slack endpoints
-	router.HandleFunc("/slack/events", slackHandler.HandleEvent).Methods(http.MethodPost)
-	router.HandleFunc("/slack/interactive", slackHandler.HandleInteraction).Methods(http.MethodPost)
-	router.HandleFunc("/slack/commands", slackHandler.HandleSlashCommand).Methods(http.MethodPost)
+	// Slack endpoints (with 30-second timeout)
+	router.HandleFunc("/slack/events", http.TimeoutHandler(
+		http.HandlerFunc(slackHandler.HandleEvent), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+	router.HandleFunc("/slack/interactive", http.TimeoutHandler(
+		http.HandlerFunc(slackHandler.HandleInteraction), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+	router.HandleFunc("/slack/commands", http.TimeoutHandler(
+		http.HandlerFunc(slackHandler.HandleSlashCommand), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
 
-	// MCP endpoints
+	// MCP endpoints (no additional timeout, uses server timeout)
 	router.PathPrefix("/mcp").HandlerFunc(mcpServer.Handle)
 
-	// Health check
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "OK")
-	}).Methods(http.MethodGet)
+	// Health check (with 5-second timeout)
+	router.HandleFunc("/health", http.TimeoutHandler(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "OK")
+		}), 5*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodGet)
 
-	// Manager proxy endpoints
-	router.HandleFunc("/api/manager/{path:.*}", func(w http.ResponseWriter, r *http.Request) {
+	// Manager proxy endpoints (with 30-second timeout)
+	managerProxyHandler := func(w http.ResponseWriter, r *http.Request) {
 		// Extract the path after /api/manager/
 		vars := mux.Vars(r)
 		path := vars["path"]
@@ -171,7 +175,9 @@ func main() {
 		if err != nil {
 			log.Printf("Error copying response body: %v", err)
 		}
-	}).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
+	}
+	router.HandleFunc("/api/manager/{path:.*}", http.TimeoutHandler(
+		http.HandlerFunc(managerProxyHandler), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 
 	// Web console endpoints (must be last due to catch-all route)
 	webHandler, err := web.NewHandler()
@@ -182,15 +188,18 @@ func main() {
 		// Set database connection and channel cache for web package
 		web.SetDatabase(sqlDB)
 		web.SetChannelCache(channelCache)
-		router.PathPrefix("/").Handler(webHandler)
+		// Web console with 30-second timeout
+		router.PathPrefix("/").Handler(http.TimeoutHandler(webHandler, 30*time.Second, "Request timeout"))
 	}
 
 	// Create HTTP server
+	// Set long timeout (1 hour) for MCP endpoints that handle approval prompts
+	// Other endpoints have their own shorter timeouts via http.TimeoutHandler
 	srv := &http.Server{
 		Handler:      router,
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 1 * time.Hour,
+		ReadTimeout:  1 * time.Hour,
 	}
 
 	// Start cleanup routine
