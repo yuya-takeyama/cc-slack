@@ -31,6 +31,8 @@ func (h *Handler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
 		for _, action := range payload.ActionCallback.BlockActions {
 			if strings.HasPrefix(action.ActionID, "approve_") {
 				h.handleApprovalAction(&payload, action, true)
+			} else if strings.HasPrefix(action.ActionID, "deny_with_reason_") {
+				h.handleDenyWithReasonAction(&payload, action)
 			} else if strings.HasPrefix(action.ActionID, "deny_") {
 				h.handleApprovalAction(&payload, action, false)
 			}
@@ -43,6 +45,10 @@ func (h *Handler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
 		}
 		if payload.View.CallbackID == "repo_modal_single" {
 			h.handleSingleDirModalSubmission(w, &payload)
+			return
+		}
+		if payload.View.CallbackID == "deny_reason_modal" {
+			h.handleDenyReasonModalSubmission(w, &payload)
 			return
 		}
 	}
@@ -64,7 +70,7 @@ func (h *Handler) handleApprovalAction(payload *slack.InteractionCallback, actio
 	if h.approvalResponder != nil && requestID != "" {
 		response := mcp.ApprovalResponse{
 			Behavior: "deny",
-			Message:  "Denied via Slack",
+			Message:  "The user denied this request",
 		}
 		if approved {
 			response.Behavior = "allow"
@@ -244,4 +250,130 @@ func (h *Handler) convertRichTextToString(richText *slack.RichTextBlock) string 
 	// Using the richtext package for conversion
 	// Import will be added automatically by goimports
 	return richtext.ConvertToString(richText)
+}
+
+// handleDenyWithReasonAction handles the "Deny with Reason" button click
+func (h *Handler) handleDenyWithReasonAction(payload *slack.InteractionCallback, action *slack.BlockAction) {
+	// Extract request ID from action ID
+	requestID := strings.TrimPrefix(action.ActionID, "deny_with_reason_")
+
+	// Get the original text from the message
+	var originalText string
+	if len(payload.Message.Blocks.BlockSet) > 0 {
+		if section, ok := payload.Message.Blocks.BlockSet[0].(*slack.SectionBlock); ok && section.Text != nil {
+			originalText = section.Text.Text
+		}
+	}
+
+	// Create metadata with request ID and message info
+	metadata := map[string]string{
+		"request_id":    requestID,
+		"channel_id":    payload.Channel.ID,
+		"message_ts":    payload.Message.Timestamp,
+		"user_id":       payload.User.ID,
+		"original_text": originalText,
+	}
+	metadataJSON, _ := json.Marshal(metadata)
+
+	// Create and open modal
+	modal := blocks.DenyReasonModal(string(metadataJSON))
+
+	_, err := h.client.OpenView(payload.TriggerID, modal)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to open deny reason modal")
+	}
+}
+
+// handleDenyReasonModalSubmission handles the denial reason modal submission
+func (h *Handler) handleDenyReasonModalSubmission(w http.ResponseWriter, payload *slack.InteractionCallback) {
+	values := payload.View.State.Values
+
+	// Extract denial reason
+	var reason string
+	if reasonBlock, ok := values["reason_block"]; ok {
+		if reasonInput, ok := reasonBlock["reason_input"]; ok {
+			reason = reasonInput.Value
+		}
+	}
+
+	// Parse metadata from private metadata
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(payload.View.PrivateMetadata), &metadata); err != nil {
+		log.Error().Err(err).Msg("failed to parse metadata")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	requestID := metadata["request_id"]
+	channelID := metadata["channel_id"]
+	messageTS := metadata["message_ts"]
+	userID := metadata["user_id"]
+	originalText := metadata["original_text"]
+
+	// Validation
+	if reason == "" {
+		// Return error response
+		errorResponse := map[string]interface{}{
+			"response_action": "errors",
+			"errors": map[string]string{
+				"reason_block": "Please provide a reason for denial",
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	// Success - close modal
+	successResponse := map[string]interface{}{
+		"response_action": "clear",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(successResponse)
+
+	// Send denial response with reason to MCP server
+	if h.approvalResponder != nil && requestID != "" {
+		response := mcp.ApprovalResponse{
+			Behavior: "deny",
+			Message:  reason,
+		}
+
+		err := h.approvalResponder.SendApprovalResponse(requestID, response)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Str("request_id", requestID).
+				Msg("Failed to send denial with reason response")
+		}
+	}
+
+	// Update the original message
+	if channelID != "" && messageTS != "" {
+		h.updateApprovalMessageWithReason(channelID, messageTS, userID, reason, originalText)
+	}
+}
+
+// updateApprovalMessageWithReason updates the approval message with denial reason
+func (h *Handler) updateApprovalMessageWithReason(channelID, messageTS, userID, reason, originalText string) {
+	// Create status text with reason
+	statusText := fmt.Sprintf("────────────────\n:x: *Denied* by <@%s>\n*Reason:* %s", userID, reason)
+	fullText := originalText + "\n\n" + statusText
+
+	// Update the message
+	_, _, _, err := h.client.UpdateMessage(
+		channelID,
+		messageTS,
+		slack.MsgOptionBlocks(
+			slack.NewSectionBlock(
+				slack.NewTextBlockObject(slack.MarkdownType, fullText, false, false),
+				nil,
+				nil,
+			),
+		),
+	)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to update message with denial reason")
+	}
 }

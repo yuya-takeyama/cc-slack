@@ -62,6 +62,11 @@ func ApprovalRequest(message, requestID, userID string) []slack.Block {
 				"deny",
 				slack.NewTextBlockObject(slack.PlainTextType, "Deny", false, false),
 			).WithStyle(slack.StyleDanger),
+			slack.NewButtonBlockElement(
+				fmt.Sprintf("deny_with_reason_%s", requestID),
+				"deny_with_reason",
+				slack.NewTextBlockObject(slack.PlainTextType, "Deny with Reason", false, false),
+			),
 		),
 	}
 }
@@ -270,4 +275,29 @@ func buildStatusMarkdownText(userID string, approved bool) string {
 	}
 
 	return fmt.Sprintf("────────────────\n%s *%s* by <@%s>", statusEmoji, statusText, userID)
+}
+
+// DenyReasonModal creates a modal for entering denial reason
+func DenyReasonModal(metadata string) slack.ModalViewRequest {
+	return slack.ModalViewRequest{
+		Type:            slack.VTModal,
+		CallbackID:      "deny_reason_modal",
+		Title:           slack.NewTextBlockObject(slack.PlainTextType, "Deny with Reason", false, false),
+		Submit:          slack.NewTextBlockObject(slack.PlainTextType, "Deny", false, false),
+		Close:           slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false),
+		PrivateMetadata: metadata, // Store metadata for later use
+		Blocks: slack.Blocks{
+			BlockSet: []slack.Block{
+				slack.NewInputBlock(
+					"reason_block",
+					slack.NewTextBlockObject(slack.PlainTextType, "Reason for denial", false, false),
+					nil,
+					slack.NewPlainTextInputBlockElement(
+						slack.NewTextBlockObject(slack.PlainTextType, "Explain why this request is being denied...", false, false),
+						"reason_input",
+					),
+				),
+			},
+		},
+	}
 }
