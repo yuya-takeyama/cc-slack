@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createThread = `-- name: CreateThread :one
@@ -139,8 +140,18 @@ func (q *Queries) ListThreads(ctx context.Context) ([]Thread, error) {
 }
 
 const listThreadsPaginated = `-- name: ListThreadsPaginated :many
-SELECT id, channel_id, thread_ts, working_directory, created_at, updated_at FROM threads
-ORDER BY updated_at DESC
+SELECT 
+    t.id, t.channel_id, t.thread_ts, t.working_directory, t.created_at, t.updated_at,
+    s.initial_prompt AS first_session_prompt
+FROM threads t
+LEFT JOIN (
+    SELECT 
+        thread_id,
+        initial_prompt,
+        ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY started_at ASC) as rn
+    FROM sessions
+) s ON t.id = s.thread_id AND s.rn = 1
+ORDER BY t.updated_at DESC
 LIMIT ? OFFSET ?
 `
 
@@ -149,15 +160,25 @@ type ListThreadsPaginatedParams struct {
 	Offset int64 `json:"offset"`
 }
 
-func (q *Queries) ListThreadsPaginated(ctx context.Context, arg ListThreadsPaginatedParams) ([]Thread, error) {
+type ListThreadsPaginatedRow struct {
+	ID                 int64          `json:"id"`
+	ChannelID          string         `json:"channel_id"`
+	ThreadTs           string         `json:"thread_ts"`
+	WorkingDirectory   string         `json:"working_directory"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+	UpdatedAt          sql.NullTime   `json:"updated_at"`
+	FirstSessionPrompt sql.NullString `json:"first_session_prompt"`
+}
+
+func (q *Queries) ListThreadsPaginated(ctx context.Context, arg ListThreadsPaginatedParams) ([]ListThreadsPaginatedRow, error) {
 	rows, err := q.query(ctx, q.listThreadsPaginatedStmt, listThreadsPaginated, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Thread
+	var items []ListThreadsPaginatedRow
 	for rows.Next() {
-		var i Thread
+		var i ListThreadsPaginatedRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ChannelID,
@@ -165,6 +186,7 @@ func (q *Queries) ListThreadsPaginated(ctx context.Context, arg ListThreadsPagin
 			&i.WorkingDirectory,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.FirstSessionPrompt,
 		); err != nil {
 			return nil, err
 		}

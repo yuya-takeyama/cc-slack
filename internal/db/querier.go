@@ -24,7 +24,7 @@ type Querier interface {
 	ListSessionsByThreadIDPaginated(ctx context.Context, arg ListSessionsByThreadIDPaginatedParams) ([]Session, error)
 	ListSessionsPaginated(ctx context.Context, arg ListSessionsPaginatedParams) ([]Session, error)
 	ListThreads(ctx context.Context) ([]Thread, error)
-	ListThreadsPaginated(ctx context.Context, arg ListThreadsPaginatedParams) ([]Thread, error)
+	ListThreadsPaginated(ctx context.Context, arg ListThreadsPaginatedParams) ([]ListThreadsPaginatedRow, error)
 	UpdateSessionEndTime(ctx context.Context, arg UpdateSessionEndTimeParams) error
 	UpdateSessionID(ctx context.Context, arg UpdateSessionIDParams) error
 	UpdateSessionModel(ctx context.Context, arg UpdateSessionModelParams) error

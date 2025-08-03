@@ -40,6 +40,7 @@ type ThreadResponse struct {
 	WorkspaceSubdomain  string `json:"workspace_subdomain"`
 	SessionCount        int    `json:"session_count"`
 	LatestSessionStatus string `json:"latest_session_status"`
+	InitialPrompt       string `json:"initial_prompt,omitempty"`
 }
 
 // ThreadsResponse represents the threads API response
@@ -133,7 +134,7 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 			channelName = channelCache.GetChannelName(ctx, thread.ChannelID)
 		}
 
-		response.Threads = append(response.Threads, ThreadResponse{
+		threadResp := ThreadResponse{
 			ThreadTs:            thread.ThreadTs,
 			ThreadTime:          FormatThreadTime(threadTime),
 			ChannelID:           thread.ChannelID,
@@ -141,7 +142,14 @@ func GetThreads(w http.ResponseWriter, r *http.Request) {
 			WorkspaceSubdomain:  config.SLACK_WORKSPACE_SUBDOMAIN,
 			SessionCount:        sessionCount,
 			LatestSessionStatus: latestStatus,
-		})
+		}
+
+		// Add initial prompt if available
+		if thread.FirstSessionPrompt.Valid {
+			threadResp.InitialPrompt = thread.FirstSessionPrompt.String
+		}
+
+		response.Threads = append(response.Threads, threadResp)
 	}
 
 	// Return JSON response
