@@ -69,8 +69,6 @@ session:
   timeout: 30m
   # Interval for cleaning up expired sessions
   cleanup_interval: 5m
-  # Window for resuming previous sessions (must be longer than timeout)
-  resume_window: 1h
 
 # Logging configuration
 logging:

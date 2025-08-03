@@ -146,7 +146,7 @@ Once a session is started (via either mode):
    add error handling please
    ```
 3. Claude has access to the selected working directory (as permitted by Claude Code configuration)
-4. Sessions automatically resume if you return within the resume window (default: 1 hour)
+4. Sessions automatically resume when you return to the same thread
 
 ### Message Filtering
 

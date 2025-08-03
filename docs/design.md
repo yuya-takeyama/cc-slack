@@ -1105,7 +1105,6 @@ database:
 session:
   timeout: "30m"
   cleanup_interval: "5m"
-  resume_window: "1h"  # セッション再開可能な時間
 
 working_directories:
   default: "/home/user/workspace"

@@ -128,7 +128,7 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 		t.Fatalf("failed to update session: %v", err)
 	}
 
-	// Should resume (within window)
+	// Should resume
 	shouldResume, sessionID, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -143,7 +143,7 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 	}
 }
 
-func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
+func TestResumeManager_ShouldResume_LongElapsedTime(t *testing.T) {
 	sqlDB, queries, cleanup := setupTestDB(t)
 	defer cleanup()
 
@@ -179,14 +179,14 @@ func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
 		t.Fatalf("failed to update session: %v", err)
 	}
 
-	// Should always resume now, regardless of time window
+	// Should always resume regardless of elapsed time
 	shouldResume, sessionID, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if !shouldResume {
-		t.Error("expected shouldResume to be true even outside window")
+		t.Error("expected shouldResume to be true regardless of elapsed time")
 	}
 
 	if sessionID != "test-session-old" {
