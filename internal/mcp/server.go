@@ -23,6 +23,7 @@ type SlackPoster interface {
 // SessionLookup interface for finding session information
 type SessionLookup interface {
 	GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool)
+	GetSessionInfoByToolUseID(toolUseID string) (channelID, threadTS, userID string, exists bool)
 }
 
 // Server wraps the MCP server and HTTP handler
@@ -180,12 +181,22 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 
 	// Send approval request to Slack
 	if s.slackPoster != nil && s.sessionLookup != nil {
-		// MCP SDK doesn't provide direct access to session ID
-		// Use empty string to trigger lastActiveID fallback in GetSessionInfo
-		sessionID := ""
+		// Try to get session info using tool_use_id first
+		var channelID, threadTS, userID string
+		var exists bool
 
-		// Get Slack channel and thread information
-		channelID, threadTS, userID, exists := s.sessionLookup.GetSessionInfo(sessionID)
+		if params.Arguments.ToolUseID != "" {
+			channelID, threadTS, userID, exists = s.sessionLookup.GetSessionInfoByToolUseID(params.Arguments.ToolUseID)
+		}
+
+		// Fallback to traditional method if tool_use_id lookup fails
+		if !exists {
+			// MCP SDK doesn't provide direct access to session ID
+			// Use empty string to trigger lastActiveID fallback in GetSessionInfo
+			sessionID := ""
+			channelID, threadTS, userID, exists = s.sessionLookup.GetSessionInfo(sessionID)
+		}
+
 		if exists {
 			// Build approval message based on tool name and input
 			message := fmt.Sprintf("🔐 **Tool execution permission required**\n\n**Tool**: %s", params.Arguments.ToolName)

@@ -211,3 +211,95 @@ func TestComputeRelativePath(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSessionInfoByToolUseID(t *testing.T) {
+	// Create a test manager
+	manager := &Manager{
+		sessions:         make(map[string]*Session),
+		threadToSession:  make(map[string]string),
+		toolUseToSession: make(map[string]string),
+	}
+
+	// Add test session
+	testSession := &Session{
+		ID:              "test-session-123",
+		ChannelID:       "C123456",
+		ThreadTS:        "1234567890.123456",
+		InitiatorUserID: "U987654",
+	}
+	manager.sessions["test-session-123"] = testSession
+
+	// Add tool use mappings
+	manager.toolUseToSession["tool-use-1"] = "test-session-123"
+	manager.toolUseToSession["tool-use-2"] = "test-session-123"
+	manager.toolUseToSession["tool-use-other"] = "other-session-456"
+
+	tests := []struct {
+		name          string
+		toolUseID     string
+		wantChannelID string
+		wantThreadTS  string
+		wantUserID    string
+		wantExists    bool
+	}{
+		{
+			name:          "Existing tool use ID",
+			toolUseID:     "tool-use-1",
+			wantChannelID: "C123456",
+			wantThreadTS:  "1234567890.123456",
+			wantUserID:    "U987654",
+			wantExists:    true,
+		},
+		{
+			name:          "Another existing tool use ID",
+			toolUseID:     "tool-use-2",
+			wantChannelID: "C123456",
+			wantThreadTS:  "1234567890.123456",
+			wantUserID:    "U987654",
+			wantExists:    true,
+		},
+		{
+			name:          "Tool use ID for non-existent session",
+			toolUseID:     "tool-use-other",
+			wantChannelID: "",
+			wantThreadTS:  "",
+			wantUserID:    "",
+			wantExists:    false,
+		},
+		{
+			name:          "Non-existent tool use ID",
+			toolUseID:     "tool-use-unknown",
+			wantChannelID: "",
+			wantThreadTS:  "",
+			wantUserID:    "",
+			wantExists:    false,
+		},
+		{
+			name:          "Empty tool use ID",
+			toolUseID:     "",
+			wantChannelID: "",
+			wantThreadTS:  "",
+			wantUserID:    "",
+			wantExists:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channelID, threadTS, userID, exists := manager.GetSessionInfoByToolUseID(tt.toolUseID)
+
+			if channelID != tt.wantChannelID {
+				t.Errorf("GetSessionInfoByToolUseID() channelID = %v, want %v", channelID, tt.wantChannelID)
+			}
+			if threadTS != tt.wantThreadTS {
+				t.Errorf("GetSessionInfoByToolUseID() threadTS = %v, want %v", threadTS, tt.wantThreadTS)
+			}
+			if userID != tt.wantUserID {
+				t.Errorf("GetSessionInfoByToolUseID() userID = %v, want %v", userID, tt.wantUserID)
+			}
+			if exists != tt.wantExists {
+				t.Errorf("GetSessionInfoByToolUseID() exists = %v, want %v", exists, tt.wantExists)
+			}
+		})
+	}
+}
