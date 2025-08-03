@@ -212,23 +212,59 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	// Post initial response based on whether session was resumed
 	var initialMessage strings.Builder
 	if resumed {
-		initialMessage.WriteString("🔄 Resuming Claude Code session")
-		initialMessage.WriteString(fmt.Sprintf("\nInitiator: <@%s>", event.User))
+		initialMessage.WriteString("🔄 Resuming Claude Code session\n")
+		initialMessage.WriteString(fmt.Sprintf("\n👤 Initiator: <@%s>", event.User))
 
 		// Add working directory info if available
-		initialMessage.WriteString(h.formatWorkingDirectory(workDir))
+		if workDir != "" {
+			if h.config.IsSingleDirectoryMode() {
+				initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", filepath.Base(workDir)))
+			} else {
+				// In multi directory mode, find the name from config
+				dirName := ""
+				for _, wd := range h.config.WorkingDirs {
+					if wd.Path == workDir {
+						dirName = wd.Name
+						break
+					}
+				}
+				if dirName != "" {
+					initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: %s (`%s`)", dirName, workDir))
+				} else {
+					initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", workDir))
+				}
+			}
+		}
 
-		initialMessage.WriteString(fmt.Sprintf("\nPrevious session: `%s`", previousSessionID))
+		initialMessage.WriteString(fmt.Sprintf("\n🆔 Previous session: `%s`", previousSessionID))
 	} else {
-		initialMessage.WriteString("🚀 Starting Claude Code session")
-		initialMessage.WriteString(fmt.Sprintf("\nInitiator: <@%s>", event.User))
+		initialMessage.WriteString("🚀 Starting Claude Code session\n")
+		initialMessage.WriteString(fmt.Sprintf("\n👤 Initiator: <@%s>", event.User))
 
 		// Add working directory info if available
-		initialMessage.WriteString(h.formatWorkingDirectory(workDir))
+		if workDir != "" {
+			if h.config.IsSingleDirectoryMode() {
+				initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", filepath.Base(workDir)))
+			} else {
+				// In multi directory mode, find the name from config
+				dirName := ""
+				for _, wd := range h.config.WorkingDirs {
+					if wd.Path == workDir {
+						dirName = wd.Name
+						break
+					}
+				}
+				if dirName != "" {
+					initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: %s (`%s`)", dirName, workDir))
+				} else {
+					initialMessage.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", workDir))
+				}
+			}
+		}
 
 		// Add initial prompt if provided (only show if there's actual content beyond image paths)
 		if text != "" && !strings.Contains(text, "# Images attached with the message") {
-			initialMessage.WriteString("\nInitial prompt:\n")
+			initialMessage.WriteString("\n💬 Initial prompt:\n")
 			initialMessage.WriteString(text)
 		}
 	}
