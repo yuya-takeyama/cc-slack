@@ -4,22 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/yuya-takeyama/cc-slack/internal/db"
 )
 
 // ResumeManager manages session resume functionality
 type ResumeManager struct {
-	queries      *db.Queries
-	resumeWindow time.Duration
+	queries *db.Queries
 }
 
 // NewResumeManager creates a new ResumeManager
-func NewResumeManager(queries *db.Queries, resumeWindow time.Duration) *ResumeManager {
+func NewResumeManager(queries *db.Queries) *ResumeManager {
 	return &ResumeManager{
-		queries:      queries,
-		resumeWindow: resumeWindow,
+		queries: queries,
 	}
 }
 

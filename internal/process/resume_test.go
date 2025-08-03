@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/yuya-takeyama/cc-slack/internal/database"
@@ -37,7 +36,7 @@ func TestResumeManager_GetLatestSessionID(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -84,7 +83,7 @@ func TestResumeManager_GetLatestSessionID_NoThread(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Test with non-existent thread
 	_, err := rm.GetLatestSessionID(ctx, "C999999", "9999999999.999999")
@@ -98,7 +97,7 @@ func TestResumeManager_ShouldResume(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, 30*time.Minute)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -149,7 +148,7 @@ func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, 30*time.Minute)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{
@@ -200,7 +199,7 @@ func TestResumeManager_CheckActiveSession(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	rm := NewResumeManager(queries, time.Hour)
+	rm := NewResumeManager(queries)
 
 	// Create test thread
 	thread, err := queries.CreateThread(ctx, db.CreateThreadParams{

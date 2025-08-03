@@ -387,7 +387,6 @@ Logs are written to `logs/` directory with timestamp:
 **Session Configuration:**
 - `CC_SLACK_SESSION_TIMEOUT`: Session timeout duration (default: 30m)
 - `CC_SLACK_SESSION_CLEANUP_INTERVAL`: Cleanup interval (default: 5m)
-- `CC_SLACK_SESSION_RESUME_WINDOW`: Resume window duration (default: 1h)
 
 **Working Directory Configuration:**
 - `CC_SLACK_WORKING_DIRECTORIES_DEFAULT`: Default working directory
@@ -407,7 +406,6 @@ The session resume feature allows users to continue previous Claude Code session
 
 ### Configuration:
 
-- **Resume Window**: The `CC_SLACK_SESSION_RESUME_WINDOW` configuration is retained for backward compatibility but no longer affects resume behavior
 - **Database**: Sessions are persisted in SQLite database
 - **Automatic**: No user action required - resume happens automatically for any existing session
 
