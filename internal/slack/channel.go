@@ -11,8 +11,13 @@ import (
 
 // ChannelInfo represents channel information
 type ChannelInfo struct {
-	ID   string
-	Name string
+	ID        string
+	Name      string
+	IsChannel bool
+	IsGroup   bool
+	IsIM      bool
+	IsMpim    bool
+	IsPrivate bool
 }
 
 // ChannelCache caches channel information
@@ -58,8 +63,13 @@ func (c *ChannelCache) GetChannel(ctx context.Context, channelID string) (*Chann
 	}
 
 	info := &ChannelInfo{
-		ID:   channel.ID,
-		Name: channel.Name,
+		ID:        channel.ID,
+		Name:      channel.Name,
+		IsChannel: channel.IsChannel,
+		IsGroup:   channel.IsGroup,
+		IsIM:      channel.IsIM,
+		IsMpim:    channel.IsMpIM,
+		IsPrivate: channel.IsPrivate,
 	}
 
 	// Update cache
@@ -71,12 +81,40 @@ func (c *ChannelCache) GetChannel(ctx context.Context, channelID string) (*Chann
 	return info, nil
 }
 
-// GetChannelName gets channel name from ID
+// GetChannelName gets channel name from ID with appropriate prefix
 func (c *ChannelCache) GetChannelName(ctx context.Context, channelID string) string {
 	info, err := c.GetChannel(ctx, channelID)
 	if err != nil {
 		// Return ID as fallback
 		return channelID
 	}
-	return info.Name
+
+	// Handle different channel types
+	switch {
+	case info.IsIM:
+		// Direct message - for now just show the channel ID
+		// TODO: Could fetch user info to show @username
+		return "Direct Message"
+	case info.IsMpim:
+		// Multi-party IM (group DM)
+		return "Group DM"
+	case info.IsPrivate:
+		// Private channel
+		if info.Name != "" {
+			return "🔒" + info.Name
+		}
+		return "Private Channel"
+	case info.IsChannel || info.IsGroup:
+		// Public channel or private group
+		if info.Name != "" {
+			return "#" + info.Name
+		}
+		return channelID
+	default:
+		// Unknown type, return name if available
+		if info.Name != "" {
+			return info.Name
+		}
+		return channelID
+	}
 }

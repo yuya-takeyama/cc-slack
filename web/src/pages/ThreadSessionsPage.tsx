@@ -11,6 +11,7 @@ import { buildSlackThreadUrl } from "../utils/slackUtils";
 interface Thread {
   thread_ts: string;
   channel_id: string;
+  channel_name?: string;
   workspace_subdomain?: string;
 }
 
@@ -84,7 +85,9 @@ function ThreadSessionsPage() {
             </div>
             <div>
               <p className="text-sm text-gray-600">Channel</p>
-              <p className="font-medium">{thread.channel_id}</p>
+              <p className="font-medium">
+                {thread.channel_name || thread.channel_id}
+              </p>
             </div>
           </div>
           <a
