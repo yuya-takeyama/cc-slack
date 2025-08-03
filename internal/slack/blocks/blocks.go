@@ -36,12 +36,7 @@ func MultiDirectoryError(slashCommand string) []slack.Block {
 }
 
 // ApprovalRequest creates blocks for tool approval request
-func ApprovalRequest(message, requestID string) []slack.Block {
-	return ApprovalRequestWithUser(message, requestID, "")
-}
-
-// ApprovalRequestWithUser creates blocks for tool approval request with user mention
-func ApprovalRequestWithUser(message, requestID, userID string) []slack.Block {
+func ApprovalRequest(message, requestID, userID string) []slack.Block {
 	// Parse the message to extract structured information
 	info := parseApprovalMessage(message)
 	info.UserID = userID
@@ -169,7 +164,7 @@ func ApprovalRequestOptions(channelID, threadTS, message, requestID, userID stri
 	// Get tool display info for permission prompt
 	toolInfo := tools.GetToolInfo(tools.MessageApprovalPrompt)
 
-	blocks := ApprovalRequestWithUser(message, requestID, userID)
+	blocks := ApprovalRequest(message, requestID, userID)
 
 	return []slack.MsgOption{
 		slack.MsgOptionTS(threadTS),
