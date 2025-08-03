@@ -180,14 +180,18 @@ func TestResumeManager_ShouldResume_OutsideWindow(t *testing.T) {
 		t.Fatalf("failed to update session: %v", err)
 	}
 
-	// Should not resume (outside window)
-	shouldResume, _, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
+	// Should always resume now, regardless of time window
+	shouldResume, sessionID, err := rm.ShouldResume(ctx, "C123456", "1234567890.123456")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if shouldResume {
-		t.Error("expected shouldResume to be false")
+	if !shouldResume {
+		t.Error("expected shouldResume to be true even outside window")
+	}
+
+	if sessionID != "test-session-old" {
+		t.Errorf("expected session ID %s, got %s", "test-session-old", sessionID)
 	}
 }
 

@@ -305,7 +305,7 @@ When adding new features, always consider:
 - Bot mentions are stripped before sending to Claude
 - Responses are posted back to the same thread
 - Use structured blocks for approval prompts
-- **Session Resume**: Sessions can be resumed within a configurable time window (default: 1 hour)
+- **Session Resume**: Sessions are automatically resumed for any existing thread, maintaining permanent continuity
 
 ### MCP (Model Context Protocol) Design
 
@@ -401,22 +401,23 @@ The session resume feature allows users to continue previous Claude Code session
 ### How it works:
 
 1. When a new mention is made in a thread that had a previous session
-2. The system checks if the previous session ended within the resume window (default: 1 hour)
-3. If eligible, Claude Code is started with `--resume` option using the previous session ID
+2. The system automatically resumes the previous session if it exists
+3. Claude Code is started with `--resume` option using the previous session ID
 4. The conversation context is preserved and continues from where it left off
 
 ### Configuration:
 
-- **Resume Window**: Set via `CC_SLACK_SESSION_RESUME_WINDOW` (default: 1h)
+- **Resume Window**: The `CC_SLACK_SESSION_RESUME_WINDOW` configuration is retained for backward compatibility but no longer affects resume behavior
 - **Database**: Sessions are persisted in SQLite database
-- **Automatic**: No user action required - resume happens automatically when conditions are met
+- **Automatic**: No user action required - resume happens automatically for any existing session
 
 ### Benefits:
 
-- Seamless continuation of work across breaks
-- Preserves conversation context and memory
+- **Permanent thread continuity**: 1 Slack thread = 1 cc-slack session, regardless of time passed
+- Seamless continuation of work across any time period
+- Preserves conversation context and memory indefinitely
 - Reduces token usage by avoiding repetitive context
-- Maintains TODO lists and project state
+- Maintains TODO lists and project state permanently
 
 ## MCP Tools
 

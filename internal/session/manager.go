@@ -749,19 +749,13 @@ func (m *Manager) ShouldResume(ctx context.Context, channelID, threadTS string) 
 		return false, "", fmt.Errorf("failed to get latest session: %w", err)
 	}
 
-	// Check if session ended within resume window
+	// Check if session has ended (active sessions should not be resumed)
 	if !session.EndedAt.Valid {
 		return false, "", nil
 	}
 
-	resumeWindow := m.config.Session.ResumeWindow
-	timeSinceEnd := time.Since(session.EndedAt.Time)
-
-	if timeSinceEnd <= resumeWindow {
-		return true, session.SessionID, nil
-	}
-
-	return false, "", nil
+	// Always resume if a previous session exists, regardless of time
+	return true, session.SessionID, nil
 }
 
 func (m *Manager) CheckActiveSession(ctx context.Context, channelID, threadTS string) (bool, error) {
