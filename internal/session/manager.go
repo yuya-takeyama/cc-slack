@@ -13,6 +13,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/yuya-takeyama/cc-slack/internal/config"
 	"github.com/yuya-takeyama/cc-slack/internal/db"
+	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 	"github.com/yuya-takeyama/cc-slack/internal/messages"
 	"github.com/yuya-takeyama/cc-slack/internal/process"
 	ccslack "github.com/yuya-takeyama/cc-slack/internal/slack"
@@ -832,40 +833,26 @@ func (m *Manager) GetSessionByThreadInternal(channelID, threadTS string) (*Sessi
 	return session, exists
 }
 
-// GetSessionInfo implements mcp.SessionLookup interface
-func (m *Manager) GetSessionInfo(sessionID string) (channelID, threadTS, userID string, exists bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// If sessionID is empty, use the last active session
-	if sessionID == "" && m.lastActiveID != "" {
-		sessionID = m.lastActiveID
-	}
-
-	session, exists := m.sessions[sessionID]
-	if !exists {
-		return "", "", "", false
-	}
-
-	return session.ChannelID, session.ThreadTS, session.InitiatorUserID, true
-}
-
 // GetSessionInfoByToolUseID returns session info by tool_use_id
-func (m *Manager) GetSessionInfoByToolUseID(toolUseID string) (channelID, threadTS, userID string, exists bool) {
+func (m *Manager) GetSessionInfoByToolUseID(toolUseID string) (*mcp.SessionInfo, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	sessionID, ok := m.toolUseToSession[toolUseID]
 	if !ok {
-		return "", "", "", false
+		return nil, fmt.Errorf("tool_use_id not found: %s", toolUseID)
 	}
 
 	session, exists := m.sessions[sessionID]
 	if !exists {
-		return "", "", "", false
+		return nil, fmt.Errorf("session not found for tool_use_id: %s (session_id: %s)", toolUseID, sessionID)
 	}
 
-	return session.ChannelID, session.ThreadTS, session.InitiatorUserID, true
+	return &mcp.SessionInfo{
+		ChannelID: session.ChannelID,
+		ThreadTS:  session.ThreadTS,
+		UserID:    session.InitiatorUserID,
+	}, nil
 }
 
 // Cleanup closes all active sessions

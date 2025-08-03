@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/slack-go/slack"
+	"github.com/yuya-takeyama/cc-slack/internal/mcp"
 )
 
 func TestTrimNewlines(t *testing.T) {
@@ -235,70 +236,87 @@ func TestGetSessionInfoByToolUseID(t *testing.T) {
 	manager.toolUseToSession["tool-use-other"] = "other-session-456"
 
 	tests := []struct {
-		name          string
-		toolUseID     string
-		wantChannelID string
-		wantThreadTS  string
-		wantUserID    string
-		wantExists    bool
+		name       string
+		toolUseID  string
+		wantInfo   *mcp.SessionInfo
+		wantErr    bool
+		wantErrMsg string
 	}{
 		{
-			name:          "Existing tool use ID",
-			toolUseID:     "tool-use-1",
-			wantChannelID: "C123456",
-			wantThreadTS:  "1234567890.123456",
-			wantUserID:    "U987654",
-			wantExists:    true,
+			name:      "Existing tool use ID",
+			toolUseID: "tool-use-1",
+			wantInfo: &mcp.SessionInfo{
+				ChannelID: "C123456",
+				ThreadTS:  "1234567890.123456",
+				UserID:    "U987654",
+			},
+			wantErr: false,
 		},
 		{
-			name:          "Another existing tool use ID",
-			toolUseID:     "tool-use-2",
-			wantChannelID: "C123456",
-			wantThreadTS:  "1234567890.123456",
-			wantUserID:    "U987654",
-			wantExists:    true,
+			name:      "Another existing tool use ID",
+			toolUseID: "tool-use-2",
+			wantInfo: &mcp.SessionInfo{
+				ChannelID: "C123456",
+				ThreadTS:  "1234567890.123456",
+				UserID:    "U987654",
+			},
+			wantErr: false,
 		},
 		{
-			name:          "Tool use ID for non-existent session",
-			toolUseID:     "tool-use-other",
-			wantChannelID: "",
-			wantThreadTS:  "",
-			wantUserID:    "",
-			wantExists:    false,
+			name:       "Tool use ID for non-existent session",
+			toolUseID:  "tool-use-other",
+			wantInfo:   nil,
+			wantErr:    true,
+			wantErrMsg: "session not found for tool_use_id: tool-use-other (session_id: other-session-456)",
 		},
 		{
-			name:          "Non-existent tool use ID",
-			toolUseID:     "tool-use-unknown",
-			wantChannelID: "",
-			wantThreadTS:  "",
-			wantUserID:    "",
-			wantExists:    false,
+			name:       "Non-existent tool use ID",
+			toolUseID:  "tool-use-unknown",
+			wantInfo:   nil,
+			wantErr:    true,
+			wantErrMsg: "tool_use_id not found: tool-use-unknown",
 		},
 		{
-			name:          "Empty tool use ID",
-			toolUseID:     "",
-			wantChannelID: "",
-			wantThreadTS:  "",
-			wantUserID:    "",
-			wantExists:    false,
+			name:       "Empty tool use ID",
+			toolUseID:  "",
+			wantInfo:   nil,
+			wantErr:    true,
+			wantErrMsg: "tool_use_id not found: ",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			channelID, threadTS, userID, exists := manager.GetSessionInfoByToolUseID(tt.toolUseID)
+			info, err := manager.GetSessionInfoByToolUseID(tt.toolUseID)
 
-			if channelID != tt.wantChannelID {
-				t.Errorf("GetSessionInfoByToolUseID() channelID = %v, want %v", channelID, tt.wantChannelID)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("GetSessionInfoByToolUseID() expected error but got none")
+				} else if err.Error() != tt.wantErrMsg {
+					t.Errorf("GetSessionInfoByToolUseID() error = %v, want %v", err.Error(), tt.wantErrMsg)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("GetSessionInfoByToolUseID() unexpected error: %v", err)
+				}
 			}
-			if threadTS != tt.wantThreadTS {
-				t.Errorf("GetSessionInfoByToolUseID() threadTS = %v, want %v", threadTS, tt.wantThreadTS)
-			}
-			if userID != tt.wantUserID {
-				t.Errorf("GetSessionInfoByToolUseID() userID = %v, want %v", userID, tt.wantUserID)
-			}
-			if exists != tt.wantExists {
-				t.Errorf("GetSessionInfoByToolUseID() exists = %v, want %v", exists, tt.wantExists)
+
+			if tt.wantInfo != nil {
+				if info == nil {
+					t.Errorf("GetSessionInfoByToolUseID() returned nil info, want %+v", tt.wantInfo)
+				} else {
+					if info.ChannelID != tt.wantInfo.ChannelID {
+						t.Errorf("GetSessionInfoByToolUseID() channelID = %v, want %v", info.ChannelID, tt.wantInfo.ChannelID)
+					}
+					if info.ThreadTS != tt.wantInfo.ThreadTS {
+						t.Errorf("GetSessionInfoByToolUseID() threadTS = %v, want %v", info.ThreadTS, tt.wantInfo.ThreadTS)
+					}
+					if info.UserID != tt.wantInfo.UserID {
+						t.Errorf("GetSessionInfoByToolUseID() userID = %v, want %v", info.UserID, tt.wantInfo.UserID)
+					}
+				}
+			} else if info != nil {
+				t.Errorf("GetSessionInfoByToolUseID() returned info = %+v, want nil", info)
 			}
 		})
 	}
