@@ -240,7 +240,7 @@ func (q *Queries) ListSessions(ctx context.Context) ([]Session, error) {
 const listSessionsByThreadID = `-- name: ListSessionsByThreadID :many
 SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 WHERE thread_id = ?
-ORDER BY started_at DESC
+ORDER BY started_at ASC
 `
 
 func (q *Queries) ListSessionsByThreadID(ctx context.Context, threadID int64) ([]Session, error) {
@@ -283,7 +283,7 @@ func (q *Queries) ListSessionsByThreadID(ctx context.Context, threadID int64) ([
 const listSessionsByThreadIDPaginated = `-- name: ListSessionsByThreadIDPaginated :many
 SELECT id, thread_id, session_id, started_at, ended_at, status, model, total_cost_usd, input_tokens, output_tokens, duration_ms, num_turns, initial_prompt FROM sessions
 WHERE thread_id = ?
-ORDER BY started_at DESC
+ORDER BY started_at ASC
 LIMIT ? OFFSET ?
 `
 
