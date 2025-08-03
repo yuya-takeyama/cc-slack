@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { truncatePrompt } from "../utils/sessionUtils";
 import { buildSlackThreadUrl } from "../utils/slackUtils";
 
 interface Thread {
@@ -10,6 +11,7 @@ interface Thread {
   workspace_subdomain?: string;
   session_count: number;
   latest_session_status: string;
+  initial_prompt?: string;
 }
 
 interface ThreadsResponse {
@@ -107,7 +109,7 @@ function ThreadList() {
     <div>
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Threads</h2>
       {threads.length > 0 && <PaginationControls />}
-      <div className="space-y-4">
+      <div className="space-y-2">
         {threads.length === 0 ? (
           <div className="bg-white shadow rounded-lg p-6">
             <p className="text-gray-500">No threads found</p>
@@ -116,25 +118,26 @@ function ThreadList() {
           threads.map((thread) => (
             <div
               key={thread.thread_ts}
-              className="bg-white shadow rounded-lg p-6"
+              className="bg-white shadow rounded-lg p-4"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    Thread: {thread.thread_time || thread.thread_ts}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Channel: {thread.channel_name || thread.channel_id}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Sessions: {thread.session_count} | Latest:{" "}
-                    {thread.latest_session_status}
-                  </p>
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-900">
+                      {thread.thread_time || thread.thread_ts}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      #{thread.channel_name || thread.channel_id} •{" "}
+                      {thread.session_count} session
+                      {thread.session_count !== 1 ? "s" : ""} •{" "}
+                      {thread.latest_session_status}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 ml-4 flex-shrink-0">
                   <Link
                     to={`/threads/${thread.thread_ts}/sessions`}
-                    className="inline-flex items-center px-3 py-1.5 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="inline-flex items-center px-2.5 py-1 border border-blue-300 shadow-sm text-xs font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     View Sessions
                   </Link>
@@ -142,11 +145,11 @@ function ThreadList() {
                     href={buildSlackThreadUrl(thread) || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    className="inline-flex items-center px-2.5 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
                     Open in Slack
                     <svg
-                      className="ml-2 -mr-0.5 h-4 w-4"
+                      className="ml-1.5 -mr-0.5 h-3 w-3"
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 20 20"
                       fill="currentColor"
@@ -162,6 +165,11 @@ function ThreadList() {
                   </a>
                 </div>
               </div>
+              {thread.initial_prompt && (
+                <div className="text-xs text-gray-600 leading-relaxed">
+                  {truncatePrompt(thread.initial_prompt, 200)}
+                </div>
+              )}
             </div>
           ))
         )}

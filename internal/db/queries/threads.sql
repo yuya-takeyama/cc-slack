@@ -31,6 +31,16 @@ WHERE thread_ts = ?
 LIMIT 1;
 
 -- name: ListThreadsPaginated :many
-SELECT * FROM threads
-ORDER BY updated_at DESC
+SELECT 
+    t.*,
+    s.initial_prompt AS first_session_prompt
+FROM threads t
+LEFT JOIN (
+    SELECT 
+        thread_id,
+        initial_prompt,
+        ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY started_at ASC) as rn
+    FROM sessions
+) s ON t.id = s.thread_id AND s.rn = 1
+ORDER BY t.updated_at DESC
 LIMIT ? OFFSET ?;
