@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -61,9 +62,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Str("served_path", "/index.html").
 		Msg("Serving index.html for SPA route")
 
-	// Create a new request with index.html path
-	r.URL.Path = "/index.html"
-	http.FileServer(http.FS(h.staticFS)).ServeHTTP(w, r)
+	// Read and serve index.html directly without changing the request path
+	indexFile, err := h.staticFS.Open("index.html")
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to open index.html")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer indexFile.Close()
+
+	// Get file info for content type
+	stat, err := indexFile.Stat()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to stat index.html")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	http.ServeContent(w, r, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
 }
 
 func (h *Handler) handleAPI(w http.ResponseWriter, r *http.Request, path string) {
