@@ -210,16 +210,32 @@ func (h *Handler) handleNewSessionFromMessage(event *slackevents.MessageEvent, t
 	}
 
 	// Post initial response based on whether session was resumed
-	var initialMessage string
+	var initialMessage strings.Builder
 	if resumed {
-		initialMessage = fmt.Sprintf("Resuming previous session `%s`...", previousSessionID)
+		initialMessage.WriteString("🔄 Resuming Claude Code session")
+		initialMessage.WriteString(fmt.Sprintf("\nInitiator: <@%s>", event.User))
+
+		// Add working directory info if available
+		initialMessage.WriteString(h.formatWorkingDirectory(workDir))
+
+		initialMessage.WriteString(fmt.Sprintf("\nPrevious session: `%s`", previousSessionID))
 	} else {
-		initialMessage = "🚀 Starting Claude Code session..."
+		initialMessage.WriteString("🚀 Starting Claude Code session")
+		initialMessage.WriteString(fmt.Sprintf("\nInitiator: <@%s>", event.User))
+
+		// Add working directory info if available
+		initialMessage.WriteString(h.formatWorkingDirectory(workDir))
+
+		// Add initial prompt if provided (only show if there's actual content beyond image paths)
+		if text != "" && !strings.Contains(text, "# Images attached with the message") {
+			initialMessage.WriteString("\nInitial prompt:\n")
+			initialMessage.WriteString(text)
+		}
 	}
 
 	_, _, err = h.client.PostMessage(
 		event.Channel,
-		slack.MsgOptionText(initialMessage, false),
+		slack.MsgOptionText(initialMessage.String(), false),
 		slack.MsgOptionTS(threadTS),
 	)
 	if err != nil {

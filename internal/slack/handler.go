@@ -142,37 +142,45 @@ func (h *Handler) determineWorkDir(channelID string) string {
 	return ""
 }
 
+// formatWorkingDirectory formats the working directory for display in messages
+func (h *Handler) formatWorkingDirectory(workDir string) string {
+	if workDir == "" {
+		return ""
+	}
+
+	// In single directory mode, show only the directory name
+	if h.config.IsSingleDirectoryMode() {
+		return fmt.Sprintf("\nWorking directory: `%s`", filepath.Base(workDir))
+	}
+
+	// In multi directory mode, find the name from config
+	dirName := ""
+	for _, wd := range h.config.WorkingDirs {
+		if wd.Path == workDir {
+			dirName = wd.Name
+			break
+		}
+	}
+
+	if dirName != "" {
+		return fmt.Sprintf("\nWorking directory: %s (`%s`)", dirName, workDir)
+	}
+	return fmt.Sprintf("\nWorking directory: `%s`", workDir)
+}
+
 // createThreadAndStartSession creates a new Slack thread and starts a Claude session
 func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID string) {
 	// Create initial message with working directory information
 	var initialText strings.Builder
-	initialText.WriteString("🚀 Starting Claude Code session\n")
+	initialText.WriteString("🚀 Starting Claude Code session")
+	initialText.WriteString(fmt.Sprintf("\nInitiator: <@%s>", userID))
 
 	// Add working directory info
-	if workDir != "" {
-		// In single directory mode, show only the directory name
-		if h.config.IsSingleDirectoryMode() {
-			initialText.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", filepath.Base(workDir)))
-		} else {
-			// In multi directory mode, find the name from config
-			dirName := ""
-			for _, wd := range h.config.WorkingDirs {
-				if wd.Path == workDir {
-					dirName = wd.Name
-					break
-				}
-			}
-			if dirName != "" {
-				initialText.WriteString(fmt.Sprintf("\n📁 Working directory: %s (`%s`)", dirName, workDir))
-			} else {
-				initialText.WriteString(fmt.Sprintf("\n📁 Working directory: `%s`", workDir))
-			}
-		}
-	}
+	initialText.WriteString(h.formatWorkingDirectory(workDir))
 
 	// Add initial prompt if provided
 	if prompt != "" {
-		initialText.WriteString("\n💬 Initial prompt:\n")
+		initialText.WriteString("\nInitial prompt:\n")
 		initialText.WriteString(prompt)
 	}
 
