@@ -1,8 +1,10 @@
 package slack
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -15,15 +17,49 @@ import (
 
 // HandleInteraction handles Slack interactive components (buttons, etc.)
 func (h *Handler) HandleInteraction(w http.ResponseWriter, r *http.Request) {
+	// Read the entire request body for signature verification
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	// Restore the body for later parsing
+	r.Body = io.NopCloser(bytes.NewReader(body))
+
+	// Verify request signature using the raw body
+	sv, err := slack.NewSecretsVerifier(r.Header, h.signingSecret)
+	if err != nil {
+		http.Error(w, "Failed to create secrets verifier", http.StatusBadRequest)
+		return
+	}
+	if _, err := sv.Write(body); err != nil {
+		http.Error(w, "Failed to verify signature", http.StatusInternalServerError)
+		return
+	}
+	if err := sv.Ensure(); err != nil {
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse the form to get payload
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	payloadString := r.FormValue("payload")
+	if payloadString == "" {
+		http.Error(w, "Missing payload", http.StatusBadRequest)
+		return
+	}
+
+	// Parse the payload JSON
 	var payload slack.InteractionCallback
-	err := json.Unmarshal([]byte(r.FormValue("payload")), &payload)
+	err = json.Unmarshal([]byte(payloadString), &payload)
 	if err != nil {
 		http.Error(w, "Failed to parse payload", http.StatusBadRequest)
 		return
 	}
-
-	// Verify token (or use signing secret verification)
-	// TODO: Implement proper verification
 
 	switch payload.Type {
 	case slack.InteractionTypeBlockActions:
