@@ -172,7 +172,8 @@ func (h *Handler) formatWorkingDirectory(workDir string) string {
 func (h *Handler) createThreadAndStartSession(channelID, workDir, prompt, userID string) {
 	// Create initial message with working directory information
 	var initialText strings.Builder
-	initialText.WriteString(fmt.Sprintf("🚀 Starting Claude Code session\n<@%s>", userID))
+	initialText.WriteString("🚀 Starting Claude Code session\n")
+	initialText.WriteString(fmt.Sprintf("\n👤 Initiator: <@%s>", userID))
 
 	// Add working directory info
 	initialText.WriteString(h.formatWorkingDirectory(workDir))
