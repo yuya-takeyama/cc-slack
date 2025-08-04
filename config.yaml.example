@@ -14,7 +14,10 @@ slack:
   bot_token: xoxb-your-bot-token
   # Signing secret for request verification
   signing_secret: your-signing-secret
+  
   # App-level token for Socket Mode (optional, starts with xapp-)
+  # When set, cc-slack uses Socket Mode (no public URL needed!)
+  # When not set, cc-slack uses HTTP webhooks (requires public URL)
   # app_token: xapp-your-app-token
   
   # Slash command name to invoke Claude Code (default: /cc)
