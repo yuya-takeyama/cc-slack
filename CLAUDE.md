@@ -364,9 +364,9 @@ Logs are written to `logs/` directory with timestamp:
 ## Environment Variables
 
 **Slack Configuration:**
-- `CC_SLACK_SLACK_BOT_TOKEN`: Slack bot user OAuth token
-- `CC_SLACK_SLACK_APP_TOKEN`: Slack app-level token for Socket Mode
-- `CC_SLACK_SLACK_SIGNING_SECRET`: For request verification
+- `CC_SLACK_SLACK_BOT_TOKEN`: Slack bot user OAuth token (required)
+- `CC_SLACK_SLACK_APP_TOKEN`: Slack app-level token for Socket Mode (optional, enables Socket Mode)
+- `CC_SLACK_SLACK_SIGNING_SECRET`: For request verification (required)
 - `CC_SLACK_SLACK_SLASH_COMMAND_NAME`: Slash command name (default: `/cc`)
 - `CC_SLACK_SLACK_ASSISTANT_USERNAME`: Claude response username (optional)
 - `CC_SLACK_SLACK_ASSISTANT_ICON_EMOJI`: Claude response emoji (optional)
@@ -416,6 +416,25 @@ The session resume feature allows users to continue previous Claude Code session
 - Preserves conversation context and memory indefinitely
 - Reduces token usage by avoiding repetitive context
 - Maintains TODO lists and project state permanently
+
+## Socket Mode Support
+
+cc-slack now supports Slack Socket Mode as an alternative to HTTP webhooks:
+
+### Benefits:
+- **No public URL required**: Works behind firewalls and NAT
+- **No ngrok needed**: Perfect for local development
+- **Real-time connection**: WebSocket-based with automatic reconnection
+- **Enhanced security**: No incoming HTTP connections needed
+
+### How to enable:
+1. Create an App-Level Token in your Slack app settings with `connections:write` scope
+2. Set the `CC_SLACK_SLACK_APP_TOKEN` environment variable
+3. cc-slack automatically uses Socket Mode when the token is present
+
+### Connection modes:
+- **Socket Mode**: When `CC_SLACK_SLACK_APP_TOKEN` is set
+- **HTTP Webhook Mode**: When `CC_SLACK_SLACK_APP_TOKEN` is not set (legacy mode)
 
 ## MCP Tools
 
