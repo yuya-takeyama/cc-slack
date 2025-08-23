@@ -196,18 +196,62 @@ type ApprovalInfo struct {
 func parseApprovalMessage(message string) *ApprovalInfo {
 	info := &ApprovalInfo{}
 	lines := strings.Split(message, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+
+	for i := 0; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+
 		if strings.HasPrefix(line, "**Tool**: ") {
 			info.ToolName = strings.TrimPrefix(line, "**Tool**: ")
 		} else if strings.HasPrefix(line, "**URL**: ") {
 			info.URL = strings.TrimPrefix(line, "**URL**: ")
 		} else if strings.HasPrefix(line, "**Content**: ") {
-			info.Prompt = strings.TrimPrefix(line, "**Content**: ")
+			// Collect all content until the next field or end
+			content := strings.TrimPrefix(line, "**Content**: ")
+			for j := i + 1; j < len(lines); j++ {
+				nextLine := strings.TrimSpace(lines[j])
+				// Stop if we hit another field marker
+				if strings.HasPrefix(nextLine, "**") && strings.Contains(nextLine, ": ") {
+					break
+				}
+				// Add newline and the line content
+				if content != "" {
+					content += "\n"
+				}
+				content += lines[j] // Keep original formatting
+			}
+			info.Prompt = content
 		} else if strings.HasPrefix(line, "**Command**: ") {
-			info.Command = strings.TrimPrefix(line, "**Command**: ")
+			// Collect all command content until the next field or end
+			command := strings.TrimPrefix(line, "**Command**: ")
+			for j := i + 1; j < len(lines); j++ {
+				nextLine := strings.TrimSpace(lines[j])
+				// Stop if we hit another field marker
+				if strings.HasPrefix(nextLine, "**") && strings.Contains(nextLine, ": ") {
+					break
+				}
+				// Add newline and the line content
+				if command != "" {
+					command += "\n"
+				}
+				command += lines[j] // Keep original formatting
+			}
+			info.Command = command
 		} else if strings.HasPrefix(line, "**Description**: ") {
-			info.Description = strings.TrimPrefix(line, "**Description**: ")
+			// Collect all description content until the next field or end
+			description := strings.TrimPrefix(line, "**Description**: ")
+			for j := i + 1; j < len(lines); j++ {
+				nextLine := strings.TrimSpace(lines[j])
+				// Stop if we hit another field marker
+				if strings.HasPrefix(nextLine, "**") && strings.Contains(nextLine, ": ") {
+					break
+				}
+				// Add newline and the line content
+				if description != "" {
+					description += "\n"
+				}
+				description += lines[j] // Keep original formatting
+			}
+			info.Description = description
 		} else if strings.HasPrefix(line, "**File path**: ") {
 			info.FilePath = strings.TrimPrefix(line, "**File path**: ")
 		}
