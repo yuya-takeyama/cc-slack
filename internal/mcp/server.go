@@ -246,9 +246,7 @@ func (s *Server) HandleApprovalPrompt(ctx context.Context, session *mcpsdk.Serve
 				if url, ok := params.Arguments.Input["url"].(string); ok {
 					message += fmt.Sprintf("\n\n**URL**: %s", url)
 				}
-				if prompt, ok := params.Arguments.Input["prompt"].(string); ok && len(prompt) > 100 {
-					message += fmt.Sprintf("\n**Content**: %s...", prompt[:100])
-				} else if prompt, ok := params.Arguments.Input["prompt"].(string); ok && prompt != "" {
+				if prompt, ok := params.Arguments.Input["prompt"].(string); ok && prompt != "" {
 					message += fmt.Sprintf("\n**Content**: %s", prompt)
 				}
 
