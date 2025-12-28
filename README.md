@@ -12,7 +12,7 @@ Interact with Claude Code via Slack
 
 ### 1. Create Slack App
 
-> **Note**: For local development, you'll need to expose your local server to Slack. See [Exposing Local Development](#exposing-local-development-to-slack) section below.
+> **Note**: cc-slack now supports Socket Mode, which eliminates the need for public endpoints or ngrok! See [Connection Modes](#connection-modes) section below.
 
 1. Create a Slack App at [api.slack.com](https://api.slack.com)
 2. Add Bot User OAuth Scopes:
@@ -27,6 +27,33 @@ Interact with Claude Code via Slack
    - `groups:read` - Required for private channels when using conversations.info API
    - `channels:read` - Required for public channels when using conversations.info API
    - `files:read` - Required if you enable file upload support via `CC_SLACK_SLACK_FILE_UPLOAD_ENABLED=true` to download images from Slack messages
+
+#### For Socket Mode (Recommended - No public URL needed!)
+
+3. Enable Socket Mode:
+   - Go to Socket Mode in your app settings
+   - Toggle "Enable Socket Mode" to On
+   - Create an App-Level Token with `connections:write` scope
+   - Note down the App-Level Token (starts with `xapp-`)
+
+4. Enable Event Subscriptions:
+   - Simply toggle "Enable Events" to On (no URL needed)
+   - Subscribe to bot events (choose based on where you'll use cc-slack):
+     - `message.channels` - For public channels
+     - `message.groups` - For private channels
+     - `message.im` - For direct messages
+     - `message.mpim` - For multi-person direct messages
+
+5. Enable Interactivity & Shortcuts:
+   - Toggle "Interactivity" to On (no URL needed)
+
+6. Create Slash Command:
+   - Command: `/cc` (recommended) or your preferred name
+   - Short Description: Start a Claude Code session
+   - Usage Hint: [prompt]
+
+#### For HTTP Webhook Mode (Requires public URL)
+
 3. Enable Event Subscriptions:
    - Request URL: `https://your-domain/slack/events`
    - Subscribe to bot events (choose based on where you'll use cc-slack):
@@ -36,16 +63,22 @@ Interact with Claude Code via Slack
      - `message.mpim` - For multi-person direct messages
    
    Note: Only subscribe to the message events for the channel types you actually plan to use. For example, if you only use cc-slack in public channels, you only need `message.channels`.
+
 4. Enable Interactive Components:
    - Request URL: `https://your-domain/slack/interactive`
+
 5. Create Slash Command:
    - Command: `/cc` (recommended) or your preferred name
    - Request URL: `https://your-domain/slack/commands`
    - Short Description: Start a Claude Code session
    - Usage Hint: [prompt]
+
+#### Final Steps
+
 6. Install the app to your workspace and note down:
    - Bot User OAuth Token (starts with `xoxb-`)
    - Signing Secret (found in Basic Information)
+   - App-Level Token (starts with `xapp-`) - Only needed for Socket Mode
 
 ### 2. Configure Environment Variables
 
@@ -55,6 +88,9 @@ Set the required environment variables with the values from your Slack App:
 # Required
 export CC_SLACK_SLACK_BOT_TOKEN=xoxb-your-bot-token
 export CC_SLACK_SLACK_SIGNING_SECRET=your-signing-secret
+
+# For Socket Mode (Recommended)
+export CC_SLACK_SLACK_APP_TOKEN=xapp-your-app-token   # App-Level Token
 
 # Optional
 export CC_SLACK_PORT=8080                              # default: 8080
@@ -72,11 +108,36 @@ go build -o cc-slack cmd/cc-slack/main.go
 ./cc-slack
 ```
 
-### Exposing Local Development to Slack
+### Connection Modes
 
-For local development, Slack requires HTTPS endpoints for webhooks. You need to expose your local cc-slack instance:
+cc-slack supports two connection modes with Slack:
 
-#### Using ngrok
+#### Socket Mode (Recommended)
+
+Socket Mode uses WebSocket connections instead of HTTP webhooks:
+
+**Advantages:**
+- ✅ No public URL or ngrok needed
+- ✅ Works behind firewalls and NAT
+- ✅ Perfect for local development
+- ✅ More secure (no incoming HTTP connections)
+- ✅ Real-time connection with automatic reconnection
+
+**Setup:**
+1. Set the `CC_SLACK_SLACK_APP_TOKEN` environment variable
+2. cc-slack automatically uses Socket Mode when app token is present
+
+#### HTTP Webhook Mode
+
+Traditional webhook-based connection:
+
+**When to use:**
+- When you can't use Socket Mode
+- For existing deployments with webhook infrastructure
+
+**Requires:**
+- Public HTTPS endpoints
+- For local development, use ngrok:
 
 ```bash
 # In another terminal, expose your local server

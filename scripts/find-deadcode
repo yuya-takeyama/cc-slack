@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "🔍 Finding dead code in cc-slack..."
+
+# Install tools if not present
+if ! command -v deadcode &> /dev/null; then
+    echo "Installing deadcode..."
+    go install golang.org/x/tools/cmd/deadcode@latest
+fi
+
+if ! command -v staticcheck &> /dev/null; then
+    echo "Installing staticcheck..."
+    go install honnef.co/go/tools/cmd/staticcheck@latest
+fi
+
+echo -e "\n📊 Running deadcode..."
+deadcode ./... || true
+
+echo -e "\n📊 Running staticcheck for unused code..."
+staticcheck -checks="U*" ./... || true
+
+echo -e "\n📊 Checking test coverage..."
+go test -coverprofile=coverage.out ./... > /dev/null 2>&1 || true
+if [ -f coverage.out ]; then
+    echo "Functions with 0% coverage:"
+    go tool cover -func=coverage.out | grep -E "0.0%$" | head -20
+    rm coverage.out
+fi
+
+echo -e "\n✅ Dead code analysis complete!"

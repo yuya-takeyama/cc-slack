@@ -109,16 +109,38 @@ func main() {
 	// Set MCP server as approval responder in Slack handler
 	slackHandler.SetApprovalResponder(mcpServer)
 
+	// Check if Socket Mode is enabled
+	useSocketMode := cfg.Slack.AppToken != ""
+
 	// Create HTTP router
 	router := mux.NewRouter()
 
-	// Slack endpoints (with 30-second timeout)
-	router.HandleFunc("/slack/events", http.TimeoutHandler(
-		http.HandlerFunc(slackHandler.HandleEvent), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
-	router.HandleFunc("/slack/interactive", http.TimeoutHandler(
-		http.HandlerFunc(slackHandler.HandleInteraction), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
-	router.HandleFunc("/slack/commands", http.TimeoutHandler(
-		http.HandlerFunc(slackHandler.HandleSlashCommand), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+	if useSocketMode {
+		// Create Socket Mode handler
+		socketHandler, err := slack.NewSocketModeHandler(cfg, slackHandler)
+		if err != nil {
+			log.Fatalf("Failed to create Socket Mode handler: %v", err)
+		}
+
+		// Start Socket Mode handler in background
+		go func() {
+			if err := socketHandler.Run(context.Background()); err != nil {
+				log.Fatalf("Socket Mode handler error: %v", err)
+			}
+		}()
+
+		log.Println("Socket Mode enabled - HTTP endpoints will not be used for Slack events")
+	} else {
+		// Slack endpoints (with 30-second timeout)
+		router.HandleFunc("/slack/events", http.TimeoutHandler(
+			http.HandlerFunc(slackHandler.HandleEvent), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+		router.HandleFunc("/slack/interactive", http.TimeoutHandler(
+			http.HandlerFunc(slackHandler.HandleInteraction), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+		router.HandleFunc("/slack/commands", http.TimeoutHandler(
+			http.HandlerFunc(slackHandler.HandleSlashCommand), 30*time.Second, "Request timeout").ServeHTTP).Methods(http.MethodPost)
+
+		log.Println("Socket Mode disabled - using HTTP webhooks")
+	}
 
 	// MCP endpoints (no additional timeout, uses server timeout)
 	router.PathPrefix("/mcp").HandlerFunc(mcpServer.Handle)
@@ -231,7 +253,12 @@ func main() {
 
 	log.Printf("Server starting on port %d", cfg.Server.Port)
 	log.Printf("MCP endpoint: %s/mcp", cfg.Server.BaseURL)
-	log.Printf("Slack webhook endpoint: %s/slack/events", cfg.Server.BaseURL)
+	if useSocketMode {
+		log.Printf("Slack mode: Socket Mode (app_token configured)")
+	} else {
+		log.Printf("Slack mode: HTTP webhooks")
+		log.Printf("Slack webhook endpoint: %s/slack/events", cfg.Server.BaseURL)
+	}
 	log.Printf("Session timeout: %v", cfg.Session.Timeout)
 	log.Printf("Cleanup interval: %v", cfg.Session.CleanupInterval)
 	log.Printf("Database path: %s", cfg.Database.Path)
